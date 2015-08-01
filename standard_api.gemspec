@@ -1,12 +1,10 @@
-require File.expand_path("../lib/standard_api/version", __FILE__)
-
 Gem::Specification.new do |spec|
   spec.name          = "standard-api"
-  spec.version       = ActionController::StandardAPI::VERSION
+  spec.version       = '1.0.0'
   spec.licenses      = ['MIT']
-  spec.authors       = ["Jon Bracy"]
-  spec.email         = ["jonbracy@gmail.com"]
-  spec.homepage      = "https://github.com/malomalo/standardapi"
+  spec.authors       = ["James Bracy"]
+  spec.email         = ["waratuman@gmail.com"]
+  spec.homepage      = "https://github.com/waratuman/standardapi"
   spec.description   = %q{StandardAPI makes it easy to expose a query interface for your Rails models}
   spec.summary       = %q{StandardAPI makes it easy to expose a query interface for your Rails models}
 
@@ -28,6 +26,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_girl_rails"
   spec.add_development_dependency "faker"
+  spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'
   # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'
 end
