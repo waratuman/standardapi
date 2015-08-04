@@ -14,15 +14,10 @@ module ActionController
 
         test '#index.json mask' do
           m = create_model
-          @api_key.update(mask: { plural_name => { id: m.id } })
+          @controller.current_mask[plural_name] = { id: m.id }
           get :index, format: 'json'
           assert_equal model.where(id: m.id).to_sql, assigns(plural_name).to_sql
-        end
-
-        test '#index.json Total-Count header' do
-          request.headers['Total-Count'] = ''
-          get :index, format: 'json'
-          assert_equal model.count.to_s, response.headers['Total-Count'].to_s
+          @controller.current_mask.delete(plural_name)
         end
 
         test '#index.json params[:limit]' do
@@ -45,14 +40,14 @@ module ActionController
               end
             else
               get :index, order: order, format: 'json'
-              assert_equal model.sort(order).to_sql, assigns(plural_name).to_sql
+              assert_equal model.sort(order).to_sql, assigns(:records).to_sql
             end
           end
         end
 
         test '#index.json params[:offset]' do
           get :index, offset: 13, format: 'json'
-          assert_equal model.offset(13).to_sql, assigns(plural_name).to_sql
+          assert_equal model.offset(13).to_sql, assigns(:records).to_sql
         end
 
         test '#index.json params[:include]' do

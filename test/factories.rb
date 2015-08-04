@@ -14,10 +14,12 @@ FactoryGirl.define do
     constructed     { Kernel.rand(1800..(Time.now.year - 2)) }
     size            { Kernel.rand(1000..10000000).to_f / 100 }
     active          { [true, false].sample }
-  end
-  
-  factory :region do
-    
+
+    trait(:nested)  do
+      photos_attributes { [attributes_for(:photo)] }
+    end
+
+    trait(:invalid) { name nil }
   end
 
 end

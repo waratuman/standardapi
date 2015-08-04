@@ -27,13 +27,12 @@ module ActionController
 
         test '#calculate.json mask' do
           m = create_model
-          @api_key.update(mask: { plural_name => { id: m.id + 100 } })
-
+          @controller.current_mask[plural_name] = { id: m.id + 100 }
           selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
-
           get :calculate, select: selects, format: 'json'
           assert_response :ok
           assert_equal [[0, nil, nil, nil]], assigns(:calculations)
+          @controller.current_mask.delete(plural_name)
         end
 
         test 'route to #calculate.json' do

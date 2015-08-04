@@ -38,21 +38,78 @@ ActiveRecord::Migration.suppress_messages do
   end
 end
 
+require 'rails'
+class TestApplication < Rails::Application
+
+  config.secret_token = 'test token'
+  config.secret_key_base = 'test key base'
+  
+  routes.draw do
+    resources :properties do
+      get :calculate, on: :collection
+    end
+  end
+
+end
+# all_routes = Rails.application.routes.routes
+# require 'action_dispatch/routing/inspector'
+# inspector = ActionDispatch::Routing::RoutesInspector.new(all_routes)
+# puts inspector.format(ActionDispatch::Routing::ConsoleFormatter.new, ENV['CONTROLLER'])
+
 class Account < ActiveRecord::Base
-  
   has_many :photos
-  
 end
 
 class Photo < ActiveRecord::Base
-  
   belongs_to :account, :counter_cache => true
   has_and_belongs_to_many :properties
-
 end
 
 class Property < ActiveRecord::Base
-
   has_many :photos
 
+  validates :name, presence: true
+
+  accepts_nested_attributes_for :photos
+
 end
+
+class ApplicationController < ActionController::StandardAPI
+end
+
+class PropertiesController < ApplicationController
+
+  private
+
+  # For testing
+  def _routes
+    Rails.application.routes
+  end
+
+  def property_params
+    [ :name,
+      :aliases,
+      :description,
+      :constructed,
+      :size,
+      :active,
+      :photos_attributes,
+      { photos_attributes: [ :id, :account_id, :property_id, :format] }
+    ]
+  end
+
+  def property_orders
+    [:id, :updated_at, :created_at, :name]
+  end
+
+  def property_includes
+    [:photos]
+  end
+
+end
+
+# puts PropertiesController.instance_methods.sort
+# puts PropertiesController.use_renderers.inspect
+# puts PropertiesController.view_paths.exists?('show', ['properties'])
+# puts PropertiesController.view_context_class.methods.sort
+# puts PropertiesController._renderers.to_a

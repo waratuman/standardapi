@@ -17,7 +17,8 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency 'activerecord-sort'
   spec.add_runtime_dependency 'activerecord-filter'
-  spec.add_runtime_dependency 'actionpack', '~> 4.0'
+  spec.add_runtime_dependency 'rails', '~> 4.2'
+  spec.add_runtime_dependency 'jbuilder', '~> 2.3'
     
   spec.add_development_dependency "bundler"
   spec.add_development_dependency "rake"
@@ -26,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_girl_rails"
   spec.add_development_dependency "faker"
-  spec.add_development_dependency 'activerecord'
+  # spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'
   # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'
 end

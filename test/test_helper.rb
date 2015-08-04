@@ -1,6 +1,6 @@
-require 'simplecov'
-SimpleCov.start
-
+# require 'simplecov'
+# SimpleCov.start
+#
 # To make testing/debugging easier, test within this source tree versus an
 # installed gem
 $LOAD_PATH << File.expand_path('../lib', __FILE__)
@@ -25,4 +25,20 @@ Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryGirl::Syntax::Methods
+
+  def setup
+    @routes ||= TestApplication.routes
+  end
+
+  # = Helper Methods
+
+  def controller_path
+    @controller.controller_path
+  end
+
+  def path_with_action(action, options={})
+    { :controller => controller_path, :action => action }.merge(options)
+  end
+
 end
+

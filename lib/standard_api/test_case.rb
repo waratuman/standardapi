@@ -17,11 +17,20 @@ require File.expand_path(File.join(__FILE__, '../test_case/update_tests'))
 module ActionController::StandardAPI::TestCase
       
   def self.included(klass)
+    model_class_name = klass.controller_class.name.gsub(/Controller$/, '').singularize
+
     [:filters, :orders, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
     end
-    klass.extend(ClassMethods)
+    if defined?(model_class_name.constantize)
+      model_class = model_class_name.constantize
+      klass.send(:filters=, model_class.attribute_names)
+      klass.send(:orders=, model_class.attribute_names)
+      klass.send(:includes=, model_class.reflect_on_all_associations.map(&:name))
+    end
     
+    klass.extend(ClassMethods)
+
     klass.controller_class.action_methods.each do |action|
       klass.include("ActionController::StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
     end
@@ -31,10 +40,10 @@ module ActionController::StandardAPI::TestCase
     self.class.model
   end
 
-  def setup
-    @api_key = set_api_key
-    @account = login(create(:admin))
-  end
+  # def setup
+  #   @api_key = set_api_key
+  #   @account = login(create(:admin))
+  # end
 
   def create_model(attrs={})
     create(model.name.underscore, attrs)
@@ -51,34 +60,21 @@ module ActionController::StandardAPI::TestCase
   def create_webmocks(attributes)
     attributes.each do |attribute, value|
       validators = self.class.model.validators_on(attribute)
-        
-      if validators.map(&:class).include?(PhoneValidator)
-        stub_twilio_lookup(PhoneValidator.normalize(value))
-      end
     end
   end
     
   def normalize_attribute(attribute, value)
-    if model == Listing && ['size', 'maximum_contiguous_size', 'minimum_divisible_size'].include?(attribute)
-      return value.round(-1)
-    end
-      
     validators = self.class.model.validators_on(attribute)
-      
-    if validators.map(&:class).include?(PhoneValidator)
-      PhoneValidator.normalize(value)
-    else
-      value
-    end
+    value
   end
     
   def normalize_to_json(attribute, value)
     value = normalize_attribute(attribute, value)
       
     return nil if value.nil?
-      
+
     if model.column_types[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
-      "#{value}.0"
+      "#{value}"
     elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
       value.to_datetime.utc.iso8601.gsub(/\+00:00$/, 'Z')
     else

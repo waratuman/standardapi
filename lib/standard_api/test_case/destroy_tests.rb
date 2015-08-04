@@ -16,12 +16,11 @@ module ActionController
 
         test '#destroy.json mask' do
           m = create_model
-          @api_key.update(mask: { plural_name => { id: m.id + 1 } })
-
-          assert_difference("#{model.name}.count", 0) do
+          @controller.current_mask[plural_name] = { id: m.id + 1 }
+          assert_raises(ActiveRecord::RecordNotFound) do
             delete :destroy, id: m.id, format: 'json'
-            assert_response :not_found
           end
+          @controller.current_mask.delete(plural_name)
         end
 
         test 'route to #destroy.json' do
