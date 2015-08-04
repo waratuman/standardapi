@@ -25,7 +25,9 @@ module StandardAPI::TestCase
     klass.extend(ClassMethods)
 
     klass.controller_class.action_methods.each do |action|
-      klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
+      if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests")
+        klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
+      end
     end
   end
 

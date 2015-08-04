@@ -1,9 +1,9 @@
 PATH
   remote: .
   specs:
-    standard-api (1.0.0)
-      activerecord-filter
-      activerecord-sort
+    standardapi (1.0.1)
+      activerecord-filter (~> 1.0)
+      activerecord-sort (~> 1.0)
       jbuilder (~> 2.3)
       rails (~> 4.2)
 
@@ -142,7 +142,7 @@ DEPENDENCIES
   minitest-reporters
   rake
   simplecov
-  standard-api!
+  standardapi!
 
 BUNDLED WITH
    1.10.3
