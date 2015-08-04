@@ -74,7 +74,9 @@ class Property < ActiveRecord::Base
 
 end
 
-class ApplicationController < ActionController::StandardAPI
+class ApplicationController < ActionController::Base
+  include StandardAPI
+
 end
 
 class PropertiesController < ApplicationController

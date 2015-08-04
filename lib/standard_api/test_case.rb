@@ -1,12 +1,5 @@
 require 'active_support/test_case'
 
-module ActionController
-  class StandardAPI < ActionController::Base
-    module TestCase
-    end
-  end
-end
-
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/create_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/destroy_tests'))
@@ -14,7 +7,7 @@ require File.expand_path(File.join(__FILE__, '../test_case/index_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/show_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/update_tests'))
 
-module ActionController::StandardAPI::TestCase
+module StandardAPI::TestCase
       
   def self.included(klass)
     model_class_name = klass.controller_class.name.gsub(/Controller$/, '').singularize
@@ -32,18 +25,13 @@ module ActionController::StandardAPI::TestCase
     klass.extend(ClassMethods)
 
     klass.controller_class.action_methods.each do |action|
-      klass.include("ActionController::StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
+      klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
     end
   end
 
   def model
     self.class.model
   end
-
-  # def setup
-  #   @api_key = set_api_key
-  #   @account = login(create(:admin))
-  # end
 
   def create_model(attrs={})
     create(model.name.underscore, attrs)
