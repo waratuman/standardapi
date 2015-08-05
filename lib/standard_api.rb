@@ -11,6 +11,8 @@ if !ActionView::Template.registered_template_handler(:jbuilder)
   ActionView::Template.register_template_handler :jbuilder, JbuilderHandler
 end
 
+require 'standard_api/includes'
+
 module StandardAPI
 
   def self.included(klass)
@@ -85,9 +87,8 @@ module StandardAPI
     model.filter(params[:where]).where(current_mask[model.table_name])
   end
 
-  # TODO: sanitize includes
   def includes
-    params[:include] || []
+    @includes ||= StandardAPI::Includes.normalize(params[:include] || [])
   end
 
   # TODO: sanitize orders

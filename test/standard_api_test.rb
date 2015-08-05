@@ -38,4 +38,50 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_recognizes(path_with_action('update', id: '1'), { method: :patch, path: "/#{plural_name}/1" })
   end
 
+  # Includes Test
+
+  test 'Includes::normailze' do
+    method = StandardAPI::Includes.method(:normalize)
+    assert_equal method.call(:x), { 'x' => {} }
+    assert_equal method.call([:x, :y]), { 'x' => {}, 'y' => {} }
+    assert_equal method.call([ { x: true }, { y: true } ]), { 'x' => {}, 'y' => {} }
+    assert_equal method.call({ x: true, y: true }), { 'x' => {}, 'y' => {} }
+    assert_equal method.call({ x: { y: true } }), { 'x' => { 'y' => {} } }
+    assert_equal method.call({ x: { y: {} } }), { 'x' => { 'y' => {} } }
+    assert_equal method.call({ x: [:y] }), { 'x' => { 'y' => {} } }
+  end
+
+  # sanitize({:key => {}}, [:key]) # => {:key => {}}
+  # sanitize({:key => {}}, {:key => true}) # => {:key => {}}
+  # sanitize({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
+  # sanitize({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
+  # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
+  # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
+  # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
+  test 'Includes::sanitize' do
+    method = StandardAPI::Includes.method(:sanitize)
+    assert_equal method.call(:x, [:x]), { 'x' => {} }
+    assert_equal method.call(:x, {:x => true}), { 'x' => {} }
+    
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call([:x, :y], [:x])
+    end
+
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call([:x, :y], {:x => true})
+    end
+
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call({:x => true, :y => true}, [:x])
+    end
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call({:x => true, :y => true}, {:x => true})
+    end
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call({ x: { y: true }}, { x: true })
+    end
+
+    assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
+  end
+
 end
