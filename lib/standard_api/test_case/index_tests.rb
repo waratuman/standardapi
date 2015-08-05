@@ -11,14 +11,6 @@ module StandardAPI
         assert JSON.parse(response.body).is_a?(Array)
       end
 
-      test '#index.json mask' do
-        m = create_model
-        @controller.current_mask[plural_name] = { id: m.id }
-        get :index, format: 'json'
-        assert_equal model.where(id: m.id).to_sql, assigns(plural_name).to_sql
-        @controller.current_mask.delete(plural_name)
-      end
-
       test '#index.json params[:limit]' do
         get :index, limit: 1, format: 'json'
         assert_equal model.limit(1).to_sql, assigns(plural_name).to_sql
@@ -58,11 +50,18 @@ module StandardAPI
         end
       end
 
-      test 'route to #index.json' do
-        assert_routing "/#{plural_name}", path_with_action('index')
-        assert_recognizes path_with_action('index'), "/#{plural_name}"
+      test '#index.json mask' do
+        # If #current_mask isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #current_mask. Return and don't test.
+        return if @controller.method(:current_mask).owner != StandardAPI
+
+        m = create_model
+        @controller.current_mask[plural_name] = { id: m.id }
+        get :index, format: 'json'
+        assert_equal model.where(id: m.id).to_sql, assigns(plural_name).to_sql
+        @controller.current_mask.delete(plural_name)
       end
-      
+
     end
   end
 end

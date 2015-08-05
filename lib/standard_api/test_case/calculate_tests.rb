@@ -25,6 +25,10 @@ module StandardAPI
       end
 
       test '#calculate.json mask' do
+        # If #current_mask isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #current_mask. Return and don't test.
+        return if @controller.method(:current_mask).owner != StandardAPI
+
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 100 }
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
@@ -34,11 +38,6 @@ module StandardAPI
         @controller.current_mask.delete(plural_name)
       end
 
-      test 'route to #calculate.json' do
-        assert_routing "/#{plural_name}/calculate", path_with_action('calculate')
-        assert_recognizes(path_with_action('calculate'), "/#{plural_name}/calculate")
-      end
-        
     end
   end
 end

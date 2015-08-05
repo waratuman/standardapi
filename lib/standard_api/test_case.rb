@@ -26,6 +26,9 @@ module StandardAPI::TestCase
 
     klass.controller_class.action_methods.each do |action|
       if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests")
+        # Include the test if there is a route
+        # if Rails.application.routes.url_for(controller: @controller.controller_path, action: 'destroy', only_path: true)
+
         klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
       end
     end

@@ -61,11 +61,6 @@ module StandardAPI
         end
       end
 
-      test 'route to #create.json' do
-        assert_routing({ method: :post, path: "/#{plural_name}" }, path_with_action('create'))
-        assert_recognizes(path_with_action('create'), { method: :post, path: "/#{plural_name}" })
-      end
-        
     end
   end
 end

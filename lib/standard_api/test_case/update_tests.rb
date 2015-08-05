@@ -52,19 +52,16 @@ module StandardAPI
       end
 
       test '#update.json mask' do
+        # If #current_mask isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #current_mask. Return and don't test.
+        return if @controller.method(:current_mask).owner != StandardAPI
+
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
           put :update, id: m.id, format: 'json'
         end
         @controller.current_mask.delete(plural_name)
-      end
-
-      test 'route to #update.json' do
-        assert_routing({ method: :put, path: "#{plural_name}/1" }, path_with_action('update', id: '1'))
-        assert_recognizes(path_with_action('update', id: '1'), { method: :put, path: "/#{plural_name}/1" })
-        assert_routing({ method: :patch, path: "/#{plural_name}/1" }, path_with_action('update', id: '1'))
-        assert_recognizes(path_with_action('update', id: '1'), { method: :patch, path: "/#{plural_name}/1" })
       end
 
     end

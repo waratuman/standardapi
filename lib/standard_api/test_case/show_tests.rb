@@ -13,15 +13,6 @@ module StandardAPI
         assert JSON.parse(response.body).is_a?(Hash)
       end
 
-      test '#show.json mask' do
-        m = create_model
-        @controller.current_mask[plural_name] = { id: m.id + 1 }
-        assert_raises(ActiveRecord::RecordNotFound) do
-          get :show, id: m.id, format: 'json'
-        end
-        @controller.current_mask.delete(plural_name)
-      end
-
       test '#show.json params[:include]' do
         m = create_model(:nested)
         get :show, id: m.id, include: includes, format: 'json'
@@ -43,9 +34,17 @@ module StandardAPI
         end
       end
 
-      test 'route to #show.json' do
-        assert_routing "/#{plural_name}/1", path_with_action('show', id: '1')
-        assert_recognizes(path_with_action('show', id: '1'), "/#{plural_name}/1")
+      test '#show.json mask' do
+        # If #current_mask isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #current_mask. Return and don't test.
+        return if @controller.method(:current_mask).owner != StandardAPI
+
+        m = create_model
+        @controller.current_mask[plural_name] = { id: m.id + 1 }
+        assert_raises(ActiveRecord::RecordNotFound) do
+          get :show, id: m.id, format: 'json'
+        end
+        @controller.current_mask.delete(plural_name)
       end
 
     end
