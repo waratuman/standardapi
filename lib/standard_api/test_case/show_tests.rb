@@ -14,7 +14,7 @@ module StandardAPI
       end
 
       test '#show.json params[:include]' do
-        m = create_model(:nested)
+        m = create_model
         get :show, id: m.id, include: includes, format: 'json'
 
         json = JSON.parse(response.body)

@@ -17,6 +17,20 @@ module StandardAPI
         assert JSON.parse(@response.body).is_a?(Hash)
       end
 
+      test '#update.json with nested attributes' do
+        m = create_model
+        attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        create_webmocks(attrs)
+
+        put :update, id: m.id, singular_name => attrs, format: 'json'
+        assert_response :ok
+
+        (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
+          assert_equal normalize_attribute(test_key, attrs[test_key.to_sym]), m.reload.send(test_key)
+        end
+        assert JSON.parse(@response.body).is_a?(Hash)
+      end
+
       test '#update.json with invalid attributes' do
         m = create_model
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
@@ -28,8 +42,8 @@ module StandardAPI
       end
 
       test '#update.json params[:include]' do
-        m = create_model(:nested)
-        attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k) }
+        m = create_model
+        attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
         create_webmocks(attrs)
 
         put :update, id: m.id, include: includes, singular_name => attrs, format: 'json'

@@ -43,7 +43,7 @@ module StandardAPI
       end
 
       test '#index.json params[:include]' do
-        create_model(:nested)
+        create_model
         get :index, include: includes, format: 'json'
         includes.each do |included|
           assert JSON.parse(response.body)[0].key?(included.to_s), "#{included.inspect} not included in response"
