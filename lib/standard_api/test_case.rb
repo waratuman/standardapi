@@ -38,8 +38,8 @@ module StandardAPI::TestCase
     self.class.model
   end
 
-  def create_model(attrs={})
-    create(model.name.underscore, attrs)
+  def create_model(*args)
+    create(model.name.underscore, *args)
   end
 
   def singular_name

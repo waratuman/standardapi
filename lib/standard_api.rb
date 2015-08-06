@@ -6,11 +6,13 @@ require 'jbuilder'
 require 'jbuilder/railtie'
 require 'active_record/filter'
 require 'active_record/sort'
+require 'active_support/core_ext/hash/indifferent_access'
 
 if !ActionView::Template.registered_template_handler(:jbuilder)
   ActionView::Template.register_template_handler :jbuilder, JbuilderHandler
 end
 
+require 'standard_api/orders'
 require 'standard_api/includes'
 
 module StandardAPI
@@ -88,49 +90,11 @@ module StandardAPI
   end
 
   def includes
-    @includes ||= StandardAPI::Includes.normalize(params[:include] || [])
+    @includes ||= StandardAPI::Includes.normalize(params[:include])
   end
 
-  # TODO: sanitize orders
   def orders
-    normalized_order(params[:order])
-  end
-
-  def normalized_order(orderings)
-    return nil if orderings.nil?
-
-    orderings = Array(orderings)
-
-    orderings.map! do |order|
-      if order.is_a?(Symbol) || order.is_a?(String)
-        order = order.to_s
-        if order.index(".")
-          relation, column = order.split('.').map(&:to_sym)
-          { relation => [column] }
-        else
-          order.to_sym
-        end
-      elsif order.is_a?(Hash)
-        normalized_order = {}
-        order.each do |key, value|
-          key = key.to_s
-
-          if key.index(".")
-            relation, column = key.split('.').map(&:to_sym)
-            normalized_order[relation] ||= []
-            normalized_order[relation] << { column => value }
-          elsif value.is_a?(Hash) && value.keys.first.to_s != 'desc' && value.keys.first.to_s != 'asc'
-            normalized_order[key.to_sym] ||= []
-            normalized_order[key.to_sym] << value
-          else
-            normalized_order[key.to_sym] = value
-          end
-        end
-        normalized_order
-      end
-    end
-
-    orderings
+    @orders ||= params[:order]
   end
 
   # Used in #calculate

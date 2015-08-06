@@ -1,5 +1,3 @@
-require 'active_support/core_ext/hash/indifferent_access'
-# require 'active_support/core_ext/hash'
 module StandardAPI
   module Includes
 
@@ -17,6 +15,8 @@ module StandardAPI
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash
         includes.each_pair { |k, v| normalized[k] = normalize(v) }
+      when nil
+        {}
       else
         if ![true, 'true'].include?(includes)
           normalized[includes] = {}
@@ -33,8 +33,8 @@ module StandardAPI
     # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
     # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
     # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
-    def self.sanitize(includes, permit)
-      includes = normalize(includes)
+    def self.sanitize(includes, permit, normalized=false)
+      includes = normalize(includes) if !normalized
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
       if permit.is_a?(Array)
@@ -44,7 +44,7 @@ module StandardAPI
       permit = normalize(permit.with_indifferent_access)
       includes.each do |k, v|
         if permit.has_key?(k) || ['where', 'order'].include?(k.to_s)
-          permitted[k] = sanitize(v, permit[k] || {})
+          permitted[k] = sanitize(v, permit[k] || {}, true)
         else
           if [:raise, nil].include?(Rails.configuration.try(:action_on_unpermitted_includes))
             raise(ActionDispatch::ParamsParser::ParseError.new(<<-ERR.squish, nil))

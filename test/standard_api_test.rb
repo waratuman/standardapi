@@ -84,4 +84,38 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
   end
 
+  # Order Test
+
+  test 'Orders::sanitize(:column, [:column])' do
+    method = StandardAPI::Orders.method(:sanitize)
+
+    assert_equal :x, method.call(:x, :x)
+    assert_equal :x, method.call(:x, [:x])
+    assert_equal [:x], method.call([:x], [:x])
+    assert_raises(ActionDispatch::ParamsParser::ParseError) do
+      method.call(:x, :y)
+    end
+
+    assert_equal({ x: :asc }, method.call({ x: :asc }, :x))
+    assert_equal({ x: :desc }, method.call({ x: :desc }, :x))
+    assert_equal([{ x: :asc }], method.call([{ x: :asc }], :x))
+    assert_equal([{ x: :desc }], method.call([{ x: :desc }], :x))
+    assert_equal([{ x: { asc: :nulls_last } }], method.call([{ x: { asc: :nulls_last } }], :x))
+    assert_equal([{ x: { asc: :nulls_first } }], method.call([{ x: { asc: :nulls_first } }], :x))
+    assert_equal([{ x: { desc: :nulls_last } }], method.call([{ x: { desc: :nulls_last } }], :x))
+    assert_equal([{ x: { desc: :nulls_first }}], method.call([{ x: { desc: :nulls_first } }], :x))
+    assert_equal([{ relation: :id }], method.call([{ relation: :id }], { relation: :id }))
+    assert_equal([{ relation: :id }], method.call([{ relation: :id }], [{ relation: :id }]))
+    assert_equal([{ relation: [:id] }], method.call([{ relation: [:id] }], { relation: [:id] }))
+    assert_equal([{ relation: [:id] }], method.call([{ relation: [:id] }], [{ relation: [:id] }]))
+    assert_equal([{ relation: { id: :desc } }], method.call([{ relation: { id: :desc } }], { relation: [:id] }))
+    assert_equal([{ relation: { id: :desc } }], method.call([{ relation: { id: :desc } }], [{ relation: [:id] }]))
+    assert_equal([{ relation: [{ id: :desc }] }], method.call([{ relation: [{ id: :desc }] }], [{ relation: [:id] }]))
+    assert_equal([{ relation: [{ id: :desc }] }], method.call([{ relation: [{ id: :desc }] }], [{ relation: [:id] }]))
+    assert_equal([{ relation: {:id => {:asc => :nulls_last}} }], method.call([{ relation: {:id => {:asc => :nulls_last}} }], [{ relation: [:id] }]))
+    assert_equal([{ relation: {:id => {:asc => :nulls_last}} }], method.call([{ relation: {:id => {:asc => :nulls_last}} }], [{ relation: [:id] }]))
+    assert_equal([{ relation: {:id => [{:asc => :nulls_last}]} }], method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
+    assert_equal([{ relation: {:id => [{:asc => :nulls_last}]} }], method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
+  end
+
 end

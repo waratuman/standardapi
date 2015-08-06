@@ -24,6 +24,7 @@ module StandardAPI
 
       test '#index.json params[:order]' do
         orders.each do |order|
+          @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
           if order.is_a?(Hash)
             order.values.last.each do |o|
               get :index, order: {order.keys.first => o}, format: 'json'
