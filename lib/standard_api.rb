@@ -21,11 +21,20 @@ module StandardAPI
     klass.hide_action :current_mask
     klass.helper_method :includes, :orders, :model
     klass.prepend_view_path(File.join(File.dirname(__FILE__), 'standard_api', 'views'))
+    klass.extend(ClassMethods)
   end
   
   def ping
     render :text => 'pong'
   end
+
+  def tables
+    controllers = Dir[Rails.root.join('app/controllers/*_controller.rb')].map{ |path| path.match(/(\w+)_controller.rb/)[1].camelize+"Controller" }.map(&:safe_constantize)
+    controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+    controllers.map!(&:model).compact!.map!(&:table_name)
+    
+    render json: controllers
+  end  
 
   def index
     @records = resources.limit(params[:limit]).offset(params[:offset]).sort(orders)
@@ -70,11 +79,19 @@ module StandardAPI
     @current_mask ||= {}
   end
 
+  module ClassMethods
+    
+    def model
+      return @model if defined?(@model)
+      @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
+    end
+
+  end
+  
   private
 
   def model
-    return @model if defined?(@model)
-    @model = self.class.name.sub(/Controller\z/, '').singularize.camelize.constantize
+    self.class.model
   end
 
   def model_params
