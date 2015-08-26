@@ -22,6 +22,10 @@ module StandardAPI
     klass.helper_method :includes, :orders, :model
     klass.prepend_view_path(File.join(File.dirname(__FILE__), 'standard_api', 'views'))
   end
+  
+  def ping
+    render :text => 'pong'
+  end
 
   def index
     @records = resources.limit(params[:limit]).offset(params[:offset]).sort(orders)
