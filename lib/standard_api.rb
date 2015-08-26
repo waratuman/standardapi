@@ -19,7 +19,7 @@ module StandardAPI
 
   def self.included(klass)
     klass.hide_action :current_mask
-    klass.helper_method :includes, :orders
+    klass.helper_method :includes, :orders, :model
     klass.prepend_view_path(File.join(File.dirname(__FILE__), 'standard_api', 'views'))
   end
 
