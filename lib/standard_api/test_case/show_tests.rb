@@ -22,13 +22,16 @@ module StandardAPI
           assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
           association = assigns(:record).class.reflect_on_association(included)
-          if ['belongs_to', 'has_one'].include?(association.macro)
-            assigns(:record).send(included).attributes do |key, value|
+          next if !association
+
+          if ['belongs_to', 'has_one'].include?(association.macro.to_s)
+            view_attributes(assigns(:record).send(included)) do |key, value|
               assert_equal json[included.to_s][key.to_s], value
             end
           else
-            assigns(:record).send(included).first.attributes.each do |key, value|
-              assert_equal json[included.to_s][0][key.to_s], value
+            m = assigns(:record).send(included).first.try(:reload)
+            view_attributes(m).each do |key, value|
+              assert_equal normalize_to_json(m, key, value), json[included.to_s][0][key.to_s]
             end
           end
         end

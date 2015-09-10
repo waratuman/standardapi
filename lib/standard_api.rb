@@ -106,6 +106,19 @@ module StandardAPI
     self.send "#{model.model_name.singular}_orders"
   end
 
+  def excludes_for(klass)
+    if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
+       excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+       excludes.try(:[], klass.model_name.singular) || []
+    else
+      []
+    end
+  end
+
+  def model_excludes
+    excludes_for(model)
+  end
+
   def resources
     model.filter(params[:where]).where(current_mask[model.table_name])
   end
@@ -115,7 +128,11 @@ module StandardAPI
   end
 
   def orders
-    @orders ||= params[:order]
+    @orders ||= StandardAPI::Orders.sanitize(params[:order], model_orders)
+  end
+
+  def excludes
+    @excludes ||= model_excludes
   end
 
   # Used in #calculate

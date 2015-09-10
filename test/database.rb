@@ -97,7 +97,7 @@ class PropertiesController < ApplicationController
   end
 
   def property_orders
-    [:id, :updated_at, :created_at, :name]
+    ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
   end
 
   def property_includes

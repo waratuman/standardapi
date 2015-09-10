@@ -25,16 +25,9 @@ module StandardAPI
       test '#index.json params[:order]' do
         orders.each do |order|
           @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
-          if order.is_a?(Hash)
-            order.values.last.each do |o|
-              get :index, order: {order.keys.first => o}, format: 'json'
-              assert_equal model.sort(order.keys.first => o).to_sql, assigns(plural_name).to_sql
-            end
-          else
-            get :index, order: order, format: 'json'
-            assert_equal model.sort(order).to_sql, assigns(:records).to_sql
-          end
-        end
+          get :index, order: order, format: 'json'
+          assert_equal model.sort(order).to_sql, assigns(:records).to_sql
+         end
       end
 
       test '#index.json params[:offset]' do
@@ -43,10 +36,30 @@ module StandardAPI
       end
 
       test '#index.json params[:include]' do
-        create_model
-        get :index, include: includes, format: 'json'
-        includes.each do |included|
-          assert JSON.parse(response.body)[0].key?(included.to_s), "#{included.inspect} not included in response"
+        travel_to Time.now do
+          create_model
+          get :index, include: includes, format: 'json'
+        
+          json = JSON.parse(response.body)[0]
+          assert json.is_a?(Hash)
+          includes.each do |included|
+            assert json.key?(included.to_s), "#{included.inspect} not included in response"
+
+            association = assigns(:records).first.class.reflect_on_association(included)
+            next if !association
+
+            if ['belongs_to', 'has_one'].include?(association.macro.to_s)
+              m = assigns(:records).first.send(included)
+              view_attributes(m) do |key, value|
+                assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value)
+              end
+            else
+              m = assigns(:records).first.send(included).first.try(:reload)
+              view_attributes(m).each do |key, value|
+                assert_equal json[included.to_s][0][key.to_s], normalize_to_json(m, key, value)
+              end
+            end
+          end
         end
       end
 

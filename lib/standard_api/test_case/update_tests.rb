@@ -11,8 +11,8 @@ module StandardAPI
         put :update, id: m.id, singular_name => attrs, format: 'json'
         assert_response :ok
 
-        (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
-          assert_equal normalize_attribute(test_key, attrs[test_key.to_sym]), m.reload.send(test_key)
+        view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end
@@ -21,12 +21,12 @@ module StandardAPI
         m = create_model
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
-
         put :update, id: m.id, singular_name => attrs, format: 'json'
         assert_response :ok
 
-        (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
-          assert_equal normalize_attribute(test_key, attrs[test_key.to_sym]), m.reload.send(test_key)
+        # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
+        view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end
@@ -42,24 +42,29 @@ module StandardAPI
       end
 
       test '#update.json params[:include]' do
-        m = create_model
-        attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
-        create_webmocks(attrs)
+        travel_to Time.now do
+          m = create_model
+          attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
+          create_webmocks(attrs)
 
-        put :update, id: m.id, include: includes, singular_name => attrs, format: 'json'
+          put :update, id: m.id, include: includes, singular_name => attrs, format: 'json'
 
-        json = JSON.parse(response.body)
-        includes.each do |included|
-          assert json.key?(included.to_s), "#{included.inspect} not included in response"
+          json = JSON.parse(response.body)
+          includes.each do |included|
+            assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
-          association = assigns(:record).class.reflect_on_association(included)
-          if ['belongs_to', 'has_one'].include?(association.macro)
-            assigns(:record).send(included).attributes do |key, value|
-              assert_equal json[included.to_s][key.to_s], value
-            end
-          else
-            assigns(:record).send(included).first.attributes.each do |key, value|
-              assert_equal json[included.to_s][0][key.to_s], value
+            association = assigns(:record).class.reflect_on_association(included)
+            next if !association
+
+            if ['belongs_to', 'has_one'].include?(association.macro.to_s)
+              view_attributes(assigns(:record).send(included)) do |key, value|
+                assert_equal json[included.to_s][key.to_s], value
+              end
+            else
+              m = assigns(:record).send(included).first.try(:reload)
+              view_attributes(m).each do |key, value|
+                assert_equal normalize_to_json(assigns(:record), key, value), json[included.to_s][0][key.to_s]
+              end
             end
           end
         end

@@ -21,14 +21,17 @@ module StandardAPI::TestCase
       klass.send(:orders=, model_class.attribute_names)
       klass.send(:includes=, model_class.reflect_on_all_associations.map(&:name))
     end
-    
+
     klass.extend(ClassMethods)
 
-    klass.controller_class.action_methods.each do |action|
-      if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests")
-        # Include the test if there is a route
-        # if Rails.application.routes.url_for(controller: @controller.controller_path, action: 'destroy', only_path: true)
+    routes = Rails.application.routes.set.routes.inject({}) do |acc, r|
+      acc[r.defaults[:controller]] ||= {}
+      acc[r.defaults[:controller]][r.defaults[:action]] = true
+      acc
+    end
 
+    klass.controller_class.action_methods.each do |action|
+      if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests") && routes[klass.controller_class.controller_path][action]
         klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
       end
     end
@@ -55,28 +58,47 @@ module StandardAPI::TestCase
       validators = self.class.model.validators_on(attribute)
     end
   end
-    
-  def normalize_attribute(attribute, value)
-    validators = self.class.model.validators_on(attribute)
-    value
+
+  def normalizers
+    self.class.instance_variable_get('@normalizers')
+  end
+
+  def normalize_attribute(record, attribute, value)
+    if normalizers[self.class.model] && normalizers[self.class.model][attribute]
+      b = normalizers[self.class.model][attribute]
+      b.arity == 2 ? b.call(record, value) : b.call(value)
+    else
+      # validators = self.class.model.validators_on(attribute)
+      value
+    end
   end
     
-  def normalize_to_json(attribute, value)
-    value = normalize_attribute(attribute, value)
+  def normalize_to_json(record, attribute, value)
+    value = normalize_attribute(record, attribute, value)
       
     return nil if value.nil?
 
     if model.column_types[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
-      "#{value}"
-    elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
-      value.to_datetime.utc.iso8601.gsub(/\+00:00$/, 'Z')
+      "#{value.to_f}"
+    # elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
+      # value.to_datetime.utc.iso8601.gsub(/\+(00:00|UTC)$/, 'Z')
+      # value.as_json
     else
-      value
+      value.as_json
     end
   end
 
+  def view_attributes(record)
+    return [] if record.nil?
+    record.attributes.select { |x| !@controller.send(:excludes_for, record.class).include?(x.to_sym) }
+  end
+
   module ClassMethods
-    
+
+    def self.extended(klass)
+      klass.instance_variable_set('@normalizers', {})
+    end
+
     def include_filter_tests
       model.instance_variable_get('@filters').each do |filter|
         next if filter[1].is_a?(Proc) # Custom filter
@@ -137,6 +159,13 @@ module StandardAPI::TestCase
         raise "@model is nil: make sure you set it in your test using `self.model = ModelClass`."
       else
         @model
+      end
+    end
+
+    def normalize(*attributes, &block)
+      attributes.each do |attribute|
+        @normalizers[model] ||= {}
+        @normalizers[model][attribute] = block
       end
     end
 
