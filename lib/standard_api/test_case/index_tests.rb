@@ -51,12 +51,14 @@ module StandardAPI
             if ['belongs_to', 'has_one'].include?(association.macro.to_s)
               m = assigns(:records).first.send(included)
               view_attributes(m) do |key, value|
-                assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value)
+                message = "Model / Attribute: #{m.class.name}##{key}"
+                assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value), message
               end
             else
               m = assigns(:records).first.send(included).first.try(:reload)
               view_attributes(m).each do |key, value|
-                assert_equal json[included.to_s][0][key.to_s], normalize_to_json(m, key, value)
+                message = "Model / Attribute: #{m.class.name}##{key}"
+                assert_equal json[included.to_s][0][key.to_s], normalize_to_json(m, key, value), message
               end
             end
           end

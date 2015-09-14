@@ -12,7 +12,8 @@ module StandardAPI
         assert_response :ok
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
-          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value
+          message = "Model / Attribute: #{m.class.name}##{key}"
+          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end
@@ -26,7 +27,8 @@ module StandardAPI
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
-          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value
+          message = "Model / Attribute: #{m.class.name}##{key}"
+          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end
@@ -58,12 +60,14 @@ module StandardAPI
 
             if ['belongs_to', 'has_one'].include?(association.macro.to_s)
               view_attributes(assigns(:record).send(included)) do |key, value|
-                assert_equal json[included.to_s][key.to_s], value
+                message = "Model / Attribute: #{assigns(:record).send(included).class.name}##{key}"
+                assert_equal json[included.to_s][key.to_s], value, message
               end
             else
               m = assigns(:record).send(included).first.try(:reload)
               view_attributes(m).each do |key, value|
-                assert_equal normalize_to_json(assigns(:record), key, value), json[included.to_s][0][key.to_s]
+                message = "Model / Attribute: #{m.class.name}##{key}"
+                assert_equal normalize_to_json(assigns(:record), key, value), json[included.to_s][0][key.to_s], message
               end
             end
           end

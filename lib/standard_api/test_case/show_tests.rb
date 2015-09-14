@@ -31,7 +31,8 @@ module StandardAPI
           else
             m = assigns(:record).send(included).first.try(:reload)
             view_attributes(m).each do |key, value|
-              assert_equal normalize_to_json(m, key, value), json[included.to_s][0][key.to_s]
+              message = "Model / Attribute: #{m.class.name}##{key}"
+              assert_equal normalize_to_json(m, key, value), json[included.to_s][0][key.to_s], message
             end
           end
         end

@@ -15,11 +15,14 @@ module StandardAPI::TestCase
     [:filters, :orders, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
     end
-    if defined?(model_class_name.constantize)
+
+    begin
       model_class = model_class_name.constantize
       klass.send(:filters=, model_class.attribute_names)
       klass.send(:orders=, model_class.attribute_names)
       klass.send(:includes=, model_class.reflect_on_all_associations.map(&:name))
+    rescue NameError => e
+      raise e if e.message != "uninitialized constant #{model_class_name}"
     end
 
     klass.extend(ClassMethods)
@@ -142,6 +145,10 @@ module StandardAPI::TestCase
 
     def model=(val)
       @model = val
+      filters = val.attribute_names
+      orders = val.attribute_names
+      includes = val.reflect_on_all_associations.map(&:name)
+      @model
     end
 
     def model

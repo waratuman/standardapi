@@ -14,8 +14,11 @@ module StandardAPI
 
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
-          (model.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
-            assert_equal normalize_to_json(assigns(singular_name), test_key, attrs[test_key.to_sym]), json[test_key]
+
+          m = assigns(singular_name)
+          view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+            message = "Model / Attribute: #{m.class.name}##{key}"
+            assert_equal normalize_to_json(m, key, attrs[key.to_sym]), json[key.to_s], message
           end
         end
       end
@@ -31,11 +34,10 @@ module StandardAPI
 
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
-          # (model.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
           m = assigns(singular_name).reload
           view_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
-            # assert_equal normalize_to_json(assigns(singular_name), test_key, attrs[test_key.to_sym]), json[test_key]
-            assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value
+            message = "Model / Attribute: #{m.class.name}##{key}"
+            assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
           end
         end
       end
@@ -78,7 +80,8 @@ module StandardAPI
               else
                 m = assigns(:record).send(included).first.try(:reload)
                 view_attributes(m).each do |key, value|
-                  assert_equal normalize_to_json(m, key, value), json[included.to_s][0][key.to_s]
+                  message = "Model / Attribute: #{m.class.name}##{key}"
+                  assert_equal normalize_to_json(m, key, value), json[included.to_s][0][key.to_s], message
                 end
               end
             end
