@@ -150,7 +150,7 @@ module StandardAPI
       select.each do |func, column|
         column = column == '*' ? Arel.star : column.to_sym
         if functions.include?(func.to_s.downcase)
-          @selects << (model.arel_table[column.to_sym].send(func).to_sql)
+          @selects << (model.arel_table[column].send(func).to_sql)
         end
       end
     end
