@@ -38,6 +38,18 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_recognizes(path_with_action('update', id: '1'), { method: :patch, path: "/#{plural_name}/1" })
   end
 
+  test 'route to #schema.json' do
+    assert_routing({ method: :post, path: "/#{plural_name}/schema" }, path_with_action('schema'))
+    assert_recognizes(path_with_action('schema'), { method: :post, path: "/#{plural_name}/schema" })
+  end
+
+  # View Tests
+  
+  # test '#index.json uses overridden partial'
+  # test '#show.json uses overridden partial'
+  # test '#schema.json uses overridden partial'
+  # test 'append_view_path'
+
   # Includes Test
 
   test 'Includes::normailze' do

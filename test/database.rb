@@ -47,6 +47,7 @@ class TestApplication < Rails::Application
   routes.draw do
     resources :properties do
       get :calculate, on: :collection
+      get :schema, on: :collection
     end
   end
 
