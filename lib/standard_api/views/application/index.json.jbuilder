@@ -1,3 +1,3 @@
 records = @records if !records
 
-json.array! models, partial: 'application/record', as: :record, includes: includes
+json.array! records, partial: 'application/record', as: :record, includes: includes

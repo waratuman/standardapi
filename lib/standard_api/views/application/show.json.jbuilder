@@ -1,3 +1,3 @@
 record = @record if !record
 
-json.partial! 'application/model', record: record, includes: includes
+json.partial! 'application/record', record: record, includes: includes

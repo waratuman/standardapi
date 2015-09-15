@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "standardapi"
-  spec.version       = '1.0.7'
+  spec.version       = '1.0.8'
   spec.licenses      = ['MIT']
   spec.authors       = ["James Bracy"]
   spec.email         = ["waratuman@gmail.com"]

@@ -83,9 +83,8 @@ module StandardAPI::TestCase
 
     if model.column_types[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
       "#{value.to_f}"
-    # elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
-      # value.to_datetime.utc.iso8601.gsub(/\+(00:00|UTC)$/, 'Z')
-      # value.as_json
+    elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
+      value.in_time_zone.as_json
     else
       value.as_json
     end
