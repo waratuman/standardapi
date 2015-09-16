@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (1.0.11)
+    standardapi (1.0.13)
       activerecord-filter (~> 1.0)
       activerecord-sort (~> 1.0)
       activesupport (~> 4.2)
@@ -40,7 +40,7 @@ GEM
       activemodel (= 4.2.3)
       activesupport (= 4.2.3)
       arel (~> 6.0)
-    activerecord-filter (1.0.0)
+    activerecord-filter (1.0.2)
       activerecord (~> 4.0)
       pg
     activerecord-sort (1.0.1)
