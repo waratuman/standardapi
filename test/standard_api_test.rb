@@ -116,6 +116,7 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_equal([{ x: { asc: :nulls_first } }], method.call([{ x: { asc: :nulls_first } }], :x))
     assert_equal([{ x: { desc: :nulls_last } }], method.call([{ x: { desc: :nulls_last } }], :x))
     assert_equal([{ x: { desc: :nulls_first }}], method.call([{ x: { desc: :nulls_first } }], :x))
+    assert_equal([{ relation: :id }], method.call(['relation.id'], { relation: :id }))
     assert_equal([{ relation: :id }], method.call([{ relation: :id }], { relation: :id }))
     assert_equal([{ relation: :id }], method.call([{ relation: :id }], [{ relation: :id }]))
     assert_equal([{ relation: [:id] }], method.call([{ relation: [:id] }], { relation: [:id] }))
