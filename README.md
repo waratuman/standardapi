@@ -15,7 +15,7 @@ API access to, or in the ApplicationController, giving all inherited controller
 access.
 
     class ApplicationController < ActiveController::Base
-        include StandardAPI
+        include StandardAPI::Controller
 
     end
 

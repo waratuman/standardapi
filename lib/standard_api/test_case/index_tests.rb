@@ -56,10 +56,20 @@ module StandardAPI
               end
             else
               m = assigns(:records).first.send(included).first.try(:reload)
+
+              m_json = if m && m.has_attribute?(:id)
+                json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }
+              elsif m
+                json[included.to_s].find { |x| x.keys.all? { |key| x[key] == normalize_to_json(m, key, m[key]) } }
+              else
+                nil
+              end
+
               view_attributes(m).each do |key, value|
                 message = "Model / Attribute: #{m.class.name}##{key}"
-                assert_equal json[included.to_s][0][key.to_s], normalize_to_json(m, key, value), message
+                assert_equal m_json[key.to_s], normalize_to_json(m, key, value)
               end
+
             end
           end
         end
