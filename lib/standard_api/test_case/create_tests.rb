@@ -34,6 +34,7 @@ module StandardAPI
 
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
+
           m = assigns(singular_name).reload
           view_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
@@ -70,15 +71,15 @@ module StandardAPI
             includes.each do |included|
               assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
-              association = assigns(:record).class.reflect_on_association(included)
+              association = assigns(singular_name).class.reflect_on_association(included)
               next if !association
 
               if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-                view_attributes(assigns(:record).send(included)) do |key, value|
-                  assert_equal json[included.to_s][key.to_s], normalize_to_json(assigns(:record), key, value)
+                view_attributes(assigns(singular_name).send(included)) do |key, value|
+                  assert_equal json[included.to_s][key.to_s], normalize_to_json(assigns(singular_name), key, value)
                 end
               else
-                m = assigns(:record).send(included).first.try(:reload)
+                m = assigns(singular_name).send(included).first.try(:reload)
 
                 m_json = if m && m.has_attribute?(:id)
                   json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }

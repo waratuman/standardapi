@@ -26,13 +26,13 @@ module StandardAPI
         orders.each do |order|
           @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
           get :index, order: order, format: 'json'
-          assert_equal model.sort(order).to_sql, assigns(:records).to_sql
+          assert_equal model.sort(order).to_sql, assigns(plural_name).to_sql
          end
       end
 
       test '#index.json params[:offset]' do
         get :index, offset: 13, format: 'json'
-        assert_equal model.offset(13).to_sql, assigns(:records).to_sql
+        assert_equal model.offset(13).to_sql, assigns(plural_name).to_sql
       end
 
       test '#index.json params[:include]' do
@@ -45,17 +45,17 @@ module StandardAPI
           includes.each do |included|
             assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
-            association = assigns(:records).first.class.reflect_on_association(included)
+            association = assigns(plural_name).first.class.reflect_on_association(included)
             next if !association
 
             if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-              m = assigns(:records).first.send(included)
+              m = assigns(plural_name).first.send(included)
               view_attributes(m) do |key, value|
                 message = "Model / Attribute: #{m.class.name}##{key}"
                 assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value), message
               end
             else
-              m = assigns(:records).first.send(included).first.try(:reload)
+              m = assigns(plural_name).first.send(included).first.try(:reload)
 
               m_json = if m && m.has_attribute?(:id)
                 json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }

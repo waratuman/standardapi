@@ -55,16 +55,16 @@ module StandardAPI
           includes.each do |included|
             assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
-            association = assigns(:record).class.reflect_on_association(included)
+            association = assigns(singular_name).class.reflect_on_association(included)
             next if !association
 
             if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-              view_attributes(assigns(:record).send(included)) do |key, value|
-                message = "Model / Attribute: #{assigns(:record).send(included).class.name}##{key}"
+              view_attributes(assigns(singular_name).send(included)) do |key, value|
+                message = "Model / Attribute: #{assigns(singular_name).send(included).class.name}##{key}"
                 assert_equal json[included.to_s][key.to_s], value, message
               end
             else
-              m = assigns(:record).send(included).first.try(:reload)
+              m = assigns(singular_name).send(included).first.try(:reload)
               m_json = if m && m.has_attribute?(:id)
                 json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }
               elsif m

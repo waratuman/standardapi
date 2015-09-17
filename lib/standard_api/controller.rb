@@ -21,8 +21,7 @@ module StandardAPI
     end  
 
     def index
-      @records = resources.limit(params[:limit]).offset(params[:offset]).sort(orders)
-      instance_variable_set("@#{model.model_name.plural}", @records)
+      instance_variable_set("@#{model.model_name.plural}", resources.limit(params[:limit]).offset(params[:offset]).sort(orders))
     end
 
     def calculate
@@ -37,20 +36,17 @@ module StandardAPI
     end
 
     def show
-      @record = resources.find(params[:id])
-      instance_variable_set("@#{model.model_name.singular}", @record)
+      instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
     end
 
     def create
-      @record = model.new(model_params)
-      instance_variable_set("@#{model.model_name.singular}", @record)
-      render :show, status: @record.save ? :created : :bad_request
+      instance_variable_set("@#{model.model_name.singular}", model.new(model_params))
+      render :show, status: instance_variable_get("@#{model.model_name.singular}").save ? :created : :bad_request
     end
 
     def update
-      @record = resources.find(params[:id])
-      instance_variable_set("@#{model.model_name.singular}", @record)
-      render :show, status: @record.update_attributes(model_params) ? :ok : :bad_request
+      instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
+      render :show, status: instance_variable_get("@#{model.model_name.singular}").update_attributes(model_params) ? :ok : :bad_request
     end
 
     def destroy
