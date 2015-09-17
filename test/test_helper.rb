@@ -1,8 +1,3 @@
-# require 'simplecov'
-# SimpleCov.start
-#
-# To make testing/debugging easier, test within this source tree versus an
-# installed gem
 $LOAD_PATH << File.expand_path('../lib', __FILE__)
 
 require "minitest/autorun"
@@ -18,7 +13,7 @@ FactoryGirl.find_definitions
 
 # Setup the test db
 ActiveSupport.test_order = :random
-require File.expand_path('../database', __FILE__)
+require File.expand_path('../app', __FILE__)
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 

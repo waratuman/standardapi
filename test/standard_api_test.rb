@@ -39,8 +39,8 @@ class PropertiesControllerTest < ActionController::TestCase
   end
 
   test 'route to #schema.json' do
-    assert_routing({ method: :post, path: "/#{plural_name}/schema" }, path_with_action('schema'))
-    assert_recognizes(path_with_action('schema'), { method: :post, path: "/#{plural_name}/schema" })
+    assert_routing({ method: :get, path: "/#{plural_name}/schema" }, path_with_action('schema'))
+    assert_recognizes(path_with_action('schema'), { method: :get, path: "/#{plural_name}/schema" })
   end
 
   # View Tests

@@ -10,11 +10,7 @@ includes.each do |inc, subinc|
     json.set! inc do
       collection = [:has_many, :has_and_belongs_to_many].include?(association.macro)
 
-      partial = if lookup_context.exists?(association.klass.model_name.element, controller_name)
-        association.klass.model_name.element
-      else
-        'record'
-      end
+      partial = model_partial(association.klass)
 
       if collection
         json.array! record.send(inc), partial: partial, as: :record, locals: { includes: subinc }
