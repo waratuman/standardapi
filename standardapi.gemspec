@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "standardapi"
-  spec.version       = '1.0.17'
+  spec.version       = '1.0.18'
   spec.licenses      = ['MIT']
   spec.authors       = ["James Bracy"]
   spec.email         = ["waratuman@gmail.com"]
@@ -28,6 +28,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_girl_rails"
   spec.add_development_dependency "faker"
+  spec.add_development_dependency "byebug"
   # spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'
   # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'

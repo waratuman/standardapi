@@ -8,6 +8,7 @@ require 'active_record'
 require 'faker'
 require 'standard_api'
 require 'standard_api/test_case'
+require 'byebug'
 
 FactoryGirl.find_definitions
 

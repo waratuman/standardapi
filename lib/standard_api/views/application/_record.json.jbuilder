@@ -12,13 +12,13 @@ includes.each do |inc, subinc|
 
       if collection
         partial = model_partial(association.klass)
-        json.array! record.send(inc), partial: partial, as: :record, locals: { includes: subinc }
+        json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
       else
         if record.send(inc).nil?
           json.set! association.klass.model_name.element, nil
         else
           partial = model_partial(record.send(inc))
-          json.partial! partial, record: record.send(inc), includes: subinc
+          json.partial! partial, partial.split('/').last => record.send(inc), includes: subinc
         end
       end
     end
