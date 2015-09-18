@@ -15,15 +15,21 @@ includes.each do |inc, subinc|
         json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
       else
         if record.send(inc).nil?
-          json.set! association.klass.model_name.element, nil
+          json.null!
         else
           partial = model_partial(record.send(inc))
-          json.partial! partial, partial.split('/').last => record.send(inc), includes: subinc
+          json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
         end
       end
     end
   else
-    json.set! inc, record.send(inc)
+    json.set! inc do
+      if record.send(inc).nil?
+        json.null!
+      else
+        record.send(inc).as_json
+      end
+    end
   end
 end
 
