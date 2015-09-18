@@ -49,6 +49,9 @@ class PropertiesControllerTest < ActionController::TestCase
   # test '#show.json uses overridden partial'
   # test '#schema.json uses overridden partial'
   # test 'append_view_path'
+  # test belongs_to polymorphic associatoin
+  # test has_many, habtm
+  # test belongs_to, has_one
 
   # Includes Test
 
