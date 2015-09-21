@@ -7,6 +7,8 @@ module StandardAPI
     # { x: true, y: true }          => { x: {}, y: {} }
     # { x: { y: true } }            => { x: { y: {} } }
     # { x: [:y] }                   => { x: { y: {} } }
+    # { x: { where: { y: false } } }    => { x: { where: { y: false } } }
+    # { x: { order: { y: :asc } } }    => { x: { order: { y: :asc } } }
     def self.normalize(includes)
       normalized = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -14,7 +16,13 @@ module StandardAPI
       when Array
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash
-        includes.each_pair { |k, v| normalized[k] = normalize(v) }
+        includes.each_pair do |k, v|
+          if ['where', 'order'].include?(k.to_s) # Where and order are not normalized
+            normalized[k] = v
+          else
+            normalized[k] = normalize(v)
+          end
+        end
       when nil
         {}
       else

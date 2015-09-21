@@ -116,6 +116,10 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_equal method.call({ x: { y: true } }), { 'x' => { 'y' => {} } }
     assert_equal method.call({ x: { y: {} } }), { 'x' => { 'y' => {} } }
     assert_equal method.call({ x: [:y] }), { 'x' => { 'y' => {} } }
+
+
+    assert_equal method.call({ x: { where: { y: false } } }), { 'x' => { 'where' => { 'y' => false } } }
+    assert_equal method.call({ x: { order: { y: :asc } } }), { 'x' => { 'order' => { 'y' => :asc } } }
   end
 
   # sanitize({:key => {}}, [:key]) # => {:key => {}}
@@ -149,6 +153,10 @@ class PropertiesControllerTest < ActionController::TestCase
     end
 
     assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
+    
+    
+    
+
   end
 
   # Order Test
