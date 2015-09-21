@@ -44,7 +44,14 @@ class PropertiesControllerTest < ActionController::TestCase
   end
 
   # View Tests
-  
+
+  test 'rendering null attribute' do
+    property = create(:property)
+    get :show, id: property.id, include: [:landlord], format: 'json'
+    assert JSON(response.body).has_key?('landlord')
+    assert_equal nil, JSON(response.body)['landlord']
+  end
+
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])
     get :index, include: [:photos], format: 'json'

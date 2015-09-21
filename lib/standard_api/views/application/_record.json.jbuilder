@@ -19,9 +19,7 @@ includes.each do |inc, subinc|
     else
 
       if record.send(inc).nil?
-        json.set! inc do
-          json.null!
-        end
+        json.set! inc, nil
       else
         partial = model_partial(record.send(inc))
         json.set! inc do
@@ -33,12 +31,10 @@ includes.each do |inc, subinc|
   else
 
     if record.send(inc).nil?
-      json.set! inc do
-        json.null!
-      end
+      json.set! inc, nil
     elsif record.send(inc).is_a?(ActiveModel::Model)
-      partial = model_partial(record.send(inc))
       json.set! inc do
+        partial = model_partial(record.send(inc))
         json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
       end
     else
