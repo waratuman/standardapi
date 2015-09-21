@@ -7,7 +7,12 @@ FactoryGirl.define do
   factory :photo do
     format          { ['jpg', 'png', 'tiff'].sample }
   end
-  
+
+  factory :reference do
+    subject_type 'Photo'
+    subject_id { create(:photo).id }
+  end
+
   factory :property do
     name            { Faker::Lorem.words(Kernel.rand(1..4)).join(' ') }
     description     { Faker::Lorem.paragraphs.join("\n\n") }

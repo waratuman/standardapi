@@ -5,32 +5,49 @@ record.attributes.each do |name, value|
 end
 
 includes.each do |inc, subinc|
+
+  
   association = record.class.reflect_on_association(inc)
   if association
-    json.set! inc do
-      collection = [:has_many, :has_and_belongs_to_many].include?(association.macro)
+    collection = [:has_many, :has_and_belongs_to_many].include?(association.macro)
 
-      if collection
-        partial = model_partial(association.klass)
+    if collection
+      partial = model_partial(association.klass)
+      json.set! inc do
         json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
-      else
-        if record.send(inc).nil?
+      end
+    else
+
+      if record.send(inc).nil?
+        json.set! inc do
           json.null!
-        else
-          partial = model_partial(record.send(inc))
+        end
+      else
+        partial = model_partial(record.send(inc))
+        json.set! inc do
           json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
         end
       end
     end
+
   else
-    json.set! inc do
-      if record.send(inc).nil?
+
+    if record.send(inc).nil?
+      json.set! inc do
         json.null!
-      else
-        record.send(inc).as_json
       end
+    elsif record.send(inc).is_a?(ActiveModel::Model)
+      partial = model_partial(record.send(inc))
+      json.set! inc do
+        json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
+      end
+    else
+      # TODO: Test
+      json.set! inc, record.send(inc).as_json
     end
+
   end
+  
 end
 
 if !record.errors.blank?

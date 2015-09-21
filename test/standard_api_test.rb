@@ -45,14 +45,59 @@ class PropertiesControllerTest < ActionController::TestCase
 
   # View Tests
   
-  # test '#index.json uses overridden partial'
-  # test '#show.json uses overridden partial'
-  # test '#schema.json uses overridden partial'
-  # test 'append_view_path'
-  # test belongs_to polymorphic associatoin
-  # test has_many, habtm
-  # test belongs_to, has_one
+  test '#index.json uses overridden partial' do
+    create(:property, photos: [build(:photo)])
+    get :index, include: [:photos], format: 'json'
+    assert_template partial: 'photos/_photo'
+  end
 
+  test '#show.json uses overridden partial' do
+    property = create(:property, photos: [build(:photo)])
+    get :show, id: property.id, include: [:photos], format: 'json'
+    assert_template partial: 'photos/_photo'
+  end
+
+  test '#schema.json uses overridden partial' do
+    @controller = PhotosController.new
+    get :schema, format: :json
+    assert_template 'photos/schema'
+  end
+
+  test 'belongs_to polymorphic association' do
+    property = create(:photo)
+    reference = create(:reference, subject: property)
+    @controller = ReferencesController.new
+    get :show, id: reference.id, include: :subject, format: :json
+    assert_template 'photos/_photo'
+  end
+
+  test 'has_many association' do
+    p = create(:property, photos: [build(:photo)])
+    get :index, include: [:photos], format: 'json'
+    assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
+  end
+
+  test 'belongs_to association' do
+    account = create(:account)
+    photo = create(:photo, account: account)
+    @controller = PhotosController.new
+    get :show, id: photo.id, include: :account, format: :json
+    assert_equal account.id, JSON(response.body)['account']['id']
+  end
+
+  test 'has_one association' do
+    account = create(:account)
+    property = create(:property, landlord: account)
+    get :show, id: property.id, include: :landlord, format: :json
+    assert_equal account.id, JSON(response.body)['landlord']['id']
+  end
+
+  test 'include method' do
+    property = create(:property)
+    get :show, id: property.id, include: :english_name, format: :json
+    assert_equal 'A Name', JSON(response.body)['english_name']
+  end
+  
   # Includes Test
 
   test 'Includes::normailze' do

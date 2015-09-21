@@ -11,8 +11,19 @@ end
 
 class Property < ActiveRecord::Base
   has_many :photos
+  has_one :landlord, class_name: 'Account'
+
   validates :name, presence: true
   accepts_nested_attributes_for :photos
+
+  def english_name
+    'A Name'
+  end
+
+end
+
+class Reference < ActiveRecord::Base
+  belongs_to :subject, polymorphic: true
 end
 
 # = Migration
@@ -23,6 +34,7 @@ class CreateModelTables < ActiveRecord::Migration
 
     create_table "accounts", force: :cascade do |t|
       t.string   "name",                 limit: 255
+      t.integer  "property_id"
       t.integer  'photos_count', null: false, default: 0
     end
     
@@ -40,6 +52,13 @@ class CreateModelTables < ActiveRecord::Migration
       t.decimal  "size"
       t.datetime "created_at",                         null: false
       t.boolean  "active",             default: false
+    end
+
+    create_table "references", force: :cascade do |t|
+      t.integer  "subject_id"
+      t.string   "subject_type",         limit: 255
+      t.string   "key"
+      t.string   "value"
     end
 
   end
