@@ -104,7 +104,19 @@ class PropertiesControllerTest < ActionController::TestCase
     get :show, id: property.id, include: :english_name, format: :json
     assert_equal 'A Name', JSON(response.body)['english_name']
   end
+
+  test 'inlcude with where key' do
+    property = create(:property)
+    get :show, id: property.id, include: { photos: { where: { id: 1 } } }, format: :json
+    assert JSON(response.body)['photos']
+  end
   
+  test 'include with order key' do
+    property = create(:property)
+    get :show, id: property.id, include: { photos: { order: { id: 1 } } }, format: :json
+    assert JSON(response.body)['photos']
+  end
+
   # Includes Test
 
   test 'Includes::normailze' do

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (1.0.21)
+    standardapi (1.0.22)
       activerecord-filter (~> 1.0)
       activerecord-sort (~> 1.0)
       activesupport (~> 4.2)

@@ -5,8 +5,8 @@ record.attributes.each do |name, value|
 end
 
 includes.each do |inc, subinc|
+  next if ['where', 'order'].include?(inc.to_s)
 
-  
   association = record.class.reflect_on_association(inc)
   if association
     collection = [:has_many, :has_and_belongs_to_many].include?(association.macro)
