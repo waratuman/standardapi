@@ -7,6 +7,7 @@ class TestApplication < Rails::Application
   config.secret_token = 'test token'
   config.secret_key_base = 'test key base'
   config.eager_load = false
+  config.cache_store = :memory_store, { size: 8.megabytes }
 end
 
 # Test Application initialization
@@ -14,7 +15,7 @@ TestApplication.initialize!
 
 # Test Application Routes
 TestApplication.routes.draw do
-  [:properties, :photos, :references].each do |r|
+  [:properties, :accounts, :photos, :references].each do |r|
     resources r do
       get :calculate, on: :collection
       get :schema, on: :collection

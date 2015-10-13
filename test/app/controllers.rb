@@ -29,6 +29,26 @@ class PropertiesController < ApplicationController
 
 end
 
+class AccountsController < ApplicationController
+
+  private
+
+  def property_params
+    [ :account_id,
+      :format
+    ]
+  end
+  
+  def account_orders
+    ["id"]
+  end
+
+  def account_includes
+    [:photos]
+  end
+
+end
+
 
 class PhotosController < ApplicationController
 

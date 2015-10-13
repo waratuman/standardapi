@@ -29,6 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "factory_girl_rails"
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
+  spec.add_development_dependency 'mocha'
   # spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'
   # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'

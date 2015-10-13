@@ -5,43 +5,44 @@ record.attributes.each do |name, value|
 end
 
 includes.each do |inc, subinc|
-  next if ['where', 'order'].include?(inc.to_s)
-
-  association = record.class.reflect_on_association(inc)
-  if association
-    collection = [:has_many, :has_and_belongs_to_many].include?(association.macro)
-
-    if collection
+  next if [:where, :order, :limit].include?(inc.to_sym)
+  
+  case association = record.class.reflect_on_association(inc)
+  when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection
+    can_cache = can_cache?(record, inc, subinc)
+    json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       partial = model_partial(association.klass)
       json.set! inc do
-        json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+        json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).order(subinc[:order]), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
       end
-    else
-
-      if record.send(inc).nil?
+    end
+  
+  when ActiveRecord::Reflection::BelongsToReflection, ActiveRecord::Reflection::HasOneReflection
+    can_cache = can_cache?(record, inc, subinc)
+    json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
+      value = record.send(inc)
+      if value.nil?
         json.set! inc, nil
       else
-        partial = model_partial(record.send(inc))
+        partial = model_partial(value)
         json.set! inc do
-          json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
+          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
         end
       end
     end
-
+    
   else
-
-    if record.send(inc).nil?
+    value = record.send(inc)
+    if value.nil?
       json.set! inc, nil
-    elsif record.send(inc).is_a?(ActiveModel::Model)
+    elsif value.is_a?(ActiveModel::Model)
       json.set! inc do
-        partial = model_partial(record.send(inc))
-        json.partial! partial, partial.split('/').last.to_sym => record.send(inc), includes: subinc
+        partial = model_partial(value)
+        json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
       end
     else
-      # TODO: Test
-      json.set! inc, record.send(inc).as_json
+      json.set! inc, value.as_json
     end
-
   end
   
 end

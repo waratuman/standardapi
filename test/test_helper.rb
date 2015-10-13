@@ -9,6 +9,7 @@ require 'faker'
 require 'standard_api'
 require 'standard_api/test_case'
 require 'byebug'
+require 'mocha/mini_test'
 
 FactoryGirl.find_definitions
 
@@ -24,6 +25,7 @@ class ActiveSupport::TestCase
 
   def setup
     @routes ||= TestApplication.routes
+    Rails.cache.clear
   end
 
   # = Helper Methods

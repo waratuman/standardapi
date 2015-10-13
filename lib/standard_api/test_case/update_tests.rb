@@ -13,7 +13,11 @@ module StandardAPI
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
           message = "Model / Attribute: #{m.class.name}##{key}"
-          assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
+          if value.is_a?(BigDecimal)
+            assert_equal normalize_attribute(m, key, attrs[key.to_sym]).to_s, value.to_s, message
+          else
+            assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
+          end
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end

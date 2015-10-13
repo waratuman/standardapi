@@ -113,7 +113,7 @@ class PropertiesControllerTest < ActionController::TestCase
   
   test 'include with order key' do
     property = create(:property)
-    get :show, id: property.id, include: { photos: { order: { id: 1 } } }, format: :json
+    get :show, id: property.id, include: { photos: { order: { id: :asc } } }, format: :json
     assert JSON(response.body)['photos']
   end
 
