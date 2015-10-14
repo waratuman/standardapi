@@ -32,13 +32,24 @@ class HelpersTest < ActionView::TestCase
     assert !can_cache?(account, :photos, {})
     
     account.expects(:attribute_names).returns(['id', 'photos_cached_at'])
+    account.expects(:photos_cached_at).returns(Time.now)
     assert can_cache?(account, :photos, {})
     
     account.expects(:attribute_names).returns(['id'])
     assert !can_cache?(account, :photos, {account: {}})
     
     account.expects(:attribute_names).returns(['id', 'photos_account_cached_at', 'photos_cached_at'])
+    account.expects(:photos_cached_at).returns(Time.now)
+    account.expects(:photos_account_cached_at).returns(Time.now)
     assert can_cache?(account, :photos, {account: {}})
+  end
+  
+  test '::can_cache? returns false with nil values' do
+    account = create(:account)
+    
+    account.expects(:attribute_names).returns(['id', 'photos_cached_at', 'photos_account_cached_at'])
+    account.expects(:photos_account_cached_at).returns(nil)
+    assert !can_cache?(account, :photos, {account: {}})
   end
   
   test '::association_cache_key(record, relation, subincludes)' do
@@ -93,6 +104,23 @@ class HelpersTest < ActionView::TestCase
       "accounts/#{account.id}/photos-00ea6afe3ff68037f8b4dcdb275e2a24-#{t3.utc.to_s(:nsec)}",
       association_cache_key(account, :photos, {property: {addresses: {}}, agents: {}})
     )
+    
+    # Belongs to
+    photo = create(:photo, account: account)
+    photo.expects(:account_cached_at).returns(t1)
+    assert_equal(
+      "accounts/#{account.id}-#{t1.utc.to_s(:nsec)}",
+      association_cache_key(photo, :account, {})
+    )
+    
+    photo = create(:photo, account: account)
+    photo.expects(:account_cached_at).returns(t1)
+    photo.expects(:account_photos_cached_at).returns(t2)
+    assert_equal(
+      "accounts/#{account.id}/07437ce3863467f4cd715ae1ef930f08-#{t2.utc.to_s(:nsec)}",
+      association_cache_key(photo, :account, {photos: {}})
+    )
+    
   end
   
 end

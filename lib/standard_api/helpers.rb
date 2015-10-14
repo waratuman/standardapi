@@ -12,7 +12,7 @@ module StandardAPI
     def can_cache?(model, relation, subincludes)
       cache_columns = cached_at_columns_for_includes(relation, subincludes)
       if (cache_columns - model.attribute_names).empty?
-        true
+        !cache_columns.any? { |cc| model.send(cc).nil? }
       else
         false
       end
@@ -27,7 +27,12 @@ module StandardAPI
       when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection
         "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
       when ActiveRecord::Reflection::BelongsToReflection
-        "#{association.klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_s(association.klass.cache_timestamp_format)}"
+        if subincludes.empty?
+          "#{association.klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_s(association.klass.cache_timestamp_format)}"
+        else
+          "#{association.klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_s(association.klass.cache_timestamp_format)}"
+        end
+
       else
         raise ArgumentError, 'Unkown association type'
       end
