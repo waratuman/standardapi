@@ -9,8 +9,8 @@ class AccountsControllerTest < ActionController::TestCase
     t1 = 1.day.from_now
     t2 = 2.days.from_now
     
-    columns = account.attribute_names + ['photos_account_cached_at', 'photos_cached_at']
-    Account.any_instance.stubs(:attribute_names).returns(columns)
+    columns = Account.column_names + ['photos_account_cached_at', 'photos_cached_at']
+    Account.stubs(:column_names).returns(columns)
     
     # Cache Miss
     Account.any_instance.stubs(:photos_cached_at).returns(t1)

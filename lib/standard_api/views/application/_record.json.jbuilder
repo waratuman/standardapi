@@ -9,7 +9,7 @@ includes.each do |inc, subinc|
   
   case association = record.class.reflect_on_association(inc)
   when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection
-    can_cache = can_cache?(record, inc, subinc)
+    can_cache = can_cache_relation?(record.class, inc, subinc)
     json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       partial = model_partial(association.klass)
       json.set! inc do
@@ -18,7 +18,7 @@ includes.each do |inc, subinc|
     end
   
   when ActiveRecord::Reflection::BelongsToReflection, ActiveRecord::Reflection::HasOneReflection
-    can_cache = can_cache?(record, inc, subinc)
+    can_cache = can_cache_relation?(record.class, inc, subinc)
     json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       value = record.send(inc)
       if value.nil?

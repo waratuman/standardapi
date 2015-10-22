@@ -3,53 +3,60 @@ require 'test_helper'
 class HelpersTest < ActionView::TestCase
   include StandardAPI::Helpers
 
-  test "::cached_at_columns_for_includes(model, relation, subincludes)" do
+  test "::cached_at_columns_for_includes(includes)" do
     assert_equal(
       ['photos_cached_at'],
-      cached_at_columns_for_includes(:photos, {})
+      cached_at_columns_for_includes({photos: {}})
     )
     
     assert_equal(
-      ['photos_account_cached_at', 'photos_cached_at'],
-      cached_at_columns_for_includes(:photos, {account: {}})
+      ['photos_cached_at', 'photos_account_cached_at'],
+      cached_at_columns_for_includes({photos: {account: {}}})
     )
     
     assert_equal(
-      ['photos_account_cached_at', 'photos_properties_cached_at', 'photos_cached_at'],
-      cached_at_columns_for_includes(:photos, {account: {}, properties: {}})
+      ['photos_cached_at', 'photos_account_cached_at', 'photos_properties_cached_at'],
+      cached_at_columns_for_includes({photos: {account: {}, properties: {}}})
     )
     
     assert_equal(
-      ['photos_account_cached_at', 'photos_properties_landlord_cached_at', 'photos_properties_cached_at', 'photos_cached_at'],
-      cached_at_columns_for_includes(:photos, {account: {}, properties: {landlord: {}}})
+      ['photos_cached_at', 'photos_account_cached_at', 'photos_properties_cached_at', 'photos_properties_landlord_cached_at'],
+      cached_at_columns_for_includes({photos: {account: {}, properties: {landlord: {}}}})
     )
   end
   
   test "::can_cache?" do
-    account = create(:account)
+    Account.expects(:column_names).returns(['id'])
+    assert !can_cache?(Account, {})
     
-    account.expects(:attribute_names).returns(['id'])
-    assert !can_cache?(account, :photos, {})
+    Account.expects(:column_names).returns(['id', 'cached_at'])
+    assert can_cache?(Account, {})
     
-    account.expects(:attribute_names).returns(['id', 'photos_cached_at'])
-    account.expects(:photos_cached_at).returns(Time.now)
-    assert can_cache?(account, :photos, {})
+    Account.expects(:column_names).returns(['id', 'cached_at'])
+    assert !can_cache?(Account, {photos: {}})
     
-    account.expects(:attribute_names).returns(['id'])
-    assert !can_cache?(account, :photos, {account: {}})
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at'])
+    assert can_cache?(Account, {photos: {}})
     
-    account.expects(:attribute_names).returns(['id', 'photos_account_cached_at', 'photos_cached_at'])
-    account.expects(:photos_cached_at).returns(Time.now)
-    account.expects(:photos_account_cached_at).returns(Time.now)
-    assert can_cache?(account, :photos, {account: {}})
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at'])
+    assert !can_cache?(Account, {photos: {account: {}}})
+    
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at', 'photos_account_cached_at'])
+    assert can_cache?(Account, {photos: {account: {}}})
   end
   
-  test '::can_cache? returns false with nil values' do
-    account = create(:account)
+  test '::can_cache_relation?' do
+    Account.expects(:column_names).returns(['id', 'cached_at'])
+    assert !can_cache_relation?(Account, :photos, {})
     
-    account.expects(:attribute_names).returns(['id', 'photos_cached_at', 'photos_account_cached_at'])
-    account.expects(:photos_account_cached_at).returns(nil)
-    assert !can_cache?(account, :photos, {account: {}})
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at'])
+    assert can_cache_relation?(Account, :photos, {})
+    
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at'])
+    assert !can_cache_relation?(Account, :photos, {account: {}})
+    
+    Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at', 'photos_account_cached_at'])
+    assert can_cache_relation?(Account, :photos, {account: {}})
   end
   
   test '::association_cache_key(record, relation, subincludes)' do

@@ -9,17 +9,26 @@ module StandardAPI
       end
     end
     
-    def can_cache?(model, relation, subincludes)
-      cache_columns = cached_at_columns_for_includes(relation, subincludes)
-      if (cache_columns - model.attribute_names).empty?
-        !cache_columns.any? { |cc| model.send(cc).nil? }
+    def can_cache?(klass, includes)
+      cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
+      if (cache_columns - klass.column_names).empty?
+        true
+      else
+        false
+      end
+    end
+    
+    def can_cache_relation?(klass, relation, subincludes)
+      cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
+      if (cache_columns - klass.column_names).empty?
+        true
       else
         false
       end
     end
     
     def association_cache_key(record, relation, subincludes)
-      timestamp = cached_at_columns_for_includes(relation, subincludes)
+      timestamp = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       timestamp.map! { |col| record.send(col) }
       timestamp = timestamp.max
       
@@ -38,16 +47,10 @@ module StandardAPI
       end
     end
     
-    def cached_at_columns_for_includes(relation, subincludes)
-      if subincludes.empty?
-        ["#{relation}_cached_at"]
-      else
-        subincludes.select{|k,v| ![:where, :limit, :order].include?(k.to_sym) }.map { |k, v|
-          cached_at_columns_for_includes(k, v)
-        }.flatten.map { |k|
-          "#{relation}_#{k}"
-        } + ["#{relation}_cached_at"]
-      end
+    def cached_at_columns_for_includes(includes)
+      includes.select{|k,v| ![:where, :limit, :order].include?(k.to_sym) }.map { |k, v|
+        ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map{|v| "#{k}_#{v}"}
+      }.flatten
     end
     
     def includes_to_cache_key(relation, subincludes)
