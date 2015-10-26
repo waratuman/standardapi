@@ -1,6 +1,6 @@
 module StandardAPI
   module Helpers
-
+    
     def model_partial(record)
       if lookup_context.exists?(record.model_name.element, record.model_name.plural, true)
         [record.model_name.plural, record.model_name.element].join('/')
@@ -16,6 +16,11 @@ module StandardAPI
       else
         false
       end
+    end
+    
+    def cache_key(record, includes)
+      timestamp_keys = ['cached_at'] + cached_at_columns_for_includes(includes)
+      record.cache_key(*timestamp_keys)
     end
     
     def can_cache_relation?(klass, relation, subincludes)
@@ -71,7 +76,7 @@ module StandardAPI
         seed
       end
     end
-
+    
     def digest_hash(*hashes)
       hashes.compact!
       hashes.map! { |h| sort_hash(h) }
@@ -90,7 +95,6 @@ module StandardAPI
 
       digest.hexdigest
     end
-    
 
   end
 end

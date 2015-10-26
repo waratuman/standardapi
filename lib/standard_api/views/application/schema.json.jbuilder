@@ -17,7 +17,7 @@ mapping = {
     'double precision' => 'decimal',
     'ltree' => 'string',
     'boolean' => 'boolean',
-    'geometry' => 'hash'
+    'geometry' => 'ewkb'
 }
 
 model.columns.each do |column|
