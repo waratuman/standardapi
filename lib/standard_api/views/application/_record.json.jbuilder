@@ -13,7 +13,7 @@ includes.each do |inc, subinc|
     json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       partial = model_partial(association.klass)
       json.set! inc do
-        json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).order(subinc[:order]), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+        json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).sort(subinc[:order]), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
       end
     end
   
