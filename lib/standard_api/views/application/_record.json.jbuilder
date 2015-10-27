@@ -32,16 +32,18 @@ includes.each do |inc, subinc|
     end
     
   else
-    value = record.send(inc)
-    if value.nil?
-      json.set! inc, nil
-    elsif value.is_a?(ActiveModel::Model)
-      json.set! inc do
-        partial = model_partial(value)
-        json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+    if record.respond_to?(inc)
+      value = record.send(inc)
+      if value.nil?
+        json.set! inc, nil
+      elsif value.is_a?(ActiveModel::Model)
+        json.set! inc do
+          partial = model_partial(value)
+          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+        end
+      else
+        json.set! inc, value.as_json
       end
-    else
-      json.set! inc, value.as_json
     end
   end
   
