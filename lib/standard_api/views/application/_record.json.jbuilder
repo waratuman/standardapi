@@ -8,7 +8,7 @@ includes.each do |inc, subinc|
   next if [:where, :order, :limit].include?(inc.to_sym)
   
   case association = record.class.reflect_on_association(inc)
-  when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection
+  when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::ThroughReflection
     can_cache = can_cache_relation?(record.class, inc, subinc)
     json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       partial = model_partial(association.klass)
