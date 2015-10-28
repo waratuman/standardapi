@@ -20,7 +20,12 @@ module StandardAPI
     
     def cache_key(record, includes)
       timestamp_keys = ['cached_at'] + cached_at_columns_for_includes(includes)
-      record.cache_key(*timestamp_keys)
+      if includes.empty?
+        record.cache_key(*timestamp_keys)
+      else
+        timestamp = record.send(:max_updated_column_timestamp, timestamp_keys)
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
+      end
     end
     
     def can_cache_relation?(klass, relation, subincludes)
