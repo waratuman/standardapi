@@ -24,7 +24,7 @@ module StandardAPI
         record.cache_key(*timestamp_keys)
       else
         timestamp = record.send(:max_updated_column_timestamp, timestamp_keys)
-        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
+        "|#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}|"
       end
     end
     
@@ -46,10 +46,11 @@ module StandardAPI
       when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection
         "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
       when ActiveRecord::Reflection::BelongsToReflection
+        klass = association.options[:polymorphic] ? record.send(association.foreign_type).constantize : association.klass
         if subincludes.empty?
-          "#{association.klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_s(association.klass.cache_timestamp_format)}"
+          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_s(klass.cache_timestamp_format)}"
         else
-          "#{association.klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_s(association.klass.cache_timestamp_format)}"
+          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_s(klass.cache_timestamp_format)}"
         end
 
       else
