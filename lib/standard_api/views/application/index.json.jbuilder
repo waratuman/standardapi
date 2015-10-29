@@ -1,4 +1,4 @@
-if can_cache?(model, includes)
+if !includes.empty? && can_cache?(model, includes)
   partial = model_partial(model)
   record_name = partial.split('/').last.to_sym
   locals = { record_name => nil, :includes => includes}
