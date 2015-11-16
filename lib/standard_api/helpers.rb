@@ -24,7 +24,7 @@ module StandardAPI
         record.cache_key(*timestamp_keys)
       else
         timestamp = record.send(:max_updated_column_timestamp, timestamp_keys)
-        "|#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}|"
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
       end
     end
     
