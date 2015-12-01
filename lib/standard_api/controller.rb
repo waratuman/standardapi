@@ -40,8 +40,18 @@ module StandardAPI
     end
 
     def create
-      instance_variable_set("@#{model.model_name.singular}", model.new(model_params))
-      render :show, status: instance_variable_get("@#{model.model_name.singular}").save ? :created : :bad_request
+      record = model.new(model_params)
+      instance_variable_set("@#{model.model_name.singular}", record)
+      
+      if record.save
+        if request.format == :html
+          redirect_to record
+        else
+          render :show, status: :created
+        end
+      else
+        render :show, status: :bad_request
+      end
     end
 
     def update
