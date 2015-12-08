@@ -15,7 +15,8 @@ module StandardAPI
     def tables
       controllers = Dir[Rails.root.join('app/controllers/*_controller.rb')].map{ |path| path.match(/(\w+)_controller.rb/)[1].camelize+"Controller" }.map(&:safe_constantize)
       controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
-      controllers.map!(&:model).compact!.map!(&:table_name)
+      controllers.map!(&:model).compact!
+      controllers.map!(&:table_name)
     
       render json: controllers
     end  
