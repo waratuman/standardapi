@@ -14,19 +14,19 @@ class AccountsControllerTest < ActionController::TestCase
     
     # Cache Miss
     Account.any_instance.stubs(:photos_cached_at).returns(t1)
-    get :show, id: account.id, include: :photos, format: :json
+    get :show, params: {id: account.id, include: :photos}, format: :json
     assert_equal [photo.id], JSON(response.body)['photos'].map{|x| x['id']}
     
     # Cache Hit
     Account.any_instance.stubs(:photos).returns([])
     Account.any_instance.stubs(:photos_cached_at).returns(t1)
-    get :show, id: account.id, include: :photos, format: :json
+    get :show, params: {id: account.id, include: :photos}, format: :json
     assert_equal [photo.id], JSON(response.body)['photos'].map{|x| x['id']}
     
     # Cache Miss, photos_cached_at updated
     Account.any_instance.stubs(:photos).returns(Photo.where('false = true'))
     Account.any_instance.stubs(:photos_cached_at).returns(t2)
-    get :show, id: account.id, include: :photos, format: :json
+    get :show, params: {id: account.id, include: :photos}, format: :json
     assert_equal [], JSON(response.body)['photos'].map{|x| x['id']}
   end
 

@@ -111,7 +111,7 @@ module StandardAPI::TestCase
           value = m.send(filter[0])
 
           assert_predicate = -> (predicate) {
-            get :index, where: predicate, format: 'json'
+            get :index, params: {where: predicate}, format: 'json'
             assert_equal model.filter(predicate).to_sql, assigns(plural_name).to_sql
           }
 

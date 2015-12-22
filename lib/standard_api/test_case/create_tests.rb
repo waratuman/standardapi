@@ -8,7 +8,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count") do
-          post :create, singular_name => attrs, :format => 'json'
+          post :create, params: {singular_name => attrs}, format: 'json'
           assert_response :created
           assert assigns(singular_name)
 
@@ -28,7 +28,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count") do
-          post :create, singular_name => attrs, :format => 'json'
+          post :create, params: {singular_name => attrs}, format: 'json'
           assert_response :created
           assert assigns(singular_name)
 
@@ -48,7 +48,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count", 0) do
-          post :create, singular_name => attrs, :format => 'json'
+          post :create, params: {singular_name => attrs}, format: 'json'
           assert_response :bad_request
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
@@ -62,7 +62,7 @@ module StandardAPI
           create_webmocks(attrs)
 
           assert_difference("#{model.name}.count") do
-            post :create, singular_name => attrs, include: includes, :format => 'json'
+            post :create, params: {singular_name => attrs, :include => includes}, format: 'json'
             assert_response :created
             assert assigns(singular_name)
 
