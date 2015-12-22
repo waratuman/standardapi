@@ -2,7 +2,6 @@ module StandardAPI
   module Controller
 
     def self.included(klass)
-      klass.hide_action :current_mask
       klass.helper_method :includes, :orders, :model
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
