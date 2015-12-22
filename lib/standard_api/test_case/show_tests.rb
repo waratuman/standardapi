@@ -6,7 +6,7 @@ module StandardAPI
       test '#show.json' do
         m = create_model
 
-        get :show, id: m.id, format: 'json'
+        get :show, params: {id: m.id}, format: :json
         assert_response :ok
         assert_template :show
         assert_equal m, assigns(singular_name)
@@ -15,7 +15,7 @@ module StandardAPI
 
       test '#show.json params[:include]' do
         m = create_model
-        get :show, id: m.id, include: includes, format: 'json'
+        get :show, params: {id: m.id, include: includes}, format: :json
 
         json = JSON.parse(response.body)
         includes.each do |included|
@@ -56,7 +56,7 @@ module StandardAPI
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
-          get :show, id: m.id, format: 'json'
+          get :show, params: {id: m.id}, format: :json
         end
         @controller.current_mask.delete(plural_name)
       end

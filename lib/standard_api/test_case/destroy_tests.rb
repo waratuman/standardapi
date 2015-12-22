@@ -7,7 +7,7 @@ module StandardAPI
         m = create_model
 
         assert_difference("#{model.name}.count", -1) do
-          delete :destroy, id: m.id, format: 'json'
+          delete :destroy, params: { id: m.id }, format: :json
           assert_response :no_content
           assert_equal '', response.body
         end
@@ -21,7 +21,7 @@ module StandardAPI
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
-          delete :destroy, id: m.id, format: 'json'
+          delete :destroy, params: { id: m.id }, format: :json
         end
         @controller.current_mask.delete(plural_name)
       end

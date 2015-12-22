@@ -7,7 +7,7 @@ module StandardAPI
         m = create_model
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
 
-        get :calculate, select: selects, format: 'json'
+        get :calculate, params: {select: selects}, format: :json
         assert_response :ok
         assert_equal [[model.count(:id), model.maximum(:id), model.minimum(:id), model.average(:id).to_f]], assigns(:calculations)
       end
@@ -19,7 +19,7 @@ module StandardAPI
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
         predicate = { id: { gt: m1.id } }
 
-        get :calculate, where: predicate, select: selects, format: 'json'
+        get :calculate, params: {where: predicate, select: selects}, format: :json
         assert_response :ok
         assert_equal [[model.filter(predicate).count(:id), model.filter(predicate).maximum(:id), model.filter(predicate).minimum(:id), model.filter(predicate).average(:id).to_f]], assigns(:calculations)
       end

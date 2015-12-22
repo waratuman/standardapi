@@ -8,7 +8,7 @@ module StandardAPI
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put :update, id: m.id, singular_name => attrs, format: 'json'
+        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
         assert_response :ok
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
@@ -26,7 +26,7 @@ module StandardAPI
         m = create_model
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
-        put :update, id: m.id, singular_name => attrs, format: 'json'
+        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
         assert_response :ok
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
@@ -42,7 +42,7 @@ module StandardAPI
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put :update, id: m.id, singular_name => attrs, format: 'json'
+        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
         assert_response :bad_request
         assert JSON.parse(@response.body)['errors']
       end
@@ -53,7 +53,7 @@ module StandardAPI
           attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
           create_webmocks(attrs)
 
-          put :update, id: m.id, include: includes, singular_name => attrs, format: 'json'
+          put :update, params: {:id => m.id, :include => includes, singular_name => attrs}, format: :json
 
           json = JSON.parse(response.body)
           includes.each do |included|
@@ -95,7 +95,7 @@ module StandardAPI
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
-          put :update, id: m.id, format: 'json'
+          put :update, params: {id: m.id}, format: 'json'
         end
         @controller.current_mask.delete(plural_name)
       end
