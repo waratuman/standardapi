@@ -8,7 +8,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count") do
-          post :create, params: {singular_name => attrs}, format: 'json'
+          post :create, params: {singular_name => attrs}, format: :json
           assert_response :created
           assert assigns(singular_name)
 
@@ -18,7 +18,11 @@ module StandardAPI
           m = assigns(singular_name)
           view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
-            assert_equal normalize_to_json(m, key, attrs[key.to_sym]), json[key.to_s], message
+            if value.is_a?(BigDecimal)
+              assert_equal normalize_attribute(m, key, attrs[key.to_sym]).to_s.to_f, json[key.to_s].to_s.to_f, message
+            else
+              assert_equal normalize_attribute(m, key, attrs[key.to_sym]), json[key.to_s], message
+            end
           end
         end
       end
@@ -28,7 +32,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count") do
-          post :create, params: {singular_name => attrs}, format: 'json'
+          post :create, params: {singular_name => attrs}, format: :json
           assert_response :created
           assert assigns(singular_name)
 
@@ -48,7 +52,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count", 0) do
-          post :create, params: {singular_name => attrs}, format: 'json'
+          post :create, params: {singular_name => attrs}, format: :json
           assert_response :bad_request
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
@@ -62,7 +66,7 @@ module StandardAPI
           create_webmocks(attrs)
 
           assert_difference("#{model.name}.count") do
-            post :create, params: {singular_name => attrs, :include => includes}, format: 'json'
+            post :create, params: {singular_name => attrs, :include => includes}, format: :json
             assert_response :created
             assert assigns(singular_name)
 

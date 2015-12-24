@@ -81,9 +81,9 @@ module StandardAPI::TestCase
       
     return nil if value.nil?
 
-    if model.column_types[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
+    if model.columns_hash[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
       "#{value.to_f}"
-    elsif model.column_types[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
+    elsif model.columns_hash[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
       value.in_time_zone.as_json
     else
       value.as_json

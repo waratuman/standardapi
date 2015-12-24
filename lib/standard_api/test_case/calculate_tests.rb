@@ -21,7 +21,12 @@ module StandardAPI
 
         get :calculate, params: {where: predicate, select: selects}, format: :json
         assert_response :ok
-        assert_equal [[model.filter(predicate).count(:id), model.filter(predicate).maximum(:id), model.filter(predicate).minimum(:id), model.filter(predicate).average(:id).to_f]], assigns(:calculations)
+        assert_equal [[
+          model.filter(predicate).count(:id),
+          model.filter(predicate).maximum(:id),
+          model.filter(predicate).minimum(:id),
+          model.filter(predicate).average(:id).to_f
+        ]], assigns(:calculations)
       end
 
       test '#calculate.json mask' do
