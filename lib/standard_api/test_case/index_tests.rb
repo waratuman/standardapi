@@ -18,6 +18,7 @@ module StandardAPI
 
       test '#index.json params[:where]' do
         m = create_model
+
         get :index, params: { where: { id: m.id } }, format: :json
         assert_equal [m], assigns(plural_name)
       end

@@ -8,7 +8,7 @@ module StandardAPI
     end
   
     def ping
-      render :text => 'pong'
+      render plain: 'pong'
     end
 
     def tables
@@ -61,7 +61,7 @@ module StandardAPI
 
     def destroy
       resources.find(params[:id]).destroy!
-      render nothing: true, status: :no_content
+      head :no_content
     end
 
     # Override if you want to support masking
