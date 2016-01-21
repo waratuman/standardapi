@@ -43,7 +43,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         put :update, params: {:id => m.id, singular_name => attrs}, format: :json
-        assert_response :bad_request
+        assert_response :bad_request, "Updating #{m.class.name} with invalid attributes #{attrs.inspect}"
         assert JSON.parse(@response.body)['errors']
       end
 
