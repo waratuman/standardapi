@@ -9,7 +9,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         put :update, params: {:id => m.id, singular_name => attrs}, format: :json
-        assert_response :ok
+        assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
           message = "Model / Attribute: #{m.class.name}##{key}"
