@@ -3,6 +3,10 @@ module StandardAPI
     module CreateTests
       extend ActiveSupport::Testing::Declarative
 
+      def setup
+        @request.content_type="application/json"
+      end
+      
       test '#create.json' do
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
