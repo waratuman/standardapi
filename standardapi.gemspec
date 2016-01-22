@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "standardapi"
-  spec.version       = '1.0.23'
+  spec.version       = '5.0.0.beta1'
   spec.licenses      = ['MIT']
   spec.authors       = ["James Bracy"]
   spec.email         = ["waratuman@gmail.com"]
@@ -15,10 +15,11 @@ Gem::Specification.new do |spec|
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency 'activerecord-sort', '~> 1.0'
-  spec.add_runtime_dependency 'activerecord-filter', '~> 1.0'
   spec.add_runtime_dependency 'rails', '~> 5.0.0.beta1'
   spec.add_runtime_dependency 'activesupport', '~> 5.0.0.beta1'
+  spec.add_runtime_dependency 'actionpack', '~> 5.0.0.beta1'
+  spec.add_runtime_dependency 'activerecord-sort', '~> 5.0.0.beta1'
+  spec.add_runtime_dependency 'activerecord-filter', '~> 5.0.0.beta1'
   spec.add_runtime_dependency 'jbuilder', '~> 2.3'
     
   spec.add_development_dependency "bundler"
@@ -30,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency 'mocha'
+  # spec.add_development_dependency 'rails-controller-testing'
   # spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'
   # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'

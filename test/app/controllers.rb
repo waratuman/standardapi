@@ -34,9 +34,7 @@ class AccountsController < ApplicationController
   private
 
   def property_params
-    [ :account_id,
-      :format
-    ]
+    [ :account_id, :format ]
   end
   
   def account_orders

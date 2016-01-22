@@ -22,7 +22,7 @@ module StandardAPI
             sanitized_value = sanitize(value, subpermit)
             permitted << { key.to_sym => sanitized_value }
           else
-            raise(ActiveRecord::ActiveRecordError.new("Invalid Ordering #{orders.inspect}"))
+            raise(ActionController::UnpermittedParameters.new([orders]))
           end
         end
       when Array
@@ -35,14 +35,13 @@ module StandardAPI
           end
         end
       else
-
         if orders.to_s.count('.') == 1
           key, value = *orders.to_s.split('.')
           permitted = sanitize({key.to_sym => value.to_sym}, permit)
         elsif permit.include?(orders.to_s)
           permitted = orders
         else
-          raise(ActiveRecord::ActiveRecordError.new("Invalid Ordering #{orders.inspect}"))
+          raise(ActionController::UnpermittedParameters.new([orders]))
         end
       end
 

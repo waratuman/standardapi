@@ -8,7 +8,6 @@ module StandardAPI
 
         get :show, params: {id: m.id}, format: :json
         assert_response :ok
-        assert_template :show
         assert_equal m, assigns(singular_name)
         assert JSON.parse(response.body).is_a?(Hash)
       end

@@ -80,7 +80,7 @@ module StandardAPI::TestCase
     value = normalize_attribute(record, attribute, value)
       
     return nil if value.nil?
-
+    
     if model.columns_hash[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
       "#{value.to_f}"
     elsif model.columns_hash[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)

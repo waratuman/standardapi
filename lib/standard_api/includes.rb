@@ -15,10 +15,10 @@ module StandardAPI
       case includes
       when Array
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
-      when Hash
+      when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
           if ['where', 'order'].include?(k.to_s) # Where and order are not normalized
-            normalized[k] = v
+            normalized[k] = v.to_h
           else
             normalized[k] = normalize(v)
           end
@@ -55,10 +55,7 @@ module StandardAPI
           permitted[k] = sanitize(v, permit[k] || {}, true)
         else
           if [:raise, nil].include?(Rails.configuration.try(:action_on_unpermitted_includes))
-            raise(ActionDispatch::ParamsParser::ParseError.new(<<-ERR.squish, nil))
-              Invalid Include: #{k}"
-              Set config.action_on_unpermitted_includes = :warm to log instead of raise
-            ERR
+            raise ActionController::UnpermittedParameters.new([k])
           else
             Rails.logger.try(:warn, "Invalid Include: #{k}")
           end

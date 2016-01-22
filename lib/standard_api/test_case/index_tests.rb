@@ -6,7 +6,6 @@ module StandardAPI
       test '#index.json' do
         get :index, format: :json
         assert_response :ok
-        assert_template :index
         assert_equal model.all.map(&:id).sort, assigns(plural_name).map(&:id).sort
         assert JSON.parse(response.body).is_a?(Array)
       end
