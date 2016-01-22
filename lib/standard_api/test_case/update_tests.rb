@@ -3,6 +3,11 @@ module StandardAPI
     module UpdateTests
       extend ActiveSupport::Testing::Declarative
 
+      def setup
+        @request.content_type="application/json"
+        super
+      end
+      
       test '#update.json' do
         m = create_model
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
