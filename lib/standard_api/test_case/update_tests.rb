@@ -43,6 +43,14 @@ module StandardAPI
       end
 
       test '#update.json with invalid attributes' do
+        trait = FactoryGirl.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
+
+        if !trait
+          Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")
+          warn("No invalid trait for #{model.name}. Skipping invalid tests")
+          return
+        end
+
         m = create_model
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
