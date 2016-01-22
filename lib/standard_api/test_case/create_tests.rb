@@ -5,6 +5,7 @@ module StandardAPI
 
       def setup
         @request.content_type="application/json"
+        super
       end
       
       test '#create.json' do
