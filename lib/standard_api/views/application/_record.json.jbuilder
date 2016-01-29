@@ -50,5 +50,7 @@ includes.each do |inc, subinc|
 end
 
 if !record.errors.blank?
-  json.set! 'errors', record.errors.to_hash
+  errs = record.errors.to_hash
+  errs.default_proc = nil
+  json.set! 'errors', errs
 end
