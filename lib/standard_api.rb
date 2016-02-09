@@ -16,4 +16,4 @@ require 'standard_api/includes'
 require 'standard_api/controller'
 require 'standard_api/helpers'
 require 'standard_api/railtie'
-
+# require 'standard_api/route_helpers'
