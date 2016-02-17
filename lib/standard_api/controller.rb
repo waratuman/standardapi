@@ -10,7 +10,7 @@ module StandardAPI
     
     def extract_params
       if params[:m]
-        MessagePack.unpack(URI.decode(params[:m])).each do |key, value|
+        MessagePack.unpack(CGI.unescape(params[:m])).each do |key, value|
           params[key] = value
         end
       end
