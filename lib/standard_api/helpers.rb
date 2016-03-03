@@ -52,7 +52,6 @@ module StandardAPI
         else
           "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_s(klass.cache_timestamp_format)}"
         end
-
       else
         raise ArgumentError, 'Unkown association type'
       end

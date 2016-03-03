@@ -19,6 +19,9 @@ includes.each do |inc, subinc|
   
   when ActiveRecord::Reflection::BelongsToReflection, ActiveRecord::Reflection::HasOneReflection
     can_cache = can_cache_relation?(record.class, inc, subinc)
+    if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
+      can_cache = can_cache && !record.send(association.foreign_key).nil?
+    end
     json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
       value = record.send(inc)
       if value.nil?
