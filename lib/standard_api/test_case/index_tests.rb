@@ -25,7 +25,7 @@ module StandardAPI
       test '#index.json params[:order]' do
         orders.each do |order|
           @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
-          get :index, params: { order: order}, format: :json
+          get :index, params: { order: order }, format: :json
           assert_equal model.sort(order).to_sql, assigns(plural_name).to_sql
          end
       end

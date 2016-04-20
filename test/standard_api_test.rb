@@ -4,6 +4,7 @@ class PropertiesControllerTest < ActionController::TestCase
   include StandardAPI::TestCase
 
   # = Routing Tests
+  #
   # These also can't be included in StandardAPI::TestCase because we don't know
   # how the other's routes are setup
   test 'route to #create.json' do
@@ -43,7 +44,24 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_recognizes(path_with_action('schema'), { method: :get, path: "/#{plural_name}/schema" })
   end
 
-  # View Tests
+  # = Controller Tests
+
+  test 'Controller#model_orders defaults to []' do
+    @controller = ReferencesController.new
+    assert_equal @controller.send(:model_orders), []
+  end
+
+  test 'Controller#model_includes defaults to []' do
+    @controller = ReferencesController.new
+    assert_equal @controller.send(:model_includes), []
+  end
+
+  test 'Controller#model_params defaults to []' do
+    @controller = ReferencesController.new
+    assert_equal @controller.send(:model_params), []
+  end
+
+  # = View Tests
 
   test 'rendering null attribute' do
     property = create(:property)

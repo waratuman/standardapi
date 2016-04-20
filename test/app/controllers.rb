@@ -33,7 +33,7 @@ class AccountsController < ApplicationController
 
   private
 
-  def property_params
+  def account_params
     [ :account_id, :format ]
   end
   

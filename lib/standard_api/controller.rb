@@ -94,15 +94,27 @@ module StandardAPI
     end
 
     def model_params
-      params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
+      if self.respond_to?("#{model.model_name.singular}_params", true)
+        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
+      else
+        []
+      end
     end
 
     def model_includes
-      self.send "#{model.model_name.singular}_includes"
+      if self.respond_to?("#{model.model_name.singular}_includes", true)
+        self.send "#{model.model_name.singular}_includes"
+      else
+        []
+      end
     end
 
     def model_orders
-      self.send "#{model.model_name.singular}_orders"
+      if self.respond_to?("#{model.model_name.singular}_orders", true)
+        self.send "#{model.model_name.singular}_orders"
+      else
+        []
+      end
     end
 
     def excludes_for(klass)
