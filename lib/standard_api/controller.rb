@@ -64,8 +64,18 @@ module StandardAPI
     end
 
     def update
-      instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
-      render :show, status: instance_variable_get("@#{model.model_name.singular}").update_attributes(model_params) ? :ok : :bad_request
+      record = resources.find(params[:id])
+      instance_variable_set("@#{model.model_name.singular}", record)
+
+      if record.update_attributes(model_params)
+        if request.format == :html
+          redirect_to record
+        else
+          render :show, status: :ok
+        end
+      else
+        render :show, status: :bad_request
+      end
     end
 
     def destroy

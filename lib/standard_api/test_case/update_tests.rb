@@ -27,6 +27,15 @@ module StandardAPI
         assert JSON.parse(@response.body).is_a?(Hash)
       end
 
+      test '#update.html redirects to #show.html' do
+        m = create_model
+        attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        create_webmocks(attrs)
+
+        put :update, params: {:id => m.id, singular_name => attrs}, format: :html
+        assert_redirected_to m
+      end
+
       test '#update.json with nested attributes' do
         m = create_model
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
