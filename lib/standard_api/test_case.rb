@@ -1,6 +1,7 @@
 require 'active_support/test_case'
 
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))
+require File.expand_path(File.join(__FILE__, '../test_case/new_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/create_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/destroy_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/index_tests'))

@@ -48,6 +48,10 @@ module StandardAPI
       instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
     end
 
+    def new
+      instance_variable_set("@#{model.model_name.singular}", model.new)
+    end
+
     def create
       record = model.new(model_params)
       instance_variable_set("@#{model.model_name.singular}", record)
