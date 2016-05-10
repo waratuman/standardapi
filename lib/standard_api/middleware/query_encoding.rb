@@ -23,7 +23,7 @@ module StandardAPI
       def call(env)
         if !env[Rack::QUERY_STRING].empty? && env[HTTP_METHOD_OVERRIDE_HEADER] == MSGPACK_MIME_TYPE
           env[Rack::RACK_REQUEST_QUERY_STRING] = env[Rack::QUERY_STRING]
-          env[Rack::RACK_REQUEST_QUERY_HASH] = MessagePack.unpack(CGI.unescape(env[QUERY_STRING]))
+          env[Rack::RACK_REQUEST_QUERY_HASH] = MessagePack.unpack(CGI.unescape(env[Rack::QUERY_STRING]))
         end
 
         @app.call(env)
