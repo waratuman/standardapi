@@ -46,6 +46,16 @@ class PropertiesControllerTest < ActionController::TestCase
 
   # = Controller Tests
 
+  test 'Controller#new' do
+    @controller = ReferencesController.new
+    assert_equal @controller.send(:model), Reference
+
+    @controller = SessionsController.new
+    assert_equal @controller.send(:model), nil
+    get :new
+    assert_response :ok
+  end
+
   test 'Controller#model_orders defaults to []' do
     @controller = ReferencesController.new
     assert_equal @controller.send(:model_orders), []

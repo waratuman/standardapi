@@ -66,3 +66,6 @@ end
 
 class ReferencesController < ApplicationController
 end
+
+class SessionsController < ApplicationController
+end

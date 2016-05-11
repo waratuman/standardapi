@@ -49,7 +49,7 @@ module StandardAPI
     end
 
     def new
-      instance_variable_set("@#{model.model_name.singular}", model.new)
+      instance_variable_set("@#{model.model_name.singular}", model.new) if model
     end
 
     def create

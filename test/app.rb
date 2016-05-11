@@ -15,7 +15,7 @@ TestApplication.initialize!
 
 # Test Application Routes
 TestApplication.routes.draw do
-  [:properties, :accounts, :photos, :references].each do |r|
+  [:properties, :accounts, :photos, :references, :sessions].each do |r|
     resources r do
       get :calculate, on: :collection
       get :schema, on: :collection
