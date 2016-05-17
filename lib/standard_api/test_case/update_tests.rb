@@ -28,6 +28,8 @@ module StandardAPI
       end
 
       test '#update.html redirects to #show.html' do
+        return if @controller.method(:update).owner != StandardAPI
+        
         m = create_model
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
