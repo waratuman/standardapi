@@ -4,18 +4,9 @@ module StandardAPI
     def self.included(klass)
       klass.helper_method :includes, :orders, :model
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
-      klass.before_action(:extract_params)
       klass.extend(ClassMethods)
     end
     
-    def extract_params
-      if params[:m]
-        MessagePack.unpack(CGI.unescape(params[:m])).each do |key, value|
-          params[key] = value
-        end
-      end
-    end
-  
     def ping
       render plain: 'pong'
     end
