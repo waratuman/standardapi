@@ -43,7 +43,7 @@ module StandardAPI
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
         put :update, params: {:id => m.id, singular_name => attrs}, format: :json
-        assert_response :ok
+        assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
@@ -78,7 +78,8 @@ module StandardAPI
           create_webmocks(attrs)
 
           put :update, params: {:id => m.id, :include => includes, singular_name => attrs}, format: :json
-
+          assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
+        
           json = JSON.parse(response.body)
           includes.each do |included|
             assert json.key?(included.to_s), "#{included.inspect} not included in response"
