@@ -11,14 +11,21 @@ require File.expand_path(File.join(__FILE__, '../test_case/update_tests'))
 module StandardAPI::TestCase
       
   def self.included(klass)
-    model_class_name = klass.controller_class.name.gsub(/Controller$/, '').singularize
+    begin
+      controller_class_name = klass.name.gsub(/Test$/, '')
+      controller_class = controller_class_name.constantize 
+    rescue NameError => e
+      raise e if e.message != "uninitialized constant #{controller_class_name}"
+    end
 
     [:filters, :orders, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
     end
 
     begin
+      model_class_name = klass.name.gsub(/ControllerTest$/, '').singularize
       model_class = model_class_name.constantize
+
       klass.send(:filters=, model_class.attribute_names)
       klass.send(:orders=, model_class.attribute_names)
       klass.send(:includes=, model_class.reflect_on_all_associations.map(&:name))
@@ -33,6 +40,7 @@ module StandardAPI::TestCase
       acc[r.defaults[:controller]][r.defaults[:action]] = true
       acc
     end
+
 
     klass.controller_class.action_methods.each do |action|
       if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests") && routes[klass.controller_class.controller_path][action]
