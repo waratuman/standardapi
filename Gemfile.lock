@@ -2,12 +2,12 @@ PATH
   remote: .
   specs:
     standardapi (5.0.0)
-      actionpack (~> 5.0.0)
-      activerecord-filter (~> 5.0.0)
-      activerecord-sort (~> 5.0.0)
-      activesupport (~> 5.0.0)
-      jbuilder (~> 2.6.0)
-      rails (~> 5.0.0)
+      actionpack (~> 5.0, >= 5.0.0)
+      activerecord-filter (~> 5.0, >= 5.0.0)
+      activerecord-sort (~> 5.0, >= 5.0.0)
+      activesupport (~> 5.0, >= 5.0.0)
+      jbuilder (~> 2.6, >= 2.6.0)
+      rails (~> 5.0, >= 5.0.0)
 
 GEM
   remote: https://rubygems.org/

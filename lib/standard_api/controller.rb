@@ -137,7 +137,7 @@ module StandardAPI
     end
 
     def resources
-      model.filter(params[:where]).where(current_mask[model.table_name])
+      model.filter(params[:where]).filter(current_mask[model.table_name])
     end
 
     def includes

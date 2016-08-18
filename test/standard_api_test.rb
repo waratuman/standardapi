@@ -71,6 +71,13 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_equal @controller.send(:model_params), []
   end
 
+  test 'Controller#current_mask' do
+    @controller = ReferencesController.new
+    @controller.instance_variable_set('@current_mask', { 'references' => { 'subject' => 1 }})
+    @controller.params = {}
+    assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
+  end
+
   # = View Tests
 
   test 'rendering null attribute' do
@@ -204,10 +211,6 @@ class PropertiesControllerTest < ActionController::TestCase
     end
 
     assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
-    
-    
-    
-
   end
 
   # Order Test

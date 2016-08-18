@@ -86,7 +86,6 @@ module StandardAPI
         assert_equal model.where(id: m.id).to_sql, assigns(plural_name).to_sql
         @controller.current_mask.delete(plural_name)
       end
-
     end
   end
 end
