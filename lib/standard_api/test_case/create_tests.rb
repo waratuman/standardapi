@@ -71,6 +71,25 @@ module StandardAPI
           assert json['errors']
         end
       end
+      
+      test '#create.html with invalid attributes renders edit action' do
+        trait = FactoryGirl.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
+
+        if !trait
+          Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")
+          warn("No invalid trait for #{model.name}. Skipping invalid tests")
+          return
+        end
+
+        attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        create_webmocks(attrs)
+
+        assert_difference("#{model.name}.count", 0) do
+          post :create, params: {singular_name => attrs}, format: :html
+          assert_response :bad_request
+          assert_equal response.body, 'properties#edit.html'
+        end
+      end
 
       test '#create.json params[:include]' do
         travel_to Time.now do

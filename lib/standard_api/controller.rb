@@ -55,7 +55,11 @@ module StandardAPI
           render :show, status: :created
         end
       else
-        render :show, status: :bad_request
+        if request.format == :html
+          render :edit, status: :bad_request
+        else
+          render :show, status: :bad_request
+        end
       end
     end
 
