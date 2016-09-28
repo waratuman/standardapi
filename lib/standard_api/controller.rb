@@ -44,7 +44,6 @@ module StandardAPI
     end
 
     def create
-      puts model_params.inspect
       record = model.new(model_params)
       instance_variable_set("@#{model.model_name.singular}", record)
       
