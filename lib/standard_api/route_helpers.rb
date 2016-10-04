@@ -19,6 +19,7 @@ module StandardAPI
       resources(*resources, options) do
         get :schema, on: :collection
         get :calculate, on: :collection
+        block.call if block
       end
     end
     
