@@ -146,9 +146,39 @@ module StandardAPI
     def includes
       @includes ||= StandardAPI::Includes.normalize(params[:include])
     end
+    
+    def required_orders
+      if model.column_names.include?('id')
+        [:id]
+      else
+        []
+      end
+    end
 
     def orders
-      @orders ||= StandardAPI::Orders.sanitize(params[:order], model_orders)
+      exluded_required_orders = required_orders.map(&:to_s)
+      
+      case params[:order]
+      when Hash, ActionController::Parameters
+        exluded_required_orders -= params[:order].keys.map(&:to_s)
+      when Array
+        params[:order].flatten.each do |v|
+          case v
+          when Hash, ActionController::Parameters
+            exluded_required_orders -= v.keys.map(&:to_s)
+          when String
+            exluded_required_orders.delete(v)
+          end
+        end
+      when String
+        exluded_required_orders.delete(params[:order])
+      end
+      
+      if !exluded_required_orders.empty?
+        params[:order] = exluded_required_orders.unshift(params[:order])
+      end
+      
+      @orders ||= StandardAPI::Orders.sanitize(params[:order], model_orders | required_orders)
     end
 
     def excludes

@@ -12,7 +12,7 @@ module StandardAPI
 
       test '#index.json params[:limit]' do
         get :index, params: { limit: 1 }, format: :json
-        assert_equal model.limit(1).to_sql, assigns(plural_name).to_sql
+        assert_equal model.limit(1).sort(required_orders).to_sql, assigns(plural_name).to_sql
       end
 
       test '#index.json params[:where]' do
@@ -26,13 +26,13 @@ module StandardAPI
         orders.each do |order|
           @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
           get :index, params: { order: order }, format: :json
-          assert_equal model.sort(order).to_sql, assigns(plural_name).to_sql
+          assert_equal model.sort(order).sort(required_orders).to_sql, assigns(plural_name).to_sql
          end
       end
 
       test '#index.json params[:offset]' do
         get :index, params: { offset: 13 }, format: :json
-        assert_equal model.offset(13).to_sql, assigns(plural_name).to_sql
+        assert_equal model.offset(13).sort(required_orders).to_sql, assigns(plural_name).to_sql
       end
 
       test '#index.json params[:include]' do
@@ -83,7 +83,7 @@ module StandardAPI
         m = create_model
         @controller.current_mask[plural_name] = { id: m.id }
         get :index, format: :json
-        assert_equal model.where(id: m.id).to_sql, assigns(plural_name).to_sql
+        assert_equal model.where(id: m.id).sort(required_orders).to_sql, assigns(plural_name).to_sql
         @controller.current_mask.delete(plural_name)
       end
     end

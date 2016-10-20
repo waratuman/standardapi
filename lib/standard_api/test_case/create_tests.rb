@@ -73,6 +73,8 @@ module StandardAPI
       end
       
       test '#create.html with invalid attributes renders edit action' do
+        return unless supports_format(:html)
+
         trait = FactoryGirl.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 
         if !trait

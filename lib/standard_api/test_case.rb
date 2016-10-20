@@ -48,6 +48,25 @@ module StandardAPI::TestCase
       end
     end
   end
+  
+  def supports_format(format)
+    count = controller_class.view_paths.count do |path|
+      !Dir.glob("#{path.instance_variable_get(:@path)}/{#{model.name.underscore},application}/**/*.#{format}*").empty?
+    end
+    
+    count > 0
+  end
+  
+  def required_orders
+    controller_class.new.send(:required_orders)
+  end
+  
+  def controller_class
+    controller_class_name = self.class.name.gsub(/Test$/, '')
+    controller_class = controller_class_name.constantize 
+  rescue NameError => e
+    raise e if e.message != "uninitialized constant #{controller_class_name}"
+  end
 
   def model
     self.class.model
@@ -120,7 +139,7 @@ module StandardAPI::TestCase
 
           assert_predicate = -> (predicate) {
             get :index, params: {where: predicate}, format: 'json'
-            assert_equal model.filter(predicate).to_sql, assigns(plural_name).to_sql
+            assert_equal model.filter(predicate).order('id ASC').to_sql, assigns(plural_name).to_sql
           }
 
           # TODO: Test array
