@@ -13,7 +13,7 @@ module StandardAPI::TestCase
   def self.included(klass)
     begin
       controller_class_name = klass.name.gsub(/Test$/, '')
-      controller_class = controller_class_name.constantize 
+      controller_class_name.constantize 
     rescue NameError => e
       raise e if e.message != "uninitialized constant #{controller_class_name}"
     end
@@ -63,7 +63,7 @@ module StandardAPI::TestCase
   
   def controller_class
     controller_class_name = self.class.name.gsub(/Test$/, '')
-    controller_class = controller_class_name.constantize 
+    controller_class_name.constantize 
   rescue NameError => e
     raise e if e.message != "uninitialized constant #{controller_class_name}"
   end
@@ -86,7 +86,7 @@ module StandardAPI::TestCase
     
   def create_webmocks(attributes)
     attributes.each do |attribute, value|
-      validators = self.class.model.validators_on(attribute)
+      self.class.model.validators_on(attribute)
     end
   end
 
@@ -171,9 +171,9 @@ module StandardAPI::TestCase
 
     def model=(val)
       @model = val
-      filters = val.attribute_names
-      orders = val.attribute_names
-      includes = val.reflect_on_all_associations.map(&:name)
+      self.filters = val.attribute_names
+      self.orders = val.attribute_names
+      self.includes = val.reflect_on_all_associations.map(&:name)
       @model
     end
 

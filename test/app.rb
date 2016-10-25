@@ -15,12 +15,14 @@ TestApplication.initialize!
 
 # Test Application Routes
 TestApplication.routes.draw do
-  [:properties, :accounts, :photos, :references, :sessions].each do |r|
-    resources r do
+  [:properties, :photos, :references, :sessions].each do |r|
+    standard_resources r do
       get :calculate, on: :collection
       get :schema, on: :collection
     end
   end
+
+  standard_resource :account
 end
 
 # Test Application Models

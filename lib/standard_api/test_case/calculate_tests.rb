@@ -4,7 +4,7 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#calculate.json' do
-        m = create_model
+        create_model
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
 
         get :calculate, params: {select: selects}, format: :json
@@ -14,7 +14,7 @@ module StandardAPI
 
       test '#calculate.json params[:where]' do
         m1 = create_model
-        m2 = create_model
+        create_model
 
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
         predicate = { id: { gt: m1.id } }
