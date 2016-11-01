@@ -140,7 +140,15 @@ module StandardAPI
     end
 
     def resources
-      model.filter(params[:where]).filter(current_mask[model.table_name])
+      query = model.filter(params[:where]).filter(current_mask[model.table_name])
+      
+      if params[:distinct_on]
+        query.distinct_on(params[:distinct_on])
+      elsif params[:distinct]
+        query.distinct
+      else
+        query
+      end
     end
 
     def includes
