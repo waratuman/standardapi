@@ -4,10 +4,14 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#index.json' do
-        get :index, format: :json
+        get :index, format: :json, params: { limit: 10 }
         assert_response :ok
         assert_equal model.all.map(&:id).sort, assigns(plural_name).map(&:id).sort
         assert JSON.parse(response.body).is_a?(Array)
+      end
+
+      test '#index.json requires limit' do
+        
       end
 
       test '#index.json params[:limit]' do
@@ -15,30 +19,36 @@ module StandardAPI
         assert_equal model.limit(1).sort(required_orders).to_sql, assigns(plural_name).to_sql
       end
 
+      test '#index.json params[:limit] does not exceed maximum limit' do
+        assert_raises ActionController::UnpermittedParameters do
+          get :index, params: { limit: 1000000 }, format: :json
+        end
+      end
+
       test '#index.json params[:where]' do
         m = create_model
 
-        get :index, params: { where: { id: m.id } }, format: :json
+        get :index, params: { limit: 10, where: { id: m.id } }, format: :json
         assert_equal [m], assigns(plural_name)
       end
 
       test '#index.json params[:order]' do
         orders.each do |order|
           @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
-          get :index, params: { order: order }, format: :json
-          assert_equal model.sort(order).sort(required_orders).to_sql, assigns(plural_name).to_sql
+          get :index, params: { limit: 10, order: order }, format: :json
+          assert_equal model.sort(order).limit(10).sort(required_orders).to_sql, assigns(plural_name).to_sql
          end
       end
 
       test '#index.json params[:offset]' do
-        get :index, params: { offset: 13 }, format: :json
-        assert_equal model.offset(13).sort(required_orders).to_sql, assigns(plural_name).to_sql
+        get :index, params: { limit: 10, offset: 13 }, format: :json
+        assert_equal model.offset(13).limit(10).sort(required_orders).to_sql, assigns(plural_name).to_sql
       end
 
       test '#index.json params[:include]' do
         travel_to Time.now do
           create_model
-          get :index, params: { include: includes }, format: :json
+          get :index, params: { limit: 100, include: includes }, format: :json
         
           json = JSON.parse(response.body)[0]
           assert json.is_a?(Hash)

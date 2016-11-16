@@ -1,7 +1,6 @@
 require 'test_helper'
 
 class RouteHelpersTest < ActionDispatch::IntegrationTest
-  include StandardAPI::RouteHelpers
 
   test 'standard_resources' do
     assert_routing({ path: '/properties', method: :get }, { controller: 'properties', action: 'index' })

@@ -2,26 +2,13 @@ module StandardAPI
   module Controller
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model
+      klass.helper_method :includes, :orders, :model, :resource_limit
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
-    
-    def ping
-      render plain: 'pong'
-    end
-
-    def tables
-      controllers = Dir[Rails.root.join('app/controllers/*_controller.rb')].map{ |path| path.match(/(\w+)_controller.rb/)[1].camelize+"Controller" }.map(&:safe_constantize)
-      controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
-      controllers.map!(&:model).compact!
-      controllers.map!(&:table_name)
-    
-      render json: controllers
-    end  
 
     def index
-      instance_variable_set("@#{model.model_name.plural}", resources.limit(params[:limit]).offset(params[:offset]).sort(orders))
+      instance_variable_set("@#{model.model_name.plural}", resources.limit(limit).offset(params[:offset]).sort(orders))
     end
 
     def calculate
@@ -94,6 +81,22 @@ module StandardAPI
         @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
       end
 
+      def model_includes
+        if self.respond_to?("#{model.model_name.singular}_includes", true)
+          self.send "#{model.model_name.singular}_includes"
+        else
+          []
+        end
+      end
+
+      def model_orders
+        if self.respond_to?("#{model.model_name.singular}_orders", true)
+          self.send "#{model.model_name.singular}_orders"
+        else
+          []
+        end
+      end
+
     end
   
     private
@@ -102,25 +105,17 @@ module StandardAPI
       self.class.model
     end
 
-    def model_params
-      if self.respond_to?("#{model.model_name.singular}_params", true)
-        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
-      else
-        []
-      end
-    end
-
     def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send "#{model.model_name.singular}_includes"
-      else
-        []
-      end
+      self.class.model_includes
     end
 
     def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send "#{model.model_name.singular}_orders"
+      self.class.model_orders
+    end
+
+    def model_params
+      if self.respond_to?("#{model.model_name.singular}_params", true)
+        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
       else
         []
       end
@@ -191,6 +186,21 @@ module StandardAPI
 
     def excludes
       @excludes ||= model_excludes
+    end
+
+    # The maximum number of results returned by #index
+    def resource_limit
+      1000
+    end
+
+    def limit
+      limit = params.require(:limit).to_i
+
+      if limit > resource_limit
+        raise ActionController::UnpermittedParameters.new([:limit, limit])
+      end
+
+      limit
     end
 
     # Used in #calculate

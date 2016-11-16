@@ -7,6 +7,12 @@ class PropertiesControllerTest < ActionController::TestCase
   #
   # These also can't be included in StandardAPI::TestCase because we don't know
   # how the other's routes are setup
+
+  # test 'route to #metadata' do
+  #   assert_routing '/metadata', path_with_action('metadata')
+  #   assert_recognizes path_with_action('metadata'), "/metadata"
+  # end
+
   test 'route to #create.json' do
     assert_routing({ method: :post, path: "/#{plural_name}" }, path_with_action('create'))
     assert_recognizes(path_with_action('create'), { method: :post, path: "/#{plural_name}" })
@@ -78,6 +84,16 @@ class PropertiesControllerTest < ActionController::TestCase
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
 
+  test 'Controller#schema.json' do
+    @controller = ReferencesController.new
+    get :schema, params: { format: :json }
+
+    schema = JSON(response.body)
+    assert schema.has_key?('columns')
+    assert_equal true, schema['columns']['id']['primary_key']
+    assert_equal 1000, schema['limit']
+  end
+
   # = View Tests
 
   test 'rendering null attribute' do
@@ -89,7 +105,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])
-    get :index, params: { include: [:photos], format: 'json' }
+    get :index, params: { limit: 100, include: [:photos], format: 'json' }
 
     photo = JSON(response.body)[0]['photos'][0]
     assert photo.has_key?('template')
@@ -126,7 +142,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test 'has_many association' do
     p = create(:property, photos: [build(:photo)])
-    get :index, params: { include: [:photos], format: 'json' }
+    get :index, params: { limit: 100, include: [:photos], format: 'json' }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
   end
 
