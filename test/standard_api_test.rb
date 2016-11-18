@@ -1,7 +1,15 @@
 require 'test_helper'
 
-class PropertiesControllerTest < ActionController::TestCase
+class PropertiesControllerTest < ActionDispatch::IntegrationTest
   include StandardAPI::TestCase
+
+  # def normalizers
+  #   {
+  #     Property => {
+  #       "size" => lambda { |value| value.to_i }
+  #     }
+  #   }
+  # end
 
   # = Routing Tests
   #
@@ -58,7 +66,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
     @controller = SessionsController.new
     assert_equal @controller.send(:model), nil
-    get :new
+    get new_session_path
     assert_response :ok
   end
 
@@ -86,7 +94,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test 'Controller#schema.json' do
     @controller = ReferencesController.new
-    get :schema, params: { format: :json }
+    get schema_references_path(format: 'json')
 
     schema = JSON(response.body)
     assert schema.has_key?('columns')
@@ -98,14 +106,14 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test 'rendering null attribute' do
     property = create(:property)
-    get :show, params: { id: property.id, include: [:landlord], format: 'json' }
+    get property_path(property, format: 'json'), params: { id: property.id, include: [:landlord] }
     assert JSON(response.body).has_key?('landlord')
     assert_equal nil, JSON(response.body)['landlord']
   end
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])
-    get :index, params: { limit: 100, include: [:photos], format: 'json' }
+    get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
 
     photo = JSON(response.body)[0]['photos'][0]
     assert photo.has_key?('template')
@@ -114,7 +122,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test '#show.json uses overridden partial' do
     property = create(:property, photos: [build(:photo)])
-    get :show, params: { id: property.id, include: [:photos], format: 'json' }
+    get property_path(property, format: 'json'), params: { id: property.id, include: [:photos] }
 
     photo = JSON(response.body)['photos'][0]
     assert photo.has_key?('template')
@@ -123,7 +131,7 @@ class PropertiesControllerTest < ActionController::TestCase
 
   test '#schema.json uses overridden partial' do
     @controller = PhotosController.new
-    get :schema, params: { format: :json }
+    get schema_photos_path(format: 'json')
 
     schema = JSON(response.body)
     assert schema.has_key?('template')
@@ -134,15 +142,15 @@ class PropertiesControllerTest < ActionController::TestCase
     property = create(:photo)
     reference = create(:reference, subject: property)
     @controller = ReferencesController.new
-    get :show, params: { id: reference.id, include: :subject, format: :json }
-    
+    get reference_path(reference, include: :subject, format: 'json')
+
     json = JSON(response.body)
     assert_equal 'photos/_photo', json['subject']['template']
   end
 
   test 'has_many association' do
     p = create(:property, photos: [build(:photo)])
-    get :index, params: { limit: 100, include: [:photos], format: 'json' }
+    get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
   end
 
@@ -150,32 +158,32 @@ class PropertiesControllerTest < ActionController::TestCase
     account = create(:account)
     photo = create(:photo, account: account)
     @controller = PhotosController.new
-    get :show, params: { id: photo.id, include: :account, format: :json }
+    get photo_path(photo, include: 'account', format: 'json')
     assert_equal account.id, JSON(response.body)['account']['id']
   end
 
   test 'has_one association' do
     account = create(:account)
     property = create(:property, landlord: account)
-    get :show, params: { id: property.id, include: :landlord, format: :json }
+    get property_path(property, include: 'landlord', format: 'json')
     assert_equal account.id, JSON(response.body)['landlord']['id']
   end
 
   test 'include method' do
     property = create(:property)
-    get :show, params: { id: property.id, include: :english_name, format: :json }
+    get property_path(property, include: 'english_name', format: 'json')
     assert_equal 'A Name', JSON(response.body)['english_name']
   end
 
   test 'include with where key' do
     property = create(:property)
-    get :show, params: { id: property.id, include: { photos: { where: { id: 1 } } }, format: :json }
+    get property_path(property, include: { photos: { where: { id: 1 } } }, format: :json)
     assert JSON(response.body)['photos']
   end
   
   test 'include with order key' do
     property = create(:property)
-    get :show, params: { id: property.id, include: { photos: { order: { id: :asc } } }, format: :json }
+    get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
     assert JSON(response.body)['photos']
   end
 

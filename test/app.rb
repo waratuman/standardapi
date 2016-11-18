@@ -8,6 +8,7 @@ class TestApplication < Rails::Application
   config.secret_key_base = 'test key base'
   config.eager_load = false
   config.cache_store = :memory_store, { size: 8.megabytes }
+  config.action_dispatch.show_exceptions = false
 end
 
 # Test Application initialization

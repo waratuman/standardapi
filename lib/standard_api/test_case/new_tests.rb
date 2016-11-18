@@ -4,9 +4,9 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#new.json' do
-        get :new, format: 'json'
+        get resource_path(:new, format: 'json')
         assert_response :ok
-        assert assigns(singular_name)
+        assert @controller.instance_variable_get("@#{singular_name}")
       end
 
     end

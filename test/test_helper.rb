@@ -31,7 +31,11 @@ class ActiveSupport::TestCase
   # = Helper Methods
 
   def controller_path
-    @controller.controller_path
+    if defined?(@controller)
+      @controller.controller_path
+    else
+      controller_class.new.controller_path
+    end
   end
 
   def path_with_action(action, options={})

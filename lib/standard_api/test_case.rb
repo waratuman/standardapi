@@ -1,23 +1,17 @@
 require 'active_support/test_case'
 
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))
-require File.expand_path(File.join(__FILE__, '../test_case/new_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/create_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/destroy_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/index_tests'))
+require File.expand_path(File.join(__FILE__, '../test_case/new_tests'))
+require File.expand_path(File.join(__FILE__, '../test_case/schema_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/show_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/update_tests'))
 
 module StandardAPI::TestCase
       
   def self.included(klass)
-    begin
-      controller_class_name = klass.name.gsub(/Test$/, '')
-      controller_class_name.constantize 
-    rescue NameError => e
-      raise e if e.message != "uninitialized constant #{controller_class_name}"
-    end
-
     [:filters, :orders, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
     end
@@ -41,14 +35,13 @@ module StandardAPI::TestCase
       acc
     end
 
-
     klass.controller_class.action_methods.each do |action|
       if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests") && routes[klass.controller_class.controller_path][action]
         klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
       end
     end
   end
-  
+
   def supports_format(format)
     count = controller_class.view_paths.count do |path|
       !Dir.glob("#{path.instance_variable_get(:@path)}/{#{model.name.underscore},application}/**/*.#{format}*").empty?
@@ -60,16 +53,31 @@ module StandardAPI::TestCase
   def required_orders
     controller_class.new.send(:required_orders)
   end
-  
-  def controller_class
-    controller_class_name = self.class.name.gsub(/Test$/, '')
-    controller_class_name.constantize 
-  rescue NameError => e
-    raise e if e.message != "uninitialized constant #{controller_class_name}"
-  end
 
   def model
     self.class.model
+  end
+
+  def resource_path(action, options={})
+    url_for({
+      controller: model.model_name.plural, action: action
+    }.merge(options))
+    # case action
+    # when :index, :create
+    #   send "#{model.model_name.plural.underscore}_path", *args
+    # when :schema, :calculate
+    #   send "#{model.model_name.plural.underscore}_#{action}_path", *args
+    # else
+    #   send "#{action}_#{model.model_name.underscore}_path", *args
+    # end
+  end
+
+  # def resoruces_path(action, *args)
+  #   send "#{model.model_name.plural.underscore}_path", *args
+  # end
+
+  def controller_class
+    self.class.controller_class
   end
 
   def create_model(*args)
@@ -126,6 +134,13 @@ module StandardAPI::TestCase
 
     def self.extended(klass)
       klass.instance_variable_set('@normalizers', {})
+    end
+
+    def controller_class
+      controller_class_name = self.name.gsub(/Test$/, '')
+      controller_class_name.constantize 
+    rescue NameError => e
+      raise e if e.message != "uninitialized constant #{controller_class_name}"
     end
 
     def include_filter_tests
