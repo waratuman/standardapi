@@ -72,7 +72,7 @@ end
 
 class UnlimitedController < ApplicationController
 
-  def model
+  def self.model
     Account
   end
 

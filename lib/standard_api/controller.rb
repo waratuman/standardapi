@@ -199,13 +199,17 @@ module StandardAPI
     end
 
     def limit
-      limit = params.require(:limit).to_i
+      if resource_limit
+        limit = params.require(:limit).to_i
 
-      if limit > resource_limit
-        raise ActionController::UnpermittedParameters.new([:limit, limit])
+        if limit > resource_limit
+          raise ActionController::UnpermittedParameters.new([:limit, limit])
+        end
+
+        limit
+      else
+        params.permit(:limit)[:limit]
       end
-
-      limit
     end
 
     # Used in #calculate

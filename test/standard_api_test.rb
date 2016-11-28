@@ -107,13 +107,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1000, schema['limit']
   end
   
-  test 'Controller#schema.json with no limit' do
+  test 'Controller#schema.json w/o limit' do
     get schema_unlimited_index_path(format: 'json')
 
     schema = JSON(response.body)
     assert schema.has_key?('columns')
     assert_equal true, schema['columns']['id']['primary_key']
     assert_equal nil, schema['limit']
+  end
+
+  test 'Controller#index w/o limit' do
+    account = create(:account)
+    get unlimited_index_path(format: 'json')
+
+    assert_equal [account.id], JSON(response.body).map { |x| x['id'] }
   end
 
   # = View Tests
