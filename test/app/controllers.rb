@@ -38,7 +38,7 @@ class AccountsController < ApplicationController
   end
   
   def self.account_orders
-    ["id"]
+    [:id]
   end
 
   def self.account_includes
