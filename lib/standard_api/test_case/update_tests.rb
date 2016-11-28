@@ -3,17 +3,12 @@ module StandardAPI
     module UpdateTests
       extend ActiveSupport::Testing::Declarative
 
-      def setup
-        @request.content_type="application/json"
-        super
-      end
-      
       test '#update.json' do
         m = create_model
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
+        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
@@ -28,13 +23,18 @@ module StandardAPI
       end
 
       test '#update.html redirects to #show.html' do
+        m = create_model
+
+        # This is just to instance @controller
+        get resource_path(:show, id: m.id, format: :json)
+
         return if @controller.method(:update).owner != StandardAPI
         
-        m = create_model
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put :update, params: {:id => m.id, singular_name => attrs}, format: :html
+        put resource_path(:update, :id => m.id, :format => 'html'), params: { singular_name => attrs }
+
         assert_redirected_to m
       end
 
@@ -42,7 +42,8 @@ module StandardAPI
         m = create_model
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
-        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
+
+        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
@@ -66,7 +67,7 @@ module StandardAPI
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put :update, params: {:id => m.id, singular_name => attrs}, format: :json
+        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
         assert_response :bad_request, "Updating #{m.class.name} with invalid attributes #{attrs.inspect}"
         assert JSON.parse(@response.body)['errors']
       end
@@ -77,23 +78,24 @@ module StandardAPI
           attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
           create_webmocks(attrs)
 
-          put :update, params: {:id => m.id, :include => includes, singular_name => attrs}, format: :json
+          put resource_path(:update, :id => m.id, :format => 'json'), params: { include: includes, singular_name => attrs }
           assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
         
+          controller_model = @controller.instance_variable_get("@#{singular_name}")
           json = JSON.parse(response.body)
           includes.each do |included|
             assert json.key?(included.to_s), "#{included.inspect} not included in response"
 
-            association = assigns(singular_name).class.reflect_on_association(included)
+            association = controller_model.class.reflect_on_association(included)
             next if !association
 
             if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-              view_attributes(assigns(singular_name).send(included)) do |key, value|
-                message = "Model / Attribute: #{assigns(singular_name).send(included).class.name}##{key}"
+              view_attributes(controller_model.send(included)) do |key, value|
+                message = "Model / Attribute: #{controller_model.send(included).class.name}##{key}"
                 assert_equal json[included.to_s][key.to_s], value, message
               end
             else
-              m = assigns(singular_name).send(included).first.try(:reload)
+              m = controller_model.send(included).first.try(:reload)
               m_json = if m && m.has_attribute?(:id)
                 json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }
               elsif m
@@ -113,14 +115,18 @@ module StandardAPI
       end
 
       test '#update.json mask' do
+        m = create_model
+
+        # This is just to instance @controller
+        get resource_path(:index, format: :json), params: { limit: 1 }
+
         # If #current_mask isn't defined by StandardAPI we don't know how to
         # test other's implementation of #current_mask. Return and don't test.
         return if @controller.method(:current_mask).owner != StandardAPI
 
-        m = create_model
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
-          put :update, params: {id: m.id}, format: 'json'
+          put resource_path(:update, :id => m.id, :format => 'json')
         end
         @controller.current_mask.delete(plural_name)
       end
