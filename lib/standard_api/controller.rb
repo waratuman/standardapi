@@ -103,7 +103,7 @@ module StandardAPI
     private
 
     def set_standardapi_headers
-      headers['X-StandardAPI-Version'] = StandardAPI::VERSION
+      headers['StandardAPI-Version'] = StandardAPI::VERSION
     end
 
     def model

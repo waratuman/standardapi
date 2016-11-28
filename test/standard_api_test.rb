@@ -60,11 +60,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'X-StandardAPI-Version' do
-    @controller = ReferencesController.new
+  test 'StandardAPI-Version' do
     get schema_references_path(format: 'json')
 
-    assert_equal StandardAPI::VERSION, response.headers['X-StandardAPI-Version']
+    assert_equal StandardAPI::VERSION, response.headers['StandardAPI-Version']
   end
 
   test 'Controller#new' do
@@ -100,13 +99,21 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#schema.json' do
-    @controller = ReferencesController.new
     get schema_references_path(format: 'json')
 
     schema = JSON(response.body)
     assert schema.has_key?('columns')
     assert_equal true, schema['columns']['id']['primary_key']
     assert_equal 1000, schema['limit']
+  end
+  
+  test 'Controller#schema.json with no limit' do
+    get schema_unlimited_index_path(format: 'json')
+
+    schema = JSON(response.body)
+    assert schema.has_key?('columns')
+    assert_equal true, schema['columns']['id']['primary_key']
+    assert_equal nil, schema['limit']
   end
 
   # = View Tests
@@ -137,7 +144,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '#schema.json uses overridden partial' do
-    @controller = PhotosController.new
     get schema_photos_path(format: 'json')
 
     schema = JSON(response.body)
@@ -148,7 +154,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'belongs_to polymorphic association' do
     property = create(:photo)
     reference = create(:reference, subject: property)
-    @controller = ReferencesController.new
     get reference_path(reference, include: :subject, format: 'json')
 
     json = JSON(response.body)
@@ -164,7 +169,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'belongs_to association' do
     account = create(:account)
     photo = create(:photo, account: account)
-    @controller = PhotosController.new
     get photo_path(photo, include: 'account', format: 'json')
     assert_equal account.id, JSON(response.body)['account']['id']
   end

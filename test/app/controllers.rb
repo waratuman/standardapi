@@ -69,3 +69,15 @@ end
 
 class SessionsController < ApplicationController
 end
+
+class UnlimitedController < ApplicationController
+
+  def model
+    Account
+  end
+
+  def resource_limit
+    nil
+  end
+
+end
