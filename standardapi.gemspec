@@ -1,6 +1,8 @@
+require File.expand_path("../lib/standard_api/version", __FILE__)
+
 Gem::Specification.new do |spec|
   spec.name          = "standardapi"
-  spec.version       = '5.0.0.5'
+  spec.version       = StandardAPI::VERSION
   spec.licenses      = ['MIT']
   spec.authors       = ["James Bracy"]
   spec.email         = ["waratuman@gmail.com"]

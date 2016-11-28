@@ -60,6 +60,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
+  test 'X-StandardAPI-Version' do
+    @controller = ReferencesController.new
+    get schema_references_path(format: 'json')
+
+    assert_equal StandardAPI::VERSION, response.headers['X-StandardAPI-Version']
+  end
+
   test 'Controller#new' do
     @controller = ReferencesController.new
     assert_equal @controller.send(:model), Reference

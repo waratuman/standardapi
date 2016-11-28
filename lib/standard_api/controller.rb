@@ -3,6 +3,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :resource_limit
+      klass.before_action :set_standardapi_headers
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
@@ -98,8 +99,12 @@ module StandardAPI
       end
 
     end
-  
+
     private
+
+    def set_standardapi_headers
+      headers['X-StandardAPI-Version'] = StandardAPI::VERSION
+    end
 
     def model
       self.class.model
