@@ -8,6 +8,14 @@ module StandardAPI
       klass.extend(ClassMethods)
     end
 
+    def tables
+      controllers = ApplicationController.descendants# Dir[Rails.root.join('app/controllers/*_controller.rb')].map{ |path| path.match(/(\w+)_controller.rb/)[1].camelize+"Controller" }.map(&:safe_constantize)
+      controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+      controllers.map!(&:model).compact!
+      controllers.map!(&:table_name)
+      render json: controllers
+    end
+
     def index
       instance_variable_set("@#{model.model_name.plural}", resources.limit(limit).offset(params[:offset]).sort(orders))
     end
@@ -128,8 +136,8 @@ module StandardAPI
 
     def excludes_for(klass)
       if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-         excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-         excludes.try(:[], klass.model_name.singular) || []
+        excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+        excludes.try(:[], klass.model_name.singular) || []
       else
         []
       end

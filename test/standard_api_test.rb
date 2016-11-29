@@ -21,6 +21,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   #   assert_recognizes path_with_action('metadata'), "/metadata"
   # end
 
+  test 'route to #tables.json' do
+    assert_recognizes({"controller"=>"application", "action"=>"tables"}, { method: :get, path: "/tables" })
+  end
+
   test 'route to #create.json' do
     assert_routing({ method: :post, path: "/#{plural_name}" }, path_with_action('create'))
     assert_recognizes(path_with_action('create'), { method: :post, path: "/#{plural_name}" })
@@ -124,6 +128,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   # = View Tests
+
+  test 'rendering tables' do
+    get tables_path(format: 'json')
+    assert_response :ok
+    assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
+  end
 
   test 'rendering null attribute' do
     property = create(:property)
