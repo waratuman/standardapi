@@ -40,7 +40,11 @@ module StandardAPI
 
             view_attributes(m).each do |key, value|
               message = "Model / Attribute: #{m.class.name}##{key}"
-              assert_equal m_json[key.to_s], normalize_to_json(m, key, value), message
+              if m_json[key.to_s].nil?
+                assert_nil normalize_to_json(m, key, value), message
+              else
+                assert_equal m_json[key.to_s], normalize_to_json(m, key, value), message
+              end
             end
             
           end
