@@ -12,9 +12,26 @@ module StandardAPI
       end
 
       test '#index.json requires limit' do
-        assert_raises ActionController::ParameterMissing do
+        limit = controller_class.new.send(:resource_limit)
+
+        return if !limit || limit == Float::INFINITY
+
+        begin
           get resource_path(:index, format: :json)
+          assert_response :bad_request
+        rescue ActionController::ParameterMissing
         end
+
+        # return if !controller_class.new.send(:resource_limit)
+        # if app.config.action_dispatch.show_exceptions
+        #   assert_raises ActionController::ParameterMissing do
+        #     get resource_path(:index, format: 'json')
+        #     assert_response :bad_request
+        #   end
+        # else
+        #   get resource_path(:index, format: :json)
+        #   assert_response :bad_request
+        # end
       end
 
       test '#index.json params[:limit]' do
