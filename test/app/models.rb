@@ -9,6 +9,10 @@ class Photo < ActiveRecord::Base
   has_and_belongs_to_many :properties
 end
 
+class Document < ActiveRecord::Base
+  attr_accessor :file
+end
+
 class Property < ActiveRecord::Base
   has_many :photos
   has_one :landlord, class_name: 'Account'

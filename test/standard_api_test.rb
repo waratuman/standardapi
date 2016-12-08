@@ -133,7 +133,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get tables_path(format: 'json')
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
-    assert_equal ["properties", "accounts", "photos", "references", "accounts"], response.parsed_body
+    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts"].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do

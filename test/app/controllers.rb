@@ -47,6 +47,8 @@ class AccountsController < ApplicationController
 
 end
 
+class DocumentsController < ApplicationController
+end
 
 class PhotosController < ApplicationController
 
