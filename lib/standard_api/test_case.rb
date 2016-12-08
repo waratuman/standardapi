@@ -60,7 +60,7 @@ module StandardAPI::TestCase
 
   def resource_path(action, options={})
     url_for({
-      controller: model.model_name.plural, action: action
+      controller: controller_class.controller_path, action: action
     }.merge(options))
     # case action
     # when :index, :create

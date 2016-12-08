@@ -8,7 +8,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count") do
-          post resource_path(:create, singular_name => attrs, format: :json)
+          post resource_path(:create, format: :json), params: { singular_name => attrs }
           assert_response :created
           m = @controller.instance_variable_get("@#{singular_name}")
 
@@ -59,7 +59,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count", 0) do
-          post resource_path(:create, singular_name => attrs, format: :json)
+          post resource_path(:create, format: :json), params: { singular_name => attrs }
           assert_response :bad_request
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
@@ -82,7 +82,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count", 0) do
-          post resource_path(:create, singular_name => attrs, format: :html)
+          post resource_path(:create, format: :html), params: { singular_name => attrs }
           assert_response :bad_request
           assert_equal response.body, 'properties#edit.html'
         end
@@ -94,7 +94,7 @@ module StandardAPI
           create_webmocks(attrs)
 
           assert_difference("#{model.name}.count") do
-            post resource_path(:create, singular_name => attrs, include: includes, format: :json)
+            post resource_path(:create, format: :json), params: { singular_name => attrs, include: includes }
             assert_response :created
             m = @controller.instance_variable_get("@#{singular_name}")
             assert m
@@ -125,9 +125,9 @@ module StandardAPI
                 view_attributes(m2).each do |key, value|
                   message = "Model / Attribute: #{m2.class.name}##{key}"
                   if m_json[key.to_s].nil?
-                    assert_nil normalize_to_json(m, key, value), message
+                    assert_nil normalize_to_json(m2, key, value), message
                   else
-                    assert_equal m_json[key.to_s], normalize_to_json(m, key, value), message
+                    assert_equal m_json[key.to_s], normalize_to_json(m2, key, value), message
                   end
                 end
 

@@ -5,7 +5,7 @@ module StandardAPI
 
       test '#update.json' do
         m = create_model
-        attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        attrs = attributes_for(singular_name).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
         put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
