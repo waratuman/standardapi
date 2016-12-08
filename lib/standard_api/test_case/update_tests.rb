@@ -8,7 +8,7 @@ module StandardAPI
         attrs = attributes_for(singular_name).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
+        put resource_path(:update, :id => m.id), params: { singular_name => attrs }, as: :json
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
@@ -26,14 +26,14 @@ module StandardAPI
         m = create_model
 
         # This is just to instance @controller
-        get resource_path(:show, id: m.id, format: :json)
+        get resource_path(:show, id: m.id), as: :json
 
         return if @controller.method(:update).owner != StandardAPI
         
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id, :format => 'html'), params: { singular_name => attrs }
+        put resource_path(:update, :id => m.id), params: { singular_name => attrs }
 
         assert_redirected_to m
       end
@@ -43,7 +43,7 @@ module StandardAPI
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
+        put resource_path(:update, :id => m.id), params: { singular_name => attrs }, as: :json
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
@@ -67,7 +67,7 @@ module StandardAPI
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id, :format => 'json'), params: { singular_name => attrs }
+        put resource_path(:update, :id => m.id), params: { singular_name => attrs }, as: :json
         assert_response :bad_request, "Updating #{m.class.name} with invalid attributes #{attrs.inspect}"
         assert JSON.parse(@response.body)['errors']
       end
@@ -78,7 +78,7 @@ module StandardAPI
           attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
           create_webmocks(attrs)
 
-          put resource_path(:update, :id => m.id, :format => 'json'), params: { include: includes, singular_name => attrs }
+          put resource_path(:update, :id => m.id), params: { include: includes, singular_name => attrs }, as: :json
           assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
         
           controller_model = @controller.instance_variable_get("@#{singular_name}")
@@ -130,7 +130,7 @@ module StandardAPI
 
         @controller.current_mask[plural_name] = { id: m.id + 1 }
         assert_raises(ActiveRecord::RecordNotFound) do
-          put resource_path(:update, :id => m.id, :format => 'json')
+          put resource_path(:update, :id => m.id), as: :json
         end
         @controller.current_mask.delete(plural_name)
       end
