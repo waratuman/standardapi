@@ -5,10 +5,15 @@ module StandardAPI
 
       test '#update.json' do
         m = create_model
+
         attrs = attributes_for(singular_name).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id), params: { singular_name => attrs }, as: :json
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+        format = as ? nil : :json
+
+        put resource_path(:update, :id => m.id, format: format), params: { singular_name => attrs }, as: as
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
@@ -43,7 +48,11 @@ module StandardAPI
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
-        put resource_path(:update, :id => m.id), params: { singular_name => attrs }, as: :json
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+        format = as ? nil : :json
+
+        put resource_path(:update, id: m.id, format: format), params: { singular_name => attrs }, as: as
         assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
 
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
@@ -78,7 +87,11 @@ module StandardAPI
           attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k) }
           create_webmocks(attrs)
 
-          put resource_path(:update, :id => m.id), params: { include: includes, singular_name => attrs }, as: :json
+          file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+          as = file_upload ? nil : :json
+          format = as ? nil : :json
+
+          put resource_path(:update, :id => m.id, format: format), params: { include: includes, singular_name => attrs }, as: as
           assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
         
           controller_model = @controller.instance_variable_get("@#{singular_name}")

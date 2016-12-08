@@ -7,8 +7,14 @@ module StandardAPI
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+
         assert_difference("#{model.name}.count") do
-          post resource_path(:create, format: :json), params: { singular_name => attrs }
+          post resource_path(:create), params: { singular_name => attrs }, as: as
+
+          break if as != :json
+
           assert_response :created
           m = @controller.instance_variable_get("@#{singular_name}")
 
@@ -30,8 +36,14 @@ module StandardAPI
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+
         assert_difference("#{model.name}.count") do
-          post resource_path(:create, format: :json), params: {singular_name => attrs}
+          post resource_path(:create), params: {singular_name => attrs}, as: as
+
+          break if as != :json
+
           assert_response :created
           m = @controller.instance_variable_get("@#{singular_name}")
           assert m
@@ -58,8 +70,11 @@ module StandardAPI
         attrs = attributes_for(singular_name, :invalid).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+
         assert_difference("#{model.name}.count", 0) do
-          post resource_path(:create, format: :json), params: { singular_name => attrs }
+          post resource_path(:create), params: { singular_name => attrs }, as: as
           assert_response :bad_request
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
@@ -82,7 +97,7 @@ module StandardAPI
         create_webmocks(attrs)
 
         assert_difference("#{model.name}.count", 0) do
-          post resource_path(:create, format: :html), params: { singular_name => attrs }
+          post resource_path(:create), params: { singular_name => attrs }, as: :html
           assert_response :bad_request
           assert_equal response.body, 'properties#edit.html'
         end
@@ -93,8 +108,14 @@ module StandardAPI
           attrs = attributes_for(singular_name, :nested).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
           create_webmocks(attrs)
 
+          file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+          as = file_upload ? nil : :json
+
           assert_difference("#{model.name}.count") do
-            post resource_path(:create, format: :json), params: { singular_name => attrs, include: includes }
+            post resource_path(:create), params: { singular_name => attrs, include: includes }, as: as
+
+            break if as != :json
+
             assert_response :created
             m = @controller.instance_variable_get("@#{singular_name}")
             assert m

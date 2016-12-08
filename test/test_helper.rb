@@ -17,6 +17,8 @@ FactoryGirl.find_definitions
 ActiveSupport.test_order = :random
 require File.expand_path('../app', __FILE__)
 
+include ActionDispatch::TestProcess
+
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
 class ActiveSupport::TestCase

@@ -1,11 +1,14 @@
 FactoryGirl.define do
-
   factory :account do
     name            { Faker::Name.name }
   end
   
   factory :photo do
     format          { ['jpg', 'png', 'tiff'].sample }
+  end
+
+  factory :document do
+    file            { fixture_file_upload(Rails.root + '../fixtures/photo.png', 'image/png') }
   end
 
   factory :reference do
