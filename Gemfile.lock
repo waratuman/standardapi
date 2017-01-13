@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (5.0.0.9)
+    standardapi (5.0.0.10)
       actionpack (~> 5.0, >= 5.0.0)
       activerecord-filter (~> 5.0, >= 5.0.0)
       activerecord-sort (~> 5.0, >= 5.0.0)
