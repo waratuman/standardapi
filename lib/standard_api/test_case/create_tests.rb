@@ -24,9 +24,9 @@ module StandardAPI
           view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
             if value.is_a?(BigDecimal)
-              assert_equal normalize_to_json(m, key, attrs[key.to_sym]).to_s.to_f, json[key.to_s].to_s.to_f, message
+              assert_equal_or_nil normalize_to_json(m, key, attrs[key.to_sym]).to_s.to_f, json[key.to_s].to_s.to_f, message
             else
-              assert_equal normalize_to_json(m, key, attrs[key.to_sym]), json[key.to_s], message
+              assert_equal_or_nil normalize_to_json(m, key, attrs[key.to_sym]), json[key.to_s], message
             end
           end
         end
@@ -53,7 +53,7 @@ module StandardAPI
           m.reload
           view_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
-            assert_equal normalize_attribute(m, key, attrs[key.to_sym]), value, message
+            assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), value, message
           end
         end
       end
