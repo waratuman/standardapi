@@ -164,11 +164,7 @@ module StandardAPI
     end
     
     def required_orders
-      if model.column_names.include?('id')
-        [:id]
-      else
-        []
-      end
+      []
     end
 
     def orders
