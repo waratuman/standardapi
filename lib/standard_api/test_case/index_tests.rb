@@ -4,10 +4,10 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#index.json' do
-        get resource_path(:index, format: :json), params: { limit: 10 }
+        get resource_path(:index, format: :json), params: { limit: 10, order: orders.first }
         assert_response :ok
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.all.map(&:id).sort, models.map(&:id).sort
+        assert_equal model.order(orders.first).limit(10).all.map(&:id).sort, models.map(&:id).sort
         assert JSON.parse(response.body).is_a?(Array)
       end
 
