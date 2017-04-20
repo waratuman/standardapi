@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (5.0.0.12)
+    standardapi (5.0.0.13)
       actionpack (~> 5.0, >= 5.0.0)
       activerecord-filter (~> 5.0, >= 5.0.0)
       activerecord-sort (~> 5.0, >= 5.0.0)
@@ -48,9 +48,9 @@ GEM
       actionpack (~> 5.0, >= 5.0.0)
       activerecord (~> 5.0, >= 5.0.0)
       arel-extensions (~> 1.0, >= 1.0.0)
-    activerecord-sort (5.0.0)
-      activerecord (~> 5.0, >= 5.0.0)
-      pg (~> 0.18, >= 0.18.4)
+    activerecord-sort (5.0.0.1)
+      activerecord (~> 5.0.0.rc1)
+      pg
     activesupport (5.0.0.1)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (~> 0.7)
@@ -75,7 +75,7 @@ GEM
     globalid (0.3.7)
       activesupport (>= 4.1.0)
     i18n (0.7.0)
-    jbuilder (2.6.1)
+    jbuilder (2.6.2)
       activesupport (>= 3.0.0, < 5.1)
       multi_json (~> 1.2)
     json (2.0.2)
@@ -171,4 +171,4 @@ DEPENDENCIES
   standardapi!
 
 BUNDLED WITH
-   1.14.4
+   1.14.6
