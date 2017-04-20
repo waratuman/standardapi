@@ -155,6 +155,7 @@ module StandardAPI::TestCase
       model.instance_variable_get('@filters').each do |filter|
         next if filter[1].is_a?(Proc) # Custom filter
         next if model.reflect_on_association(filter[0]) # TODO: Relation Filter Tests
+        next if !model.respond_to?(filter[0])
 
         define_method("test_model_filter_#{filter[0]}") do
           m = create_model
