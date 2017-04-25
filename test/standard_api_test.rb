@@ -75,7 +75,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model), Reference
 
     @controller = SessionsController.new
-    assert_equal @controller.send(:model), nil
+    assert_nil @controller.send(:model)
     get new_session_path
     assert_response :ok
   end
@@ -117,7 +117,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     schema = JSON(response.body)
     assert schema.has_key?('columns')
     assert_equal true, schema['columns']['id']['primary_key']
-    assert_equal nil, schema['limit']
+    assert_nil schema['limit']
   end
 
   test 'Controller#index w/o limit' do
@@ -140,7 +140,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property = create(:property)
     get property_path(property, format: 'json'), params: { id: property.id, include: [:landlord] }
     assert JSON(response.body).has_key?('landlord')
-    assert_equal nil, JSON(response.body)['landlord']
+    assert_nil JSON(response.body)['landlord']
   end
 
   test '#index.json uses overridden partial' do

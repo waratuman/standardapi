@@ -1,4 +1,6 @@
 require 'active_support/test_case'
+require 'rails-controller-testing'
+Rails::Controller::Testing.install
 
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/create_tests'))
@@ -152,41 +154,37 @@ module StandardAPI::TestCase
     end
 
     def include_filter_tests
-      model.instance_variable_get('@filters').each do |filter|
-        next if filter[1].is_a?(Proc) # Custom filter
-        next if model.reflect_on_association(filter[0]) # TODO: Relation Filter Tests
-        next if !model.respond_to?(filter[0])
-
-        define_method("test_model_filter_#{filter[0]}") do
+      model.attribute_names.each do |filter|
+        define_method("test_model_filter_#{filter}") do
           m = create_model
-          value = m.send(filter[0])
+          value = m.send(filter)
 
           assert_predicate = -> (predicate) {
-            get :index, params: {where: predicate}, format: 'json'
+            get "/#{controller_class.controller_path}.json", params: { where: predicate, format: 'json' }
             assert_equal model.filter(predicate).order('id ASC').to_sql, assigns(plural_name).to_sql
           }
 
           # TODO: Test array
-          case model.columns_hash[filter[0].to_s].type
+          case model.columns_hash[filter.to_s].type
           when :jsonb, :json # JSON
-            assert_predicate.call({ filter[0] => value })
+            assert_predicate.call({ filter => value })
           else
             case value
             when Array
-              assert_predicate.call({ filter[0] => value }) # Overlaps
-              assert_predicate.call({ filter[0] => value[0] }) # Contains
+              assert_predicate.call({ filter => value }) # Overlaps
+              assert_predicate.call({ filter => value[0] }) # Contains
             else
-              assert_predicate.call({ filter[0] => value }) # Equality
-              assert_predicate.call({ filter[0] => { gt: value } }) # Greater Than
-              assert_predicate.call({ filter[0] => { greater_than: value } })
-              assert_predicate.call({ filter[0] => { lt: value } }) # Less Than
-              assert_predicate.call({ filter[0] => { less_than: value } })
-              assert_predicate.call({ filter[0] => { gte: value } }) # Greater Than or Equal To
-              assert_predicate.call({ filter[0] => { gteq: value } })
-              assert_predicate.call({ filter[0] => { greater_than_or_equal_to: value } })
-              assert_predicate.call({ filter[0] => { lte: value } }) # Less Than or Equal To
-              assert_predicate.call({ filter[0] => { lteq: value } })
-              assert_predicate.call({ filter[0] => { less_than_or_equal_to: value } })
+              assert_predicate.call({ filter => value }) # Equality
+              assert_predicate.call({ filter => { gt: value } }) # Greater Than
+              assert_predicate.call({ filter => { greater_than: value } })
+              assert_predicate.call({ filter => { lt: value } }) # Less Than
+              assert_predicate.call({ filter => { less_than: value } })
+              assert_predicate.call({ filter => { gte: value } }) # Greater Than or Equal To
+              assert_predicate.call({ filter => { gteq: value } })
+              assert_predicate.call({ filter => { greater_than_or_equal_to: value } })
+              assert_predicate.call({ filter => { lte: value } }) # Less Than or Equal To
+              assert_predicate.call({ filter => { lteq: value } })
+              assert_predicate.call({ filter => { less_than_or_equal_to: value } })
             end
           end
         end

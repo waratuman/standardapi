@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (5.0.0.13)
+    standardapi (5.0.0.14)
       actionpack (~> 5.0, >= 5.0.0)
       activerecord-filter (~> 5.0, >= 5.0.0)
       activerecord-sort (~> 5.0, >= 5.0.0)
@@ -72,11 +72,11 @@ GEM
       railties (>= 3.0.0)
     faker (1.6.6)
       i18n (~> 0.5)
-    globalid (0.3.7)
-      activesupport (>= 4.1.0)
+    globalid (0.4.0)
+      activesupport (>= 4.2.0)
     i18n (0.7.0)
-    jbuilder (2.6.2)
-      activesupport (>= 3.0.0, < 5.1)
+    jbuilder (2.6.3)
+      activesupport (>= 3.0.0, < 5.2)
       multi_json (~> 1.2)
     json (2.0.2)
     loofah (2.0.3)
@@ -101,7 +101,7 @@ GEM
     nio4r (1.2.1)
     nokogiri (1.6.8.1)
       mini_portile2 (~> 2.1.0)
-    pg (0.19.0)
+    pg (0.20.0)
     rack (2.0.1)
     rack-test (0.6.3)
       rack (>= 1.0)
