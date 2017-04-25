@@ -153,44 +153,6 @@ module StandardAPI::TestCase
       raise e if e.message != "uninitialized constant #{controller_class_name}"
     end
 
-    def include_filter_tests
-      model.attribute_names.each do |filter|
-        define_method("test_model_filter_#{filter}") do
-          m = create_model
-          value = m.send(filter)
-
-          assert_predicate = -> (predicate) {
-            get "/#{controller_class.controller_path}.json", params: { where: predicate, format: 'json' }
-            assert_equal model.filter(predicate).order('id ASC').to_sql, assigns(plural_name).to_sql
-          }
-
-          # TODO: Test array
-          case model.columns_hash[filter.to_s].type
-          when :jsonb, :json # JSON
-            assert_predicate.call({ filter => value })
-          else
-            case value
-            when Array
-              assert_predicate.call({ filter => value }) # Overlaps
-              assert_predicate.call({ filter => value[0] }) # Contains
-            else
-              assert_predicate.call({ filter => value }) # Equality
-              assert_predicate.call({ filter => { gt: value } }) # Greater Than
-              assert_predicate.call({ filter => { greater_than: value } })
-              assert_predicate.call({ filter => { lt: value } }) # Less Than
-              assert_predicate.call({ filter => { less_than: value } })
-              assert_predicate.call({ filter => { gte: value } }) # Greater Than or Equal To
-              assert_predicate.call({ filter => { gteq: value } })
-              assert_predicate.call({ filter => { greater_than_or_equal_to: value } })
-              assert_predicate.call({ filter => { lte: value } }) # Less Than or Equal To
-              assert_predicate.call({ filter => { lteq: value } })
-              assert_predicate.call({ filter => { less_than_or_equal_to: value } })
-            end
-          end
-        end
-      end
-    end
-
     def model=(val)
       @model = val
       self.filters = val.attribute_names
