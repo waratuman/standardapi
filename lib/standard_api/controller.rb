@@ -166,6 +166,10 @@ module StandardAPI
     def required_orders
       []
     end
+    
+    def default_orders
+      nil
+    end
 
     def orders
       exluded_required_orders = required_orders.map(&:to_s)
@@ -190,7 +194,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
       
-      @orders ||= StandardAPI::Orders.sanitize(params[:order], model_orders | required_orders)
+      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
     end
 
     def excludes
