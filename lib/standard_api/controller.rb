@@ -90,22 +90,6 @@ module StandardAPI
         @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
       end
 
-      def model_includes
-        if self.respond_to?("#{model.model_name.singular}_includes", true)
-          self.send "#{model.model_name.singular}_includes"
-        else
-          []
-        end
-      end
-
-      def model_orders
-        if self.respond_to?("#{model.model_name.singular}_orders", true)
-          self.send "#{model.model_name.singular}_orders"
-        else
-          []
-        end
-      end
-
     end
 
     private
@@ -123,7 +107,11 @@ module StandardAPI
     end
 
     def model_orders
-      self.class.model_orders
+      if self.respond_to?("#{model.model_name.singular}_orders", true)
+        self.send("#{model.model_name.singular}_orders")
+      else
+        []
+      end
     end
 
     def model_params

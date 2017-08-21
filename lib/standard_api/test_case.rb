@@ -1,6 +1,4 @@
 require 'active_support/test_case'
-require 'rails-controller-testing'
-Rails::Controller::Testing.install
 
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/create_tests'))
@@ -45,7 +43,10 @@ module StandardAPI::TestCase
       acc
     end
 
-    klass.controller_class.action_methods.each do |action|
+    test_cases = Dir.entries(File.expand_path(File.join(__FILE__, '..', 'test_case')))
+    test_cases.select! {|fn| fn.ends_with?('_tests.rb') }
+    test_cases.map! {|fn| fn.sub('_tests.rb', '') }
+    (klass.controller_class.action_methods & test_cases).each do |action|
       if const_defined?("StandardAPI::TestCase::#{action.capitalize}Tests") && routes[klass.controller_class.controller_path][action]
         klass.include("StandardAPI::TestCase::#{action.capitalize}Tests".constantize)
       end
@@ -60,12 +61,20 @@ module StandardAPI::TestCase
     count > 0
   end
   
-  def required_orders
-    controller_class.new.send(:required_orders)
+  def default_orders
+    controller_class.new.send(:default_orders)
+  end
+
+  def resource_limit
+    controller_class.new.send(:resource_limit)
   end
 
   def model
     self.class.model
+  end
+  
+  def mask
+    {}
   end
 
   def resource_path(action, options={})
@@ -90,8 +99,8 @@ module StandardAPI::TestCase
     self.class.controller_class
   end
 
-  def create_model(*args)
-    create(model.name.underscore, *args)
+  def create_model(attrs={})
+    create(model.name.underscore, attrs.merge(mask))
   end
 
   def singular_name

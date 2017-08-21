@@ -5,6 +5,7 @@ module StandardAPI
 
       test '#create.json' do
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
         file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
@@ -34,6 +35,7 @@ module StandardAPI
 
       test '#create.json with nested attributes' do
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
         file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
@@ -99,7 +101,6 @@ module StandardAPI
         assert_difference("#{model.name}.count", 0) do
           post resource_path(:create), params: { singular_name => attrs }, as: :html
           assert_response :bad_request
-          assert_equal response.body, 'properties#edit.html'
         end
       end
 

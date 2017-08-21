@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency 'rails', '~> 5.0', '>= 5.0.0'
+  spec.add_runtime_dependency 'rails', '~> 5.1', '>= 5.1.0'
   spec.add_runtime_dependency 'activesupport', '~> 5.0', '>= 5.0.0'
   spec.add_runtime_dependency 'actionpack', '~> 5.0', '>= 5.0.0'
   spec.add_runtime_dependency 'activerecord-sort', '~> 5.0', '>= 5.0.0'
@@ -33,7 +33,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency 'mocha'
-  spec.add_development_dependency 'rails-controller-testing'
 
   # spec.add_development_dependency 'activerecord'
   # spec.add_development_dependency 'sdoc',                '~> 0.4'

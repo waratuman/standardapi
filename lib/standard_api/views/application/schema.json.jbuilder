@@ -17,7 +17,8 @@ mapping = {
     'double precision' => 'decimal',
     'ltree' => 'string',
     'boolean' => 'boolean',
-    'geometry' => 'ewkb'
+    'geometry' => 'ewkb',
+    'uuid' => 'string'
 }
 
 json.set! 'columns' do

@@ -11,7 +11,7 @@ module StandardAPI
         json = JSON(@response.body)
         assert json['columns']
         model.columns.map do |column|
-          assert json['columns'][column.name]['type']
+          assert json['columns'][column.name]['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
         end
         assert json['limit']
       end

@@ -46,6 +46,7 @@ module StandardAPI
       test '#update.json with nested attributes' do
         m = create_model
         attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
         file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }

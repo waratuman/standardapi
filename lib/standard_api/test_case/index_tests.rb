@@ -12,37 +12,26 @@ module StandardAPI
       end
 
       test '#index.json requires limit' do
-        limit = controller_class.new.send(:resource_limit)
-
-        return if !limit || limit == Float::INFINITY
+        return if !resource_limit || resource_limit == Float::INFINITY
 
         begin
           get resource_path(:index, format: :json)
           assert_response :bad_request
         rescue ActionController::ParameterMissing
         end
-
-        # return if !controller_class.new.send(:resource_limit)
-        # if app.config.action_dispatch.show_exceptions
-        #   assert_raises ActionController::ParameterMissing do
-        #     get resource_path(:index, format: 'json')
-        #     assert_response :bad_request
-        #   end
-        # else
-        #   get resource_path(:index, format: :json)
-        #   assert_response :bad_request
-        # end
       end
 
       test '#index.json params[:limit]' do
         get resource_path(:index, format: :json), params: { limit: 1 }
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.limit(1).sort(required_orders).to_sql, models.to_sql
+        assert_equal model.filter(mask).limit(1).sort(default_orders).to_sql, models.to_sql
       end
 
       test '#index.json params[:limit] does not exceed maximum limit' do
+        return if !resource_limit || resource_limit == Float::INFINITY
+        
         assert_raises ActionController::UnpermittedParameters do
-          get resource_path(:index, format: :json), params: { limit: 1000000 }
+          get resource_path(:index, format: :json), params: { limit: resource_limit + 1 }
         end
       end
 
@@ -59,24 +48,23 @@ module StandardAPI
         get resource_path(:index, format: :json), params: { limit: 1 }
 
         orders.each do |order|
-          @controller.instance_variable_set('@orders', nil) # Hack for dealing with caching / multiple request per controller life
           get resource_path(:index, format: :json), params: { limit: 10, order: order }
           models = @controller.instance_variable_get("@#{plural_name}")
-          assert_equal model.sort(order).limit(10).sort(required_orders).to_sql, models.to_sql
+          assert_equal model.filter(mask).sort(order).limit(10).sort(order).to_sql, models.to_sql
          end
       end
 
       test '#index.json params[:offset]' do
         get resource_path(:index, format: :json), params: { limit: 10, offset: 13 }
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.offset(13).limit(10).sort(required_orders).to_sql, models.to_sql
+        assert_equal model.filter(mask).offset(13).limit(10).sort(default_orders).to_sql, models.to_sql
       end
 
       test '#index.json params[:include]' do
         travel_to Time.now do
           create_model
           get resource_path(:index, format: :json), params: { limit: 100, include: includes }
-        
+
           json = JSON.parse(response.body)[0]
           assert json.is_a?(Hash)
           includes.each do |included|
