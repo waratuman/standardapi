@@ -19,7 +19,7 @@ module StandardAPI
     end
     
     def cache_key(record, includes)
-      timestamp_keys = ['cached_at'] + cached_at_columns_for_includes(includes)
+      timestamp_keys = ['cached_at'] + record.class.column_names.select{|x| x.ends_with? "_cached_at"}
       if includes.empty?
         record.cache_key(*timestamp_keys)
       else
