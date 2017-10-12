@@ -22,7 +22,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'actionpack', '~> 5.0', '>= 5.0.0'
   spec.add_runtime_dependency 'activerecord-sort', '~> 5.0', '>= 5.0.0'
   spec.add_runtime_dependency 'activerecord-filter', '~> 5.0', '>= 5.0.0'
-  spec.add_runtime_dependency 'jbuilder', '~> 2.6', '>= 2.6.0'
 
   spec.add_development_dependency "bundler"
   spec.add_development_dependency "rake"
