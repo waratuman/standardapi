@@ -3,6 +3,7 @@ mapping = {
     'time without time zone' => 'datetime',
     'text' => 'string',
     'json' => 'hash',
+    'bigint' => 'integer',
     'integer' => 'integer',
     'character varying(255)' => 'string',
     'character varying(128)' => 'string',

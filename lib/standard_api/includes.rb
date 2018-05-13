@@ -17,8 +17,11 @@ module StandardAPI
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
-          if ['where', 'order'].include?(k.to_s) # Where and order are not normalized
-            normalized[k] = v.to_h
+          if ['where', 'order'].include?(k.to_s) # Where and order are not normalized (sanitation happens in activerecord-filter)
+            normalized[k] = case v
+            when Hash then v.to_h
+            when ActionController::Parameters then v.to_unsafe_h
+            end
           else
             normalized[k] = normalize(v)
           end

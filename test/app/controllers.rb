@@ -19,11 +19,11 @@ class PropertiesController < ApplicationController
     ]
   end
 
-  def self.property_orders
+  def property_orders
     ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
   end
 
-  def self.property_includes
+  def property_includes
     [:photos, :landlord, :english_name]
   end
 
@@ -37,11 +37,11 @@ class AccountsController < ApplicationController
     [ :account_id, :format ]
   end
   
-  def self.account_orders
+  def account_orders
     [:id]
   end
 
-  def self.account_includes
+  def account_includes
     [:photos]
   end
 
@@ -56,11 +56,11 @@ class PhotosController < ApplicationController
     [ :id, :account_id, :property_id, :format ]
   end
 
-  def self.photos_orders
+  def photos_orders
     [:id]
   end
 
-  def self.photos_includes
+  def photos_includes
     [:account]
   end
 

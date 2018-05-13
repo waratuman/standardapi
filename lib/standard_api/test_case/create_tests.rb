@@ -61,7 +61,7 @@ module StandardAPI
       end
 
       test '#create.json with invalid attributes' do
-        trait = FactoryGirl.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
+        trait = FactoryBot.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 
         if !trait
           Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")
@@ -87,7 +87,7 @@ module StandardAPI
       test '#create.html with invalid attributes renders edit action' do
         return unless supports_format(:html)
 
-        trait = FactoryGirl.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
+        trait = FactoryBot.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 
         if !trait
           Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")

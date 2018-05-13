@@ -51,7 +51,7 @@ module StandardAPI
           get resource_path(:index, format: :json), params: { limit: 10, order: order }
           models = @controller.instance_variable_get("@#{plural_name}")
           assert_equal model.filter(mask).sort(order).limit(10).sort(order).to_sql, models.to_sql
-         end
+        end
       end
 
       test '#index.json params[:offset]' do

@@ -66,7 +66,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'StandardAPI-Version' do
     get schema_references_path(format: 'json')
-
     assert_equal StandardAPI::VERSION, response.headers['StandardAPI-Version']
   end
 
@@ -97,7 +96,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'Controller#current_mask' do
     @controller = ReferencesController.new
-    @controller.instance_variable_set('@current_mask', { 'references' => { 'subject' => 1 }})
+    @controller.instance_variable_set('@current_mask', { 'references' => { 'subject_id' => 1 }})
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end

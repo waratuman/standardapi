@@ -17,18 +17,20 @@ Gem::Specification.new do |spec|
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency 'rails', '~> 5.1', '>= 5.1.0'
-  spec.add_runtime_dependency 'activesupport', '~> 5.0', '>= 5.0.0'
-  spec.add_runtime_dependency 'actionpack', '~> 5.0', '>= 5.0.0'
-  spec.add_runtime_dependency 'activerecord-sort', '~> 5.0', '>= 5.0.0'
-  spec.add_runtime_dependency 'activerecord-filter', '~> 5.0', '>= 5.0.0'
+  spec.add_runtime_dependency 'rails', '~> 5.2', '>= 5.2.0'
+  spec.add_runtime_dependency 'activesupport', '~> 5.2', '>= 5.2.0'
+  spec.add_runtime_dependency 'actionpack', '~> 5.2', '>= 5.2.0'
+  spec.add_runtime_dependency 'activerecord-sort', '~> 5.2', '>= 5.2.0'
+  spec.add_runtime_dependency 'activerecord-filter', '~> 5.2', '>= 5.2.0'
 
+  spec.add_development_dependency 'pg'
   spec.add_development_dependency "bundler"
+  spec.add_development_dependency 'jbuilder'
   spec.add_development_dependency "rake"
   spec.add_development_dependency 'minitest'
   spec.add_development_dependency 'minitest-reporters'
   spec.add_development_dependency "simplecov"
-  spec.add_development_dependency "factory_girl_rails"
+  spec.add_development_dependency "factory_bot_rails"
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency 'mocha'

@@ -32,7 +32,7 @@ end
 
 # = Migration
 
-class CreateModelTables < ActiveRecord::Migration
+class CreateModelTables < ActiveRecord::Migration[5.2]
 
   def self.up
 

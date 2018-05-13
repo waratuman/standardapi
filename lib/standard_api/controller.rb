@@ -103,7 +103,11 @@ module StandardAPI
     end
 
     def model_includes
-      self.class.model_includes
+      if self.respond_to?("#{model.model_name.singular}_includes", true)
+        self.send("#{model.model_name.singular}_includes")
+      else
+        []
+      end
     end
 
     def model_orders
@@ -181,7 +185,7 @@ module StandardAPI
       if !exluded_required_orders.empty?
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
-      
+
       @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
     end
 
@@ -223,7 +227,7 @@ module StandardAPI
         select.each do |func, column|
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
-            @selects << (model.arel_table[column].send(func).to_sql)
+            @selects << (model.arel_table[column].send(func))
           end
         end
       end
