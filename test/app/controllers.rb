@@ -34,7 +34,7 @@ class AccountsController < ApplicationController
   private
 
   def account_params
-    [ :account_id, :format ]
+    [ :property_id, :name ]
   end
   
   def account_orders
@@ -48,6 +48,19 @@ class AccountsController < ApplicationController
 end
 
 class DocumentsController < ApplicationController
+
+  def document_params
+    [ :file, :type ]
+  end
+  
+  def document_orders
+    [:id]
+  end
+
+  def document_includes
+    [:photos]
+  end
+
 end
 
 class PhotosController < ApplicationController

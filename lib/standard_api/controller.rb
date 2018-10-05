@@ -42,10 +42,15 @@ module StandardAPI
     def create
       record = model.new(model_params)
       instance_variable_set("@#{model.model_name.singular}", record)
-      
+
       if record.save
         if request.format == :html
-          redirect_to record
+          redirect_to url_for(
+            controller: record.class.base_class.model_name.collection,
+            action: 'show',
+            id: record.id,
+            only_path: true
+          )
         else
           render :show, status: :created
         end
@@ -64,7 +69,12 @@ module StandardAPI
 
       if record.update_attributes(model_params)
         if request.format == :html
-          redirect_to record
+          redirect_to url_for(
+            controller: record.class.base_class.model_name.collection,
+            action: 'show',
+            id: record.id,
+            only_path: true
+          )
         else
           render :show, status: :ok
         end

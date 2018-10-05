@@ -4,7 +4,7 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#create.json' do
-        attrs = attributes_for(singular_name, :nested).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
+        attrs = attributes_for(singular_name, :nested).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
         mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
@@ -81,6 +81,22 @@ module StandardAPI
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
           assert json['errors']
+        end
+      end
+
+      test '#create.html' do
+        return unless supports_format(:html)
+
+        attrs = attributes_for(singular_name, :nested).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
+        mask.each { |k, v| attrs[k] = v }
+        create_webmocks(attrs)
+
+        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
+        as = file_upload ? nil : :json
+
+        assert_difference("#{model.name}.count") do
+          post resource_path(:create), params: { singular_name => attrs }, as: :html
+          assert_response :redirect
         end
       end
 

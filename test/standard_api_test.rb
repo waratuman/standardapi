@@ -126,6 +126,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [account.id], JSON(response.body).map { |x| x['id'] }
   end
 
+  test 'Controller#create redirects to correct route with STI models' do
+    attrs = attributes_for(:pdf)
+    post documents_path, params: { document: attrs }
+    assert_response :redirect
+  end
+
+  test 'Controller#update redirects to correct route with STI models' do
+    pdf = create(:pdf)
+    patch document_path(pdf), params: { document: pdf.attributes }
+    assert_redirected_to document_path(pdf)
+  end
   # = View Tests
 
   test 'rendering tables' do

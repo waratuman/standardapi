@@ -13,6 +13,9 @@ class Document < ActiveRecord::Base
   attr_accessor :file
 end
 
+class Pdf < Document
+end
+
 class Property < ActiveRecord::Base
   has_many :photos
   has_one :landlord, class_name: 'Account'
@@ -37,17 +40,17 @@ class CreateModelTables < ActiveRecord::Migration[5.2]
   def self.up
 
     create_table "accounts", force: :cascade do |t|
-      t.string   "name",                 limit: 255
-      t.integer  "property_id"
+      t.string   'name',                 limit: 255
+      t.integer  'property_id'
       t.integer  'photos_count', null: false, default: 0
     end
-    
+
     create_table "photos", force: :cascade do |t|
       t.integer  "account_id"
       t.integer  "property_id"
       t.string   "format",                 limit: 255
     end
-    
+
     create_table "properties", force: :cascade do |t|
       t.string   "name",                 limit: 255
       t.string   "aliases",              default: [],   array: true
@@ -65,6 +68,9 @@ class CreateModelTables < ActiveRecord::Migration[5.2]
       t.string   "value"
     end
 
+    create_table "documents", force: :cascade do |t|
+      t.string   'type'
+    end
   end
 
 end
