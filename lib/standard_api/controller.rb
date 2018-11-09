@@ -2,7 +2,7 @@ module StandardAPI
   module Controller
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :resource_limit
+      klass.helper_method :includes, :orders, :model, :resource_limit, :default_limit
       klass.before_action :set_standardapi_headers
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
@@ -208,11 +208,20 @@ module StandardAPI
       1000
     end
 
+    # The default limit if params[:limit] is no specified in a request.
+    # If this value should be less than the `resource_limit`. Return `nil` if
+    # you want the limit param to be required.
+    def default_limit
+      nil
+    end
+
     def limit
       if resource_limit
-        limit = params.require(:limit).to_i
+        limit = params.permit(:limit)[:limit]&.to_i || default_limit
 
-        if limit > resource_limit
+        if !limit
+          raise ActionController::ParameterMissing.new(:limit)
+        elsif limit > resource_limit
           raise ActionController::UnpermittedParameters.new([:limit, limit])
         end
 

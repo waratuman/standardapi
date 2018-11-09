@@ -1,6 +1,9 @@
 FactoryBot.define do
   factory :account do
     name            { Faker::Name.name }
+
+    trait(:nested) { }
+    trait(:invalid) { name nil }
   end
 
   factory :photo do

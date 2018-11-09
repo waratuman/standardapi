@@ -96,3 +96,16 @@ class UnlimitedController < ApplicationController
   end
 
 end
+
+class DefaultLimitController < ApplicationController
+
+
+  def self.model
+    Account
+  end
+
+  def default_limit
+    100
+  end
+
+end

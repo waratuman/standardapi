@@ -69,6 +69,10 @@ module StandardAPI::TestCase
     controller_class.new.send(:resource_limit)
   end
 
+  def default_limit
+    controller_class.new.send(:default_limit)
+  end
+
   def model
     self.class.model
   end

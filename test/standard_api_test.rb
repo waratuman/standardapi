@@ -126,6 +126,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [account.id], JSON(response.body).map { |x| x['id'] }
   end
 
+  test 'Controller#index with default limit' do
+    account = create(:account)
+    get default_limit_index_path(format: 'json')
+    assert_response :ok
+  end
+
   test 'Controller#create redirects to correct route with STI models' do
     attrs = attributes_for(:pdf)
     post documents_path, params: { document: attrs }
@@ -137,13 +143,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     patch document_path(pdf), params: { document: pdf.attributes }
     assert_redirected_to document_path(pdf)
   end
+
   # = View Tests
 
   test 'rendering tables' do
     get tables_path(format: 'json')
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
-    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts"].sort, response.parsed_body.sort
+    # Multiple 'accounts' because multiple controllers with that model for testing.
+    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do

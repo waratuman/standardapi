@@ -13,12 +13,20 @@ module StandardAPI
 
       test '#index.json requires limit' do
         return if !resource_limit || resource_limit == Float::INFINITY
+        return if default_limit
 
         begin
           get resource_path(:index, format: :json)
           assert_response :bad_request
         rescue ActionController::ParameterMissing
         end
+      end
+
+      test '#index.json uses default_limit' do
+        return if !default_limit
+
+        get resource_path(:index, format: :json)
+        assert_response :ok
       end
 
       test '#index.json params[:limit]' do
