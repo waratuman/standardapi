@@ -127,7 +127,30 @@ class HelpersTest < ActionView::TestCase
       "accounts/#{account.id}/07437ce3863467f4cd715ae1ef930f08-#{t2.utc.to_s(ActiveRecord::Base.cache_timestamp_format)}",
       association_cache_key(photo, :account, {photos: {}})
     )
-    
   end
-  
+
+  test '::json_column_type(sql_type)' do
+    assert_equal 'string', json_column_type('character varying')
+    assert_equal 'string', json_column_type('character varying(2)')
+    assert_equal 'string', json_column_type('character varying(255)')
+    assert_equal 'datetime', json_column_type('timestamp without time zone')
+    assert_equal 'datetime', json_column_type('time without time zone')
+    assert_equal 'string', json_column_type('text')
+    assert_equal 'hash', json_column_type('json')
+    assert_equal 'hash', json_column_type('jsonb')
+    assert_equal 'integer', json_column_type('bigint')
+    assert_equal 'integer', json_column_type('integer')
+    assert_equal 'string', json_column_type('inet')
+    assert_equal 'hash', json_column_type('hstore')
+    assert_equal 'datetime', json_column_type('date')
+    assert_equal 'decimal', json_column_type('numeric')
+    assert_equal 'decimal', json_column_type('numeric(12)')
+    assert_equal 'decimal', json_column_type('numeric(12,2)')
+    assert_equal 'decimal', json_column_type('double precision')
+    assert_equal 'string', json_column_type('ltree')
+    assert_equal 'boolean', json_column_type('boolean')
+    assert_equal 'ewkb', json_column_type('geometry')
+    assert_equal 'string', json_column_type('uuid')
+    end
+
 end

@@ -2,7 +2,8 @@ module StandardAPI
   module Controller
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :resource_limit, :default_limit
+      klass.helper_method :includes, :orders, :model, :resource_limit,
+        :default_limit
       klass.before_action :set_standardapi_headers
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)

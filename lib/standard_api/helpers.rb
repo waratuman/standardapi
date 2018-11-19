@@ -8,7 +8,7 @@ module StandardAPI
         'application/record'
       end
     end
-    
+
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       if (cache_columns - klass.column_names).empty?
@@ -99,6 +99,45 @@ module StandardAPI
       end
 
       digest.hexdigest
+    end
+
+    def json_column_type(sql_type)
+      case sql_type
+      when /character varying(\(\d+\))?/
+        'string'
+      when 'timestamp without time zone'
+        'datetime'
+      when 'time without time zone'
+        'datetime'
+      when 'text'
+        'string'
+      when 'json'
+        'hash'
+      when 'bigint'
+        'integer'
+      when 'integer'
+        'integer'
+      when 'jsonb'
+        'hash'
+      when 'inet'
+        'string' # TODO: should be inet
+      when 'hstore'
+        'hash'
+      when 'date'
+        'datetime'
+      when /numeric(\(\d+(,\d+)?\))?/
+        'decimal'
+      when 'double precision'
+        'decimal'
+      when 'ltree'
+       'string'
+      when 'boolean'
+        'boolean'
+      when 'geometry'
+        'ewkb'
+      when 'uuid' # TODO: should be uuid
+        'string'
+      end
     end
 
   end
