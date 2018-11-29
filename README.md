@@ -35,7 +35,7 @@ In `config/application.rb:
       end
     end
 
-# Usage
+# Implementation
 
 StandardAPI is a module that can be included into any controller to expose a API
 for. Alternatly, it can be included into `ApplicationController`, giving all
@@ -102,11 +102,72 @@ Full Example:
 Note how includes can also support nested includes. So in this case when
 including the author, the photos that the author took can also be included.
 
-# Interface Specification
+# API Usage
+Resources can be queried via REST style end points
+```
+GET     /records/:id    fetch record
+PATCH   /records/:id    update record
+GET     /records        fetch records
+POST    /records        create record
+DELETE  /records        destroy record
+```
+
+All resource end points can be filtered, ordered, limited, offset, and have includes. All options are passed via query string in a nested URI encoded format.
+
+```javascript
+// Example
+params = {
+    limit: 5,
+    offset: 0,
+    where: {
+        region_ids: {
+            contains: newyork.id
+        }
+    },
+    include: {
+        property: {
+            addresses: true
+        },
+        photos: true
+    },
+    order: {
+        created_at: 'desc'
+    }
+}
+// should be
+'limit=5&offset=0&where%5Bregion_ids%5D%5Bcontains%5D=20106&include%5Bproperty%5D%5Baddresses%5D=true&include%5Bphotos%5D=true&order%5Bcreated_at%5D=desc'
+```
+### Include Options
+Preload some relationships and have it delivered with each record in the resource.
+
+### Where Options
+```
+id: 5               WHERE properties.id = 5
+id: [5, 10, 15]     WHERE properties.id IN (5, 10, 15)
+id: {gt: 5}         WHERE properties.id > 5
+id: {gte: 5}        WHERE properties.id >= 5
+id: {lt: 5}         WHERE properties.id < 5
+id: {lte: 5}        WHERE properties.id <= 5
+address_id: nil     WHERE properties.address_id IS NULL
+address_id: false   WHERE properties.address_id IS NULL..."
+address_id: true    WHERE properties.address_id IS NOT NULL..."
+
+// Array columns
+tags: 'Skyscraper'                          WHERE properties.tags = {"Skyscraper"}
+tags: ['Skyscraper', 'Brick']               WHERE properties.tags = '{"Skyscraper", "Brick"}'
+tags: {overlaps: ['Skyscraper', 'Brick']}   WHERE properties.tags && '{"Skyscraper", "Brick"}'
+tags: {contains: ['Skyscraper', 'Brick']}   WHERE accounts.tags @> '{"Skyscraper", "Brick"}'
+
+// Geospatial
+location: {within: 0106000020e6...}         WHERE ST_Within("listings"."location", ST_GeomFromEWKB(E'\\x0106000020e6...)
+
+// On Relationships
+property: {size: 10000}         JOIN properties WHERE properties.size = 10000"
+
+// 
+```
 
 # Testing
-
-##
 
 And example contoller and it's tests.
 
