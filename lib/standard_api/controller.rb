@@ -10,7 +10,9 @@ module StandardAPI
     end
 
     def tables
-      controllers = ApplicationController.descendants# Dir[Rails.root.join('app/controllers/*_controller.rb')].map{ |path| path.match(/(\w+)_controller.rb/)[1].camelize+"Controller" }.map(&:safe_constantize)
+      Rails.application.eager_load! if Rails.env == 'development'.freeze
+      
+      controllers = ApplicationController.descendants
       controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
       controllers.map!(&:model).compact!
       controllers.map!(&:table_name)
