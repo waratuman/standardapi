@@ -1,3 +1,7 @@
+if !includes.empty?
+  instance_variable_set("@#{model.model_name.plural}", instance_variable_get("@#{model.model_name.plural}").preload(includes.keys))
+end
+
 if !includes.empty? && can_cache?(model, includes)
   partial = model_partial(model)
   record_name = partial.split('/').last.to_sym
@@ -8,9 +12,5 @@ if !includes.empty? && can_cache?(model, includes)
     json.partial! partial, locals
   end
 else
-  if !includes.empty?
-    instance_variable_set("@#{model.model_name.plural}", instance_variable_get("@#{model.model_name.plural}").preload(includes.keys))
-  end
-
   json.array! instance_variable_get("@#{model.model_name.plural}"), partial: model_partial(model), as: model_partial(model).split('/').last, includes: includes
 end
