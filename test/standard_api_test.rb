@@ -188,12 +188,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'belongs_to polymorphic association' do
-    property = create(:photo)
-    reference = create(:reference, subject: property)
+    photo = create(:photo)
+    reference = create(:reference, subject: photo)
     get reference_path(reference, include: :subject, format: 'json')
 
     json = JSON(response.body)
     assert_equal 'photos/_photo', json['subject']['template']
+  end
+
+  test '#index.json includes polymorphic association' do
+
+    property1 = create(:property)
+    property2 = create(:property)
+    photo = create(:photo)
+    reference = create(:reference, subject: property1)
+    create(:reference, subject: property2)
+    create(:reference, subject: photo)
+
+    get references_path(format: 'json'), params: { include: [:subject], limit: 10 }
+
+    json = JSON(response.body)
+    assert_equal 'photos/_photo', json.find { |x| x['subject_type'] == "Photo"}['subject']['template']
   end
 
   test 'has_many association' do
