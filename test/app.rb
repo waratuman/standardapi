@@ -18,10 +18,7 @@ TestApplication.initialize!
 TestApplication.routes.draw do
   get :tables, to: 'application#tables', as: :tables
   [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit].each do |r|
-    standard_resources r do
-      get :calculate, on: :collection
-      get :schema, on: :collection
-    end
+    standard_resources r
   end
 
   standard_resource :account

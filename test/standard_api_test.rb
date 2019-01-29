@@ -334,5 +334,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
   end
+  
+  # Calculate Test
+  test 'calculate' do
+    create(:photo)
+    get '/photos/calculate', params: {select: {count: "*"}}
+    assert_equal [1], JSON(response.body)
+  end
+  
+  test 'calculate group_by' do
+    create(:photo, format: 'jpg')
+    create(:photo, format: 'jpg')
+    create(:photo, format: 'png')
+    get '/photos/calculate', params: {select: {count: "*"}, group_by: 'format'}
+    assert_equal ({'png' => 1, 'jpg' => 2}), JSON(response.body)
+  end
 
 end
