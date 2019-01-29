@@ -31,6 +31,8 @@ module StandardAPI
           c.is_a?(BigDecimal) ? c.to_f : c
         end
       end
+      @calculations = Hash[@calculations] if @calculations[0].is_a? Array
+      
       render json: @calculations
     end
 
@@ -156,12 +158,16 @@ module StandardAPI
       query = model.filter(params[:where]).filter(current_mask[model.table_name])
       
       if params[:distinct_on]
-        query.distinct_on(params[:distinct_on])
+        query = query.distinct_on(params[:distinct_on])
       elsif params[:distinct]
-        query.distinct
-      else
-        query
+        query = query.distinct
       end
+      
+      if params[:group_by]
+        query = query.group(params[:group_by])
+      end
+      
+      query
     end
 
     def includes
@@ -245,6 +251,7 @@ module StandardAPI
 
       functions = ['minimum', 'maximum', 'average', 'sum', 'count']
       @selects = []
+      @selects << params[:group_by] if params[:group_by]
       Array(params[:select]).each do |select|
         select.each do |func, column|
           column = column == '*' ? Arel.star : column.to_sym
