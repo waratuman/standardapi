@@ -2,6 +2,7 @@
 
 class Account < ActiveRecord::Base
   has_many :photos
+  belongs_to :property
 end
 
 class Photo < ActiveRecord::Base
@@ -18,6 +19,7 @@ end
 
 class Property < ActiveRecord::Base
   has_many :photos
+  has_many :accounts
   has_one :landlord, class_name: 'Account'
 
   validates :name, presence: true

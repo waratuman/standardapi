@@ -349,5 +349,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get '/photos/calculate', params: {select: {count: "*"}, group_by: 'format'}
     assert_equal ({'png' => 1, 'jpg' => 2}), JSON(response.body)
   end
+  
+  test 'calculate join' do
+    p1 = create(:property)
+    p2 = create(:property)
+    create(:account, photos_count: 1, property: p1)
+    create(:account, photos_count: 2, property: p2)
+
+    get '/properties/calculate', params: {select: {sum: "accounts.photos_count"}, join: 'accounts'}
+    assert_equal [3], JSON(response.body)
+  end
 
 end

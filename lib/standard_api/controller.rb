@@ -163,6 +163,10 @@ module StandardAPI
         query = query.distinct
       end
       
+      if params[:join]
+        query = query.joins(params[:join].to_sym)
+      end
+      
       if params[:group_by]
         query = query.group(params[:group_by])
       end
@@ -254,9 +258,14 @@ module StandardAPI
       @selects << params[:group_by] if params[:group_by]
       Array(params[:select]).each do |select|
         select.each do |func, column|
+          if (parts = column.split(".")).length > 1
+            @model = parts[0].singularize.camelize.constantize
+            column = parts[1]
+          end
+          
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
-            @selects << (model.arel_table[column].send(func))
+            @selects << ((@model || model).arel_table[column].send(func))
           end
         end
       end
