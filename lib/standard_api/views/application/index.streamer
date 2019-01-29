@@ -8,7 +8,7 @@ if !includes.empty?
       else
         false
       end
-  end
+  end.select { |x| model.reflect_on_all_associations.include?(x) }
   
   instance_variable_set("@#{model.model_name.plural}", instance_variable_get("@#{model.model_name.plural}").preload(preloads))
 end
