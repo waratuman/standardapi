@@ -163,7 +163,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])
-    get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
+    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id}}] }
 
     photo = JSON(response.body)[0]['photos'][0]
     assert photo.has_key?('template')
@@ -197,7 +197,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '#index.json includes polymorphic association' do
-
     property1 = create(:property)
     property2 = create(:property)
     photo = create(:photo)

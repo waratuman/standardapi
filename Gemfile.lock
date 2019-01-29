@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (5.2.0.8)
+    standardapi (5.2.0.9)
       actionpack (~> 5.2, >= 5.2.1)
       activerecord-filter (~> 5.2, >= 5.2.1)
       activerecord-sort (~> 5.2, >= 5.2.0)
@@ -91,7 +91,7 @@ GEM
       mimemagic (~> 0.3.2)
     metaclass (0.0.4)
     method_source (0.9.1)
-    mimemagic (0.3.2)
+    mimemagic (0.3.3)
     mini_mime (1.0.1)
     mini_portile2 (2.3.0)
     minitest (5.11.3)
