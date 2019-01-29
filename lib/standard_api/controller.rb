@@ -31,7 +31,7 @@ module StandardAPI
           c.is_a?(BigDecimal) ? c.to_f : c
         end
       end
-      @calculations = Hash[@calculations] if @calculations[0].is_a? Array
+      @calculations = Hash[@calculations] if @calculations[0].is_a?(Array) && params[:group_by]
       
       render json: @calculations
     end
