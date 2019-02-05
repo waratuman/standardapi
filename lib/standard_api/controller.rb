@@ -3,7 +3,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :resource_limit,
-        :default_limit
+        :default_limit, :preloadables
       klass.before_action :set_standardapi_headers
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
@@ -176,6 +176,44 @@ module StandardAPI
 
     def includes
       @includes ||= StandardAPI::Includes.normalize(params[:include])
+    end
+    
+    def preloadables(record, iclds)
+      preloads = {}
+      
+      iclds.each do |key, value|
+        if reflection = record.klass.reflections[key]
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['where', 'limit', 'offset', 'order'].include?(x) }
+              preloads[key] = preloadables_hash(reflection.klass, value)
+            end
+          end
+        end
+      end
+      
+      preloads.empty? ? record : record.preload(preloads)
+    end
+
+    def preloadables_hash(klass, iclds)
+      preloads = {}
+
+      iclds.each do |key, value|
+        if reflection = klass.reflections[key] 
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['where', 'limit', 'offset', 'order'].include?(x) }
+              preloads[key] = preloadables_hash(reflection.klass, value)
+            end
+          end
+        end
+      end
+  
+      preloads
     end
     
     def required_orders

@@ -1,16 +1,5 @@
 if !includes.empty?
-  preloads = includes.keys.select do |key|
-      case includes[key]
-      when true
-        true
-      when Hash
-        !(includes[key].keys.any? { |x| ['where', 'limit', 'offset', 'order'].include?(x) })
-      else
-        false
-      end
-  end.select { |x| model.reflect_on_all_associations.include?(x) }
-  
-  instance_variable_set("@#{model.model_name.plural}", instance_variable_get("@#{model.model_name.plural}").preload(preloads))
+  instance_variable_set("@#{model.model_name.plural}", preloadables(instance_variable_get("@#{model.model_name.plural}"), includes))
 end
 
 if !includes.empty? && can_cache?(model, includes)
