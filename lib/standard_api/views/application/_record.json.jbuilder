@@ -15,7 +15,7 @@ includes.each do |inc, subinc|
       json.set! inc do
         # TODO limit causes preloaded assocations to reload
         if subinc.keys.any? { |x| ['where', 'limit', 'offset', 'order'].include?(x) }
-          json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).sort(subinc[:order]), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+          json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).sort(subinc[:order]).distinct, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
         else
           json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
         end
