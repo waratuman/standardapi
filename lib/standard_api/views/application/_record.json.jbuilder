@@ -4,6 +4,10 @@ record.attributes.each do |name, value|
   json.set! name, value
 end
 
+mappings.each do |name, value|
+  json.set! name, value.is_a?(Proc) ? value.call(record) : record[value] 
+end
+
 includes.each do |inc, subinc|
   next if [:where, :order, :limit].include?(inc.to_sym)
   

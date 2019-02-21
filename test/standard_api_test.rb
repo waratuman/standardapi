@@ -359,5 +359,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get '/properties/calculate', params: {select: {sum: "accounts.photos_count"}, join: 'accounts'}
     assert_equal [3], JSON(response.body)
   end
+  
+  # Mappings Test
+  
+  test 'mappings' do
+    p1 = create(:property, constructed: 1986, active: true)
+    get properties_path(format: 'json'), params: { limit: 100 }
+
+    property = JSON(response.body)[0]
+    
+    assert_equal property['year_constructed'], 1986
+    assert_equal property['status'], 'active'
+  end
 
 end

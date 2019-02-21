@@ -3,7 +3,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :resource_limit,
-        :default_limit, :preloadables
+        :default_limit, :preloadables, :mappings
       klass.before_action :set_standardapi_headers
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
@@ -140,6 +140,14 @@ module StandardAPI
         []
       end
     end
+    
+    def model_mappings
+      if self.respond_to?("#{model.model_name.singular}_mappings", true)
+        self.send("#{model.model_name.singular}_mappings")
+      else
+        {}
+      end
+    end
 
     def excludes_for(klass)
       if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
@@ -252,6 +260,10 @@ module StandardAPI
 
     def excludes
       @excludes ||= model_excludes
+    end
+    
+    def mappings
+      @mappings ||= model_mappings
     end
 
     # The maximum number of results returned by #index

@@ -26,6 +26,13 @@ class PropertiesController < ApplicationController
   def property_includes
     [:photos, :landlord, :english_name]
   end
+  
+  def property_mappings
+    {
+      year_constructed: :constructed,
+      status: -> (r) {r.active ? 'active' : 'inactive'}
+    }
+  end
 
 end
 
