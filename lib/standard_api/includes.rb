@@ -22,6 +22,10 @@ module StandardAPI
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
             end
+          elsif k.to_s == 'distinct'
+            normalized[k] = case v
+            when String then v
+            end
           else
             normalized[k] = normalize(v)
           end
@@ -54,7 +58,7 @@ module StandardAPI
 
       permit = normalize(permit.with_indifferent_access)
       includes.each do |k, v|
-        if permit.has_key?(k) || ['where', 'order'].include?(k.to_s)
+        if permit.has_key?(k) || ['where', 'order', 'distinct'].include?(k.to_s)
           permitted[k] = sanitize(v, permit[k] || {}, true)
         else
           if [:raise, nil].include?(Rails.configuration.try(:action_on_unpermitted_includes))
