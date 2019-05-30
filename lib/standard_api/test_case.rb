@@ -85,19 +85,7 @@ module StandardAPI::TestCase
     url_for({
       controller: controller_class.controller_path, action: action
     }.merge(options))
-    # case action
-    # when :index, :create
-    #   send "#{model.model_name.plural.underscore}_path", *args
-    # when :schema, :calculate
-    #   send "#{model.model_name.plural.underscore}_#{action}_path", *args
-    # else
-    #   send "#{action}_#{model.model_name.underscore}_path", *args
-    # end
   end
-
-  # def resoruces_path(action, *args)
-  #   send "#{model.model_name.plural.underscore}_path", *args
-  # end
 
   def controller_class
     self.class.controller_class
