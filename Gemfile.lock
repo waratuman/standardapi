@@ -75,7 +75,7 @@ GEM
     arel-extensions (6.0.0)
       activerecord (>= 6.0.0.rc1)
     builder (3.2.3)
-    byebug (9.0.5)
+    byebug (11.0.1)
     concurrent-ruby (1.1.5)
     crass (1.0.4)
     docile (1.1.5)
