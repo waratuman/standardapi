@@ -90,7 +90,7 @@ module StandardAPI
                 assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value), message
               end
             else
-              m = models.first.send(included).first.try(:reload)
+              m = models.find { |x| json['id'] == normalize_to_json(x, 'id', x.id) }.send(included).first.try(:reload)
 
               m_json = if m && m.has_attribute?(:id)
                 json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }

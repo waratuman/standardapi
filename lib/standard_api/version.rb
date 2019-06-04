@@ -1,3 +1,3 @@
 module StandardAPI
-  VERSION = '5.2.0.10'
+  VERSION = '5.2.0.11'
 end
