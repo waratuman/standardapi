@@ -188,7 +188,11 @@ module StandardAPI
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
             if !value.keys.any? { |x| ['where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              preloads[key] = preloadables_hash(reflection.klass, value)
+              if reflection.polymorphic?
+                preloads[key] = value
+              else
+                preloads[key] = preloadables_hash(reflection.klass, value)
+              end
             end
           end
         end
