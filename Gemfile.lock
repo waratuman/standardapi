@@ -55,7 +55,7 @@ GEM
     activerecord (6.0.0.rc1)
       activemodel (= 6.0.0.rc1)
       activesupport (= 6.0.0.rc1)
-    activerecord-filter (6.0.0)
+    activerecord-filter (6.0.0.1)
       activerecord (>= 6.0.0.rc1)
       arel-extensions (>= 6.0.0)
     activerecord-sort (6.0.0)
