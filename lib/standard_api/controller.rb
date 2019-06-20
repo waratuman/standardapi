@@ -155,7 +155,7 @@ module StandardAPI
     end
 
     def resources
-      query = model.filter(params[:where]).filter(current_mask[model.table_name])
+      query = model.filter(params['where']).filter(current_mask[model.table_name])
       
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
@@ -187,10 +187,8 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if reflection.polymorphic?
-                preloads[key] = value
-              else
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
             end
@@ -210,10 +208,8 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if reflection.polymorphic?
-                preloads[key] = value
-              else
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
             end

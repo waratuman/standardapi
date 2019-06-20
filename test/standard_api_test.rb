@@ -248,6 +248,40 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body)['photos']
   end
 
+  test 'include with when key' do
+    photo = create(:photo)
+    account = create(:account, photos: [ photo ])
+    account_reference = create(:reference, subject: account)
+
+    property = create(:property, landlord: account)
+    property_reference = create(:reference, subject: property)
+
+
+    get references_path(
+      include: {
+        "subject" => {
+          "landlord" => {
+            "when" => {
+              "subject_type" => 'Property'
+            }
+          },
+          "photos" => {
+            "when" => {
+              "subject_type" => 'Account'
+            }
+          }
+        }
+      },
+      limit: 20,
+      format: 'json'
+    )
+
+    json = JSON(response.body)
+
+    assert_equal json.find { |x| x['id'] == account_reference.id }.dig('subject', 'photos', 0, 'id'), photo.id
+    assert_equal json.find { |x| x['id'] == property_reference.id }.dig('subject', 'landlord', 'id'), account.id
+  end
+
   # Includes Test
 
   test 'Includes::normailze' do

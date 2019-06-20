@@ -5,7 +5,7 @@ record.attributes.each do |name, value|
 end
 
 includes.each do |inc, subinc|
-  next if [:where, :order, :limit].include?(inc.to_sym)
+  next if ["limit", "offset", "order", "when", "where"].include?(inc)
   
   case association = record.class.reflect_on_association(inc)
   when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::ThroughReflection
@@ -14,18 +14,17 @@ includes.each do |inc, subinc|
       partial = model_partial(association.klass)
       json.set! inc do
         # TODO limit causes preloaded assocations to reload
-        if subinc.keys.any? { |x| ['where', 'limit', 'offset', 'order'].include?(x) }
-          if subinc[:distinct]
-            json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).sort(subinc[:order]).distinct_on(subinc[:distinct]), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+        if subinc.keys.any? { |x| ["limit", "offset", "order", "when", "where"].include?(x) }
+          if subinc['distinct']
+            json.array! record.send(inc).filter(subinc['where']).limit(subinc['limit']).sort(subinc['order']).distinct_on(subinc['distinct']), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
           else
-            json.array! record.send(inc).filter(subinc[:where]).limit(subinc[:limit]).sort(subinc[:order]).distinct, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+            json.array! record.send(inc).filter(subinc['where']).limit(subinc['limit']).sort(subinc['order']).distinct, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
           end
         else
           json.array! record.send(inc), partial: partial, as: partial.split('/').last, locals: { includes: subinc }
         end
       end
     end
-  
   when ActiveRecord::Reflection::BelongsToReflection, ActiveRecord::Reflection::HasOneReflection
     can_cache = can_cache_relation?(record.class, inc, subinc)
     if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
@@ -42,7 +41,6 @@ includes.each do |inc, subinc|
         end
       end
     end
-    
   else
     if record.respond_to?(inc)
       value = record.send(inc)
