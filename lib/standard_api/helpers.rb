@@ -58,7 +58,7 @@ module StandardAPI
     end
     
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| ![:where, :limit, :order, :distinct].include?(k.to_sym) }.map do |k, v|
+      includes.select { |k,v| !["distinct", "limit", "offset", "order", "when", "where"].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end

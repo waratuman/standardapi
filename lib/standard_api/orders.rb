@@ -15,7 +15,14 @@ module StandardAPI
             key2, key3 = *key.to_s.split('.')
             permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit)
           elsif permit.include?(key.to_s)
-            value = value.to_unsafe_hash.symbolize_keys if value.is_a?(Hash) || value.is_a?(ActionController::Parameters)
+            case value
+            when Hash
+              value
+            when ActionController::Parameters
+              value.to_unsafe_hash
+            else
+              value
+            end
             permitted << { key.to_sym => value }
           elsif permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }
             subpermit = permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }[key.to_s]
@@ -50,8 +57,6 @@ module StandardAPI
       else
         permitted
       end
-
-      # permitted
     end
 
   end

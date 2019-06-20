@@ -1,11 +1,20 @@
 class ApplicationController < ActionController::Base
   include StandardAPI::Controller
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
-end
-
-class PropertiesController < ApplicationController
 
   private
+
+  def account_params
+    [ "property_id", "name" ]
+  end
+  
+  def account_orders
+    [ "id" ]
+  end
+
+  def account_includes
+    [ "photos" ]
+  end
 
   def property_params
     [ :name,
@@ -20,31 +29,19 @@ class PropertiesController < ApplicationController
   end
 
   def property_orders
-    ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
+    [ "id", "name", "aliases", "description", "constructed", "size", "created_at", "active" ]
   end
 
   def property_includes
-    [:photos, :landlord, :english_name]
+    ["photos", "landlord", "english_name"]
   end
 
 end
 
+class PropertiesController < ApplicationController
+end
+
 class AccountsController < ApplicationController
-
-  private
-
-  def account_params
-    [ :property_id, :name ]
-  end
-  
-  def account_orders
-    [:id]
-  end
-
-  def account_includes
-    [:photos]
-  end
-
 end
 
 class DocumentsController < ApplicationController
