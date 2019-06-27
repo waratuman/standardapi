@@ -72,7 +72,7 @@ module StandardAPI
       record = resources.find(params[:id])
       instance_variable_set("@#{model.model_name.singular}", record)
 
-      if record.update_attributes(model_params)
+      if record.update(model_params)
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
