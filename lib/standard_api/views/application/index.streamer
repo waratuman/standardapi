@@ -12,7 +12,6 @@ if !includes.empty? && can_cache?(model, includes)
     json.partial! partial, locals
   end
 else
-  model_partial(model).split('/').last, includes: includes
   partial = model_partial(model)
   record_name = partial.split('/').last,
   json.array! do
