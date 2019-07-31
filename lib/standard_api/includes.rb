@@ -17,7 +17,7 @@ module StandardAPI
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
-          if ['when', 'where', 'order'].include?(k.to_s) # Where and order are not normalized (sanitation happens in activerecord-filter)
+          if ['limit', 'when', 'where', 'order'].include?(k.to_s) # Where and order are not normalized (sanitation happens in activerecord-filter)
             normalized[k] = case v
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
@@ -58,7 +58,7 @@ module StandardAPI
 
       permit = normalize(permit.with_indifferent_access)
       includes.each do |k, v|
-        if permit.has_key?(k) || ['when', 'where', 'order', 'distinct'].include?(k.to_s)
+        if permit.has_key?(k) || ['limit', 'when', 'where', 'order', 'distinct'].include?(k.to_s)
           permitted[k] = sanitize(v, permit[k] || {}, true)
         else
           if [:raise, nil].include?(Rails.configuration.try(:action_on_unpermitted_includes))

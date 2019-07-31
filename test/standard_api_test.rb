@@ -248,6 +248,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body)['photos']
   end
 
+  test 'include with limit key' do
+    property = create(:property, photos: [ create(:photo), create(:photo) ])
+    get property_path(property, include: { photos: { limit: 1 } }, format: 'json')
+    puts JSON(response.body)
+    assert 1, JSON(response.body)['photos'].length
+  end
+
   test 'include with when key' do
     photo = create(:photo)
     account = create(:account, photos: [ photo ])
