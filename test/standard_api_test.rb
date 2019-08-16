@@ -127,7 +127,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#index with default limit' do
-    account = create(:account)
+    create(:account)
     get default_limit_index_path(format: 'json')
     assert_response :ok
   end
@@ -200,7 +200,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property1 = create(:property)
     property2 = create(:property)
     photo = create(:photo)
-    reference = create(:reference, subject: property1)
+    create(:reference, subject: property1)
     create(:reference, subject: property2)
     create(:reference, subject: photo)
 
@@ -251,7 +251,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'include with limit key' do
     property = create(:property, photos: [ create(:photo), create(:photo) ])
     get property_path(property, include: { photos: { limit: 1 } }, format: 'json')
-    puts JSON(response.body)
     assert 1, JSON(response.body)['photos'].length
   end
 

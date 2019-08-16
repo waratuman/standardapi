@@ -25,7 +25,7 @@ FactoryBot.define do
   end
 
   factory :property do
-    name            { Faker::Lorem.words(Kernel.rand(1..4)).join(' ') }
+    name            { Faker::Lorem.words(number: Kernel.rand(1..4)).join(' ') }
     description     { Faker::Lorem.paragraphs.join("\n\n") }
     constructed     { Kernel.rand(1800..(Time.now.year - 2)) }
     size            { Kernel.rand(1000..10000000).to_f / 100 }

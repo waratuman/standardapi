@@ -307,7 +307,7 @@ module StandardAPI
           
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
-            @selects << ((@model || model).arel_table[column].send(func))
+            @selects << ((defined?(@model) ? @model : model).arel_table[column].send(func))
           end
         end
       end
