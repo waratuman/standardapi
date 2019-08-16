@@ -2,8 +2,10 @@ FactoryBot.define do
   factory :account do
     name            { Faker::Name.name }
 
-    trait(:nested) { }
-    trait(:invalid) { name nil }
+    trait(:nested)  { }
+    trait(:invalid) do
+      name { nil }
+    end
   end
 
   factory :photo do
@@ -15,13 +17,13 @@ FactoryBot.define do
   end
 
   factory :pdf do
-    type            'Pdf'
+    type            { 'Pdf' }
     file            { fixture_file_upload(Rails.root + '../fixtures/photo.png', 'image/png') }
   end
 
   factory :reference do
-    subject_type 'Photo'
-    subject_id { create(:photo).id }
+    subject_type  { 'Photo' }
+    subject_id    { create(:photo).id }
   end
 
   factory :property do
@@ -36,7 +38,9 @@ FactoryBot.define do
       photos_attributes { [attributes_for(:photo)] }
     end
 
-    trait(:invalid) { name nil }
+    trait(:invalid) do
+      name { nil }
+    end
   end
 
 end

@@ -9,7 +9,7 @@ require 'faker'
 require 'standard_api'
 require 'standard_api/test_case'
 require 'byebug'
-require 'mocha/mini_test'
+require 'mocha/minitest'
 
 FactoryBot.find_definitions
 
