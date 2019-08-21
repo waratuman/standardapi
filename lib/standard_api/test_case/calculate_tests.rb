@@ -5,7 +5,7 @@ module StandardAPI
 
       test '#calculate.json' do
         create_model
-        column = model.columns.find { |x| ![:uuid].include?(x.type) }.name
+        column = model.columns.find { |x| [:integer, :decimal, :date, :datetime].include?(x.type) }.name
         selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
 
         get resource_path(:calculate, select: selects, format: :json)
