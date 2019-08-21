@@ -3,7 +3,10 @@ module StandardAPI
     module CalculateTests
       extend ActiveSupport::Testing::Declarative
 
-      CALCULATE_COLUMN_TYPES = ["smallint", "int", "bigint", "real", "double precision", "numeric", "interval"]
+      CALCULATE_COLUMN_TYPES = [
+        "smallint", "int", "integer", "bigint", "real", "double precision",
+        "numeric", "interval"
+      ]
 
       test '#calculate.json' do
         create_model
