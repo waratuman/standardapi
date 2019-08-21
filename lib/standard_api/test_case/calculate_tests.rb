@@ -5,28 +5,31 @@ module StandardAPI
 
       test '#calculate.json' do
         create_model
-        selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
+        column = model.columns.find { |x| ![:uuid].include?(x.type) }.name
+        selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
 
         get resource_path(:calculate, select: selects, format: :json)
         assert_response :ok
         calculations = @controller.instance_variable_get('@calculations')
-        assert_equal [[model.count(:id), model.maximum(:id), model.minimum(:id), model.average(:id).to_f]], calculations
+        assert_equal [[model.count(column), model.maximum(column), model.minimum(column), model.average(column).to_f]], calculations
       end
 
       test '#calculate.json params[:where]' do
         m1 = create_model
         create_model
 
-        selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
+        column = model.columns.find { |x| ![:uuid].include?(x.type) }.name
+        selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
         predicate = { id: { gt: m1.id } }
+
         get resource_path(:calculate, where: predicate, select: selects, format: :json)
 
         # assert_response :ok
         # assert_equal [[
-        #   model.filter(predicate).count(:id),
-        #   model.filter(predicate).maximum(:id),
-        #   model.filter(predicate).minimum(:id),
-        #   model.filter(predicate).average(:id).to_f
+        #   model.filter(predicate).count(column),
+        #   model.filter(predicate).maximum(column),
+        #   model.filter(predicate).minimum(column),
+        #   model.filter(predicate).average(column).to_f
         # ]], @controller.instance_variable_get('@calculations')
       end
 
