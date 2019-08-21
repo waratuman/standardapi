@@ -3,9 +3,12 @@ module StandardAPI
     module CalculateTests
       extend ActiveSupport::Testing::Declarative
 
+      CALCULATE_COLUMN_TYPES = ["smallint", "int", "bigint", "real", "double precision", "numeric", "interval"]
+
       test '#calculate.json' do
         create_model
-        column = model.columns.find { |x| [:integer, :decimal, :date, :datetime].include?(x.type) }.name
+
+        column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }.name
         selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
 
         get resource_path(:calculate, select: selects, format: :json)
@@ -18,7 +21,7 @@ module StandardAPI
         m1 = create_model
         create_model
 
-        column = model.columns.find { |x| ![:uuid].include?(x.type) }.name
+        column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }.name
         selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
         predicate = { id: { gt: m1.id } }
 
