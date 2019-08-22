@@ -11,21 +11,36 @@ module StandardAPI
       test '#calculate.json' do
         create_model
 
-        column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }.name
-        selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
+        math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
+        
+        if math_column
+          column = math_column
+          selects = [{ count: column.name}, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
+        else
+          column = model.columns.sample
+          selects = [{ count: column.name}]
+        end
 
         get resource_path(:calculate, select: selects, format: :json)
         assert_response :ok
         calculations = @controller.instance_variable_get('@calculations')
-        assert_equal [[model.count(column), model.maximum(column), model.minimum(column), model.average(column).to_f]], calculations
+        assert_equal [[model.count(column.name), model.maximum(column.name), model.minimum(column.name), model.average(column.name).to_f]], calculations
       end
 
       test '#calculate.json params[:where]' do
         m1 = create_model
         create_model
 
-        column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }.name
-        selects = [{ count: column}, { maximum: column }, { minimum: column }, { average: column }]
+        math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
+        
+        if math_column
+          column = math_column
+          selects = [{ count: column.name}, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
+        else
+          column = model.columns.sample
+          selects = [{ count: column.name}]
+        end
+
         predicate = { id: { gt: m1.id } }
 
         get resource_path(:calculate, where: predicate, select: selects, format: :json)
