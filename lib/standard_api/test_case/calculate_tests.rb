@@ -15,16 +15,17 @@ module StandardAPI
         
         if math_column
           column = math_column
-          selects = [{ count: column.name}, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
+          selects = [{ count: column.name }, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
         else
           column = model.columns.sample
-          selects = [{ count: column.name}]
+          selects = [{ count: column.name }]
         end
 
         get resource_path(:calculate, select: selects, format: :json)
         assert_response :ok
         calculations = @controller.instance_variable_get('@calculations')
-        assert_equal [[model.count(column.name), model.maximum(column.name), model.minimum(column.name), model.average(column.name).to_f]], calculations
+        assert_equal [selects.map { |s| model.send(s.keys.first, column.name) }],
+          calculations
       end
 
       test '#calculate.json params[:where]' do
@@ -44,14 +45,10 @@ module StandardAPI
         predicate = { id: { gt: m1.id } }
 
         get resource_path(:calculate, where: predicate, select: selects, format: :json)
-
-        # assert_response :ok
-        # assert_equal [[
-        #   model.filter(predicate).count(column),
-        #   model.filter(predicate).maximum(column),
-        #   model.filter(predicate).minimum(column),
-        #   model.filter(predicate).average(column).to_f
-        # ]], @controller.instance_variable_get('@calculations')
+        assert_response :ok
+        calculations = @controller.instance_variable_get('@calculations')
+        # assert_equal [selects.map { |s| model.send(s.keys.first, column.name) }],
+        #   calculations
       end
 
       test '#calculate.json mask' do
