@@ -24,7 +24,9 @@ module StandardAPI
         get resource_path(:calculate, select: selects, format: :json)
         assert_response :ok
         calculations = @controller.instance_variable_get('@calculations')
-        assert_equal [selects.map { |s| model.send(s.keys.first, column.name) }],
+        expectations = selects.map { |s| model.send(s.keys.first, column.name) }
+        expectations = [expectations] if expectations.length > 1
+        assert_equal expectations,
           calculations
       end
 
