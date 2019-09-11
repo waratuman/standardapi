@@ -24,5 +24,10 @@ class RouteHelpersTest < ActionDispatch::IntegrationTest
     assert_routing({ path: '/account/schema', method: :get }, { controller: 'accounts', action: 'schema' })
     assert_routing({ path: '/account/calculate', method: :get }, { controller: 'accounts', action: 'calculate' })
   end
+  
+  test 'standard_resources subresource routes' do
+    assert_routing({ path: '/photos/1/properties/1/add', method: :post }, { controller: 'photos', action: 'add_resource', id: '1', relationship: 'properties', resource_id: '1' })
+    assert_routing({ path: '/photos/1/properties/1/remove', method: :post }, { controller: 'photos', action: 'remove_resource', id: '1', relationship: 'properties', resource_id: '1' })
+  end
 
 end

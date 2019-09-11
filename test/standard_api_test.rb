@@ -143,6 +143,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     patch document_path(pdf), params: { document: pdf.attributes }
     assert_redirected_to document_path(pdf)
   end
+  
+  test 'Controller#add_resource' do
+    property = create(:property, photos: [])
+    photo = create(:photo)
+    post "/properties/#{property.id}/photos/#{photo.id}/add"
+    assert_equal property.photos.reload.map(&:id), [photo.id]
+  end
+  
+  test 'Controller#remove_resource' do
+    photo = create(:photo)
+    property = create(:property, photos: [photo])
+    post "/properties/#{property.id}/photos/#{photo.id}/remove"
+    assert_equal property.photos.reload, []
+  end
 
   # = View Tests
 

@@ -92,6 +92,26 @@ module StandardAPI
       resources.find(params[:id]).destroy!
       head :no_content
     end
+    
+    def remove_resource
+      resource = resources.find(params[:id])
+      subresource = resource.association(params[:relationship]).klass.find_by_id(params[:resource_id])
+      
+      if(subresource)
+        result = resource.send(params[:relationship]).delete(subresource)
+      end
+      head :no_content, status: result ? :created : :bad_request
+    end
+    
+    def add_resource
+      resource = resources.find(params[:id])
+      
+      subresource = resource.association(params[:relationship]).klass.find_by_id(params[:resource_id])
+      if(subresource)
+        result = resource.send(params[:relationship]) << subresource
+      end
+      head :no_content, status: result ? :created : :bad_request
+    end
 
     # Override if you want to support masking
     def current_mask
