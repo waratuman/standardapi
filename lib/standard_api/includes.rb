@@ -61,9 +61,10 @@ module StandardAPI
         if permit.has_key?(k) || ['limit', 'when', 'where', 'order', 'distinct'].include?(k.to_s)
           permitted[k] = sanitize(v, permit[k] || {}, true)
         else
-          if [:raise, nil].include?(Rails.configuration.try(:action_on_unpermitted_includes))
+          case Rails.application.config.action_controller.action_on_unpermitted_parameters
+          when :raise, nil
             raise ActionController::UnpermittedParameters.new([k])
-          else
+          when :log
             Rails.logger.try(:warn, "Invalid Include: #{k}")
           end
         end
