@@ -99,8 +99,10 @@ module StandardAPI
       
       if(subresource)
         result = resource.send(params[:relationship]).delete(subresource)
+        head result ? :created : :bad_request
+      else
+        head :not_found
       end
-      head :no_content, status: result ? :created : :bad_request
     end
     
     def add_resource
@@ -109,8 +111,11 @@ module StandardAPI
       subresource = resource.association(params[:relationship]).klass.find_by_id(params[:resource_id])
       if(subresource)
         result = resource.send(params[:relationship]) << subresource
+        head result ? :created : :bad_request
+      else
+        head :not_found
       end
-      head :no_content, status: result ? :created : :bad_request
+      
     end
 
     # Override if you want to support masking
