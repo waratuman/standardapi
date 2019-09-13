@@ -147,9 +147,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'Controller#add_resource' do
     property = create(:property, photos: [])
     photo = create(:photo)
-    post "/properties/#{property.id}/photos/#{photo.id}"
+
+    post "/properties/#{property.id}/photos/#{photo.id}.json"
     assert_equal property.photos.reload.map(&:id), [photo.id]
-    
+    assert_response :created
+
     post "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end
@@ -159,7 +161,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property = create(:property, photos: [photo])
     delete "/properties/#{property.id}/photos/#{photo.id}"
     assert_equal property.photos.reload, []
-    
+    assert_response :no_content
+
     delete "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end

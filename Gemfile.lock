@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (6.0.0.15)
+    standardapi (6.0.0.16)
       actionpack (>= 6.0.0)
       activerecord-filter (>= 6.0.0.2)
       activerecord-sort (>= 6.0.0)
@@ -114,7 +114,7 @@ GEM
       ruby-progressbar
     mocha (1.9.0)
       metaclass (~> 0.0.1)
-    nio4r (2.4.0)
+    nio4r (2.5.1)
     nokogiri (1.10.4)
       mini_portile2 (~> 2.4.0)
     pg (1.1.4)

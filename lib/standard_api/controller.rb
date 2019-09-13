@@ -95,11 +95,12 @@ module StandardAPI
     
     def remove_resource
       resource = resources.find(params[:id])
-      subresource = resource.association(params[:relationship]).klass.find_by_id(params[:resource_id])
+      subresource_class = resource.association(params[:relationship]).klass
+      subresource = subresource_class.find_by_id(params[:resource_id])
       
       if(subresource)
         result = resource.send(params[:relationship]).delete(subresource)
-        head result ? :created : :bad_request
+        head result ? :no_content : :bad_request
       else
         head :not_found
       end
@@ -108,7 +109,8 @@ module StandardAPI
     def add_resource
       resource = resources.find(params[:id])
       
-      subresource = resource.association(params[:relationship]).klass.find_by_id(params[:resource_id])
+      subresource_class = resource.association(params[:relationship]).klass
+      subresource = subresource_class.find_by_id(params[:resource_id])
       if(subresource)
         result = resource.send(params[:relationship]) << subresource
         head result ? :created : :bad_request
