@@ -24,6 +24,8 @@ module StandardAPI
       resources(*resources, options) do
         get :schema, on: :collection
         get :calculate, on: :collection
+        delete ':relationship/:resource_id' => :remove_resource, on: :member
+        post ':relationship/:resource_id' => :add_resource, on: :member
         block.call if block
       end
     end
@@ -51,6 +53,8 @@ module StandardAPI
       resource(*resource, options) do
         get :schema, on: :collection
         get :calculate, on: :collection
+        delete ':relationship/:resource_id' => :remove_resource, on: :member
+        post ':relationship/:resource_id' => :add_resource, on: :member
         block.call if block
       end
     end
