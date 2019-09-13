@@ -103,8 +103,6 @@ module StandardAPI
 
     def json_column_type(sql_type)
       case sql_type
-      when /character varying(\(\d+\))?/
-        'string'
       when 'timestamp without time zone'
         'datetime'
       when 'time without time zone'
@@ -133,10 +131,12 @@ module StandardAPI
        'string'
       when 'boolean'
         'boolean'
-      when 'geometry'
-        'ewkb'
       when 'uuid' # TODO: should be uuid
         'string'
+      when /character varying(\(\d+\))?/
+        'string'
+      when /^geometry/
+        'ewkb'
       end
     end
 
