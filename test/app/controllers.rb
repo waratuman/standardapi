@@ -36,6 +36,10 @@ class ApplicationController < ActionController::Base
     [:photos, :landlord, :english_name]
   end
 
+  def reference_includes
+    { subject: [ :landlord, :photos ] }
+  end
+
 end
 
 class PropertiesController < ApplicationController
@@ -54,10 +58,6 @@ class DocumentsController < ApplicationController
     [:id]
   end
 
-  def document_includes
-    [:photos]
-  end
-
 end
 
 class PhotosController < ApplicationController
@@ -66,11 +66,11 @@ class PhotosController < ApplicationController
     [ :id, :account_id, :property_id, :format ]
   end
 
-  def photos_orders
+  def photo_orders
     [:id]
   end
 
-  def photos_includes
+  def photo_includes
     [:account]
   end
 

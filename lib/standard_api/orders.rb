@@ -29,7 +29,7 @@ module StandardAPI
             sanitized_value = sanitize(value, subpermit)
             permitted << { key.to_sym => sanitized_value }
           else
-            raise(ActionController::UnpermittedParameters.new([orders]))
+            raise(StandardAPI::UnpermittedParameters.new([orders]))
           end
         end
       when Array
@@ -48,7 +48,7 @@ module StandardAPI
         elsif permit.include?(orders.to_s)
           permitted = orders
         else
-          raise(ActionController::UnpermittedParameters.new([orders]))
+          raise(StandardAPI::UnpermittedParameters.new([orders]))
         end
       end
 
@@ -57,8 +57,6 @@ module StandardAPI
       else
         permitted
       end
-
-      # permitted
     end
 
   end

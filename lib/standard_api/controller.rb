@@ -5,6 +5,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :resource_limit,
         :default_limit, :preloadables
       klass.before_action :set_standardapi_headers
+      klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
@@ -136,6 +137,10 @@ module StandardAPI
 
     private
 
+    def bad_request(exception)
+      render body: exception.to_s, status: :bad_request
+    end
+
     def set_standardapi_headers
       headers['StandardAPI-Version'] = StandardAPI::VERSION
     end
@@ -202,7 +207,7 @@ module StandardAPI
     end
 
     def includes
-      @includes ||= StandardAPI::Includes.normalize(params[:include])
+      @includes ||= StandardAPI::Includes.sanitize(params[:include], model_includes)
     end
     
     def preloadables(record, iclds)
