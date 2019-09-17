@@ -3,6 +3,8 @@ require 'test_helper'
 class PropertiesControllerTest < ActionDispatch::IntegrationTest
   include StandardAPI::TestCase
 
+  self.includes = [ :photos, :landlord, :english_name ]
+
   # def normalizers
   #   {
   #     Property => {
@@ -85,7 +87,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#model_includes defaults to []' do
-    @controller = ReferencesController.new
+    @controller = DocumentsController.new
     assert_equal @controller.send(:model_includes), []
   end
 
@@ -311,6 +313,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal json.find { |x| x['id'] == property_reference.id }.dig('subject', 'landlord', 'id'), account.id
   end
 
+  test 'unknown inlcude' do
+    property = create(:property, accounts: [ create(:account) ])
+    get property_path(property, include: [:accounts], format: 'json')
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "accounts"', response.body
+  end
+
+  test 'unknown order' do
+    property = create(:property)
+    get properties_path(order: 'updated_at', limit: 1, format: 'json')
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "updated_at"', response.body
+  end
+
   # Includes Test
 
   test 'Includes::normailze' do
@@ -340,21 +356,21 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal method.call(:x, [:x]), { 'x' => {} }
     assert_equal method.call(:x, {:x => true}), { 'x' => {} }
 
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call([:x, :y], [:x])
     end
 
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call([:x, :y], {:x => true})
     end
 
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call({:x => true, :y => true}, [:x])
     end
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call({:x => true, :y => true}, {:x => true})
     end
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call({ x: { y: true }}, { x: true })
     end
 
@@ -369,7 +385,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal :x, method.call(:x, :x)
     assert_equal :x, method.call(:x, [:x])
     assert_equal :x, method.call([:x], [:x])
-    assert_raises(ActionController::UnpermittedParameters) do
+    assert_raises(StandardAPI::UnpermittedParameters) do
       method.call(:x, :y)
     end
 
