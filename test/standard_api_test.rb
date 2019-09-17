@@ -422,5 +422,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get '/properties/calculate', params: {select: {sum: "accounts.photos_count"}, join: 'accounts'}
     assert_equal [3], JSON(response.body)
   end
+  
+  test 'calculate count distinct' do
+    photo = create(:photo)
+    landlord = create(:landlord)
+    property = create(:property, landlords: [landlord], photos: [photo])
+    create(:property, landlords: [landlord], photos: [photo])
+    
+    get '/photos/calculate', params: {select: {count: "*"}, where: {properties: {landlords: {id: landlord.id}}}, distinct: true}
+    assert_equal [1], JSON(response.body)
+  end
 
 end

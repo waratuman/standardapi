@@ -7,6 +7,10 @@ FactoryBot.define do
       name { nil }
     end
   end
+  
+  factory :landlord do
+    name            { Faker::Name.name }
+  end
 
   factory :photo do
     format          { ['jpg', 'png', 'tiff'].sample }
