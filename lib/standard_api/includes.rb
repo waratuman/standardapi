@@ -18,7 +18,7 @@ module StandardAPI
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
           case k.to_s
-          when 'when', 'where', 'order', 'distinct'
+          when 'when', 'where', 'order'
             normalized[k] = case v
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
@@ -30,7 +30,13 @@ module StandardAPI
             end
           when 'distinct'
             normalized[k] = case v
+            when 'true' then true
+            when 'false' then false
+            end
+          when 'distinct_on'
+            normalized[k] = case v
             when String then v
+            when Array then v
             end
           else
             normalized[k] = normalize(v)
@@ -66,7 +72,7 @@ module StandardAPI
       includes.each do |k, v|
         if permit.has_key?(k)
           permitted[k] = sanitize(v, permit[k] || {}, true)
-        elsif ['limit', 'when', 'where', 'order', 'distinct'].include?(k.to_s)
+        elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           permitted[k] = v
         else
           raise StandardAPI::UnpermittedParameters.new([k])

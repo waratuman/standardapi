@@ -58,7 +58,7 @@ module StandardAPI
     end
     
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct'].include?(k) }.map do |k, v|
+      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end
