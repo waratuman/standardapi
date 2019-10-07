@@ -17,29 +17,29 @@ module StandardAPI
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
-          case k.to_s
+          normalized[k] = case k.to_s
           when 'when', 'where', 'order'
-            normalized[k] = case v
+            case v
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
             end
           when 'limit'
-            normalized[k] = case v
+            case v
             when String then v.to_i
             when Integer then v
             end
           when 'distinct'
-            normalized[k] = case v
+            case v
             when 'true' then true
             when 'false' then false
             end
           when 'distinct_on'
-            normalized[k] = case v
+            case v
             when String then v
             when Array then v
             end
           else
-            normalized[k] = normalize(v)
+            normalize(v)
           end
         end
       when nil
@@ -70,10 +70,10 @@ module StandardAPI
 
       permit = normalize(permit.with_indifferent_access)
       includes.each do |k, v|
-        if permit.has_key?(k)
-          permitted[k] = sanitize(v, permit[k] || {}, true)
+        permitted[k] = if permit.has_key?(k)
+          sanitize(v, permit[k] || {}, true)
         elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
-          permitted[k] = v
+          v
         else
           raise StandardAPI::UnpermittedParameters.new([k])
         end
