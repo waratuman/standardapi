@@ -188,7 +188,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])
-    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id}}] }
+    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
 
     photo = JSON(response.body)[0]['photos'][0]
     assert photo.has_key?('template')
@@ -239,6 +239,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     p = create(:property, photos: [build(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
+  end
+
+  test 'has_many association w/ include limit' do
+    p = create(:property, photos: Array.new(5) { build(:photo) })
+    get property_path(p, format: 'json'), params: { include: { photos: { limit: 1 } } }
+    assert_equal 1, JSON(response.body)['photos'].size
   end
 
   test 'belongs_to association' do

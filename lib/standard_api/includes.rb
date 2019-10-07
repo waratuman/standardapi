@@ -17,12 +17,18 @@ module StandardAPI
         includes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
-          if ['limit', 'when', 'where', 'order', 'distinct'].include?(k.to_s) # Where and order are not normalized (sanitation happens in activerecord-filter)
+          case k.to_s
+          when 'when', 'where', 'order', 'distinct'
             normalized[k] = case v
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
             end
-          elsif k.to_s == 'distinct'
+          when 'limit'
+            normalized[k] = case v
+            when String then v.to_i
+            when Integer then v
+            end
+          when 'distinct'
             normalized[k] = case v
             when String then v
             end

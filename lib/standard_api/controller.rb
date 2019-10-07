@@ -210,10 +210,10 @@ module StandardAPI
       @includes ||= StandardAPI::Includes.sanitize(params[:include], model_includes)
     end
     
-    def preloadables(record, iclds)
+    def preloadables(record, includes)
       preloads = {}
       
-      iclds.each do |key, value|
+      includes.each do |key, value|
         if reflection = record.klass.reflections[key]
           case value
           when true
