@@ -414,6 +414,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
   end
   
+  test 'ordering via nulls_first/last' do
+    property1 = create(:property, description: 'test')
+    property2 = create(:property, description: nil)
+    
+    get properties_path(format: 'json'), params: { limit: 100, order: {description: {desc: 'nulls_last'}} }
+    properties = JSON(response.body)
+    assert_equal properties.first[:id], property1.id
+    
+    get properties_path(format: 'json'), params: { limit: 100, order: {description: {asc: 'nulls_last'}} }
+    properties = JSON(response.body)
+    assert_equal properties.first[:id], property1.id
+  end
+  
   # Calculate Test
   test 'calculate' do
     create(:photo)
