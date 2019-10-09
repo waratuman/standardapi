@@ -2,3 +2,4 @@ coverage
 *.gem
 test/app/log
 .byebug_history
+tmp

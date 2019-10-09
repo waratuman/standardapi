@@ -28,15 +28,14 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'jbuilder'
   spec.add_development_dependency "rake"
   spec.add_development_dependency 'minitest'
-  spec.add_development_dependency 'minitest-reporters'
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_bot_rails"
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency 'mocha'
-
-  # spec.add_development_dependency 'activerecord'
-  # spec.add_development_dependency 'sdoc',                '~> 0.4'
-  # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'
+  spec.add_development_dependency 'benchmark-ips'
+  # spec.add_development_dependency 'turbostreamer'
+  # spec.add_development_dependency 'wankel'
+  # spec.add_development_dependency 'ruby-prof'
 
 end

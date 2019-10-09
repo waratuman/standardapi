@@ -32,6 +32,7 @@ class Property < ActiveRecord::Base
   end
 end
 
+# TODO: Remove, not sure why this is here and not just using account.
 class Landlord < ActiveRecord::Base
   has_and_belongs_to_many :properties
 end

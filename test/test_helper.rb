@@ -1,25 +1,17 @@
-$LOAD_PATH << File.expand_path('../lib', __FILE__)
+require File.expand_path('../app', __FILE__)
 
 require "minitest/autorun"
 require 'minitest/unit'
-require 'minitest/reporters'
 require 'factory_bot'
-require 'active_record'
 require 'faker'
-require 'standard_api'
 require 'standard_api/test_case'
 require 'byebug'
 require 'mocha/minitest'
 
-FactoryBot.find_definitions
-
 # Setup the test db
 ActiveSupport.test_order = :random
-require File.expand_path('../app', __FILE__)
 
 include ActionDispatch::TestProcess
-
-Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
 class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures

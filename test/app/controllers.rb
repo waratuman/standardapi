@@ -96,7 +96,6 @@ end
 
 class DefaultLimitController < ApplicationController
 
-
   def self.model
     Account
   end
