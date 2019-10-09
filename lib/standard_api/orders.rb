@@ -15,11 +15,11 @@ module StandardAPI
             key2, key3 = *key.to_s.split('.')
             permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit)
           elsif permit.include?(key.to_s)
-            case value
+            value = case value
             when Hash
               value
             when ActionController::Parameters
-              value.to_unsafe_hash
+              value.permit([:asc, :desc]).to_h
             else
               value
             end

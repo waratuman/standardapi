@@ -277,13 +277,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'include with order key' do
     photos = Array.new(5) { build(:photo) }
     property = create(:property, photos: photos)
+
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
-
-    photos = Array.new(5) { build(:photo) }
-    property = create(:property, photos: photos)
-    get property_path(property, include: { photos: { order: { id: :desc } } }, format: 'json')
-    assert_equal photos.map(&:id).sort.reverse, JSON(response.body)['photos'].map { |x| x['id'] }
   end
 
   test 'include with limit key' do
@@ -464,6 +460,33 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
   end
   
+  test 'order: :attribute' do
+    properties = Array.new(2) { create(:property) }
+
+    get properties_path(order: :id, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order: { attribute: :direction }' do
+    properties = Array.new(2) { create(:property) }
+
+    get properties_path(order: { id: :asc }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+
+    get properties_path(order: { id: :desc }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order: { attribute: { direction: :nulls } }' do
+    properties = [ create(:property), create(:property, description: nil) ]
+
+    get properties_path(order: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+
+    get properties_path(order: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
+  end
+
   # Calculate Test
   test 'calculate' do
     create(:photo)
