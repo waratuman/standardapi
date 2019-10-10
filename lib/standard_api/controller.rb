@@ -21,7 +21,8 @@ module StandardAPI
     end
 
     def index
-      instance_variable_set("@#{model.model_name.plural}", resources.limit(limit).offset(params[:offset]).sort(orders))
+      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      instance_variable_set("@#{model.model_name.plural}", records)
     end
 
     def calculate
@@ -38,7 +39,8 @@ module StandardAPI
     end
 
     def show
-      instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
+      record = preloadables(resources, includes).find(params[:id])
+      instance_variable_set("@#{model.model_name.singular}", record)
     end
 
     def new

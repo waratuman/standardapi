@@ -187,7 +187,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '#index.json uses overridden partial' do
-    create(:property, photos: [build(:photo)])
+    create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
 
     photo = JSON(response.body)[0]['photos'][0]
@@ -196,7 +196,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '#show.json uses overridden partial' do
-    property = create(:property, photos: [build(:photo)])
+    property = create(:property, photos: [create(:photo)])
     get property_path(property, format: 'json'), params: { id: property.id, include: [:photos] }
 
     photo = JSON(response.body)['photos'][0]
@@ -208,8 +208,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get schema_photos_path(format: 'json')
 
     schema = JSON(response.body)
+    assert_rendered 'photos/schema', format: 'json', handler: 'jbuilder'
     assert_equal true, schema.has_key?('template')
     assert_equal 'photos/schema', schema['template']
+    
   end
 
   test 'belongs_to polymorphic association' do
@@ -236,7 +238,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'has_many association' do
-    p = create(:property, photos: [build(:photo)])
+    p = create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
   end
@@ -262,8 +264,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with where key' do
-    photo_a = build(:photo)
-    photo_b = build(:photo)
+    photo_a = create(:photo)
+    photo_b = create(:photo)
 
     property = create(:property, photos: [photo_b])
     get property_path(property, include: { photos: { where: { id: photo_a.id } } }, format: :json)
@@ -275,7 +277,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
   
   test 'include with order key' do
-    photos = Array.new(5) { build(:photo) }
+    photos = Array.new(5) { create(:photo) }
     property = create(:property, photos: photos)
 
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
@@ -283,7 +285,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with limit key' do
-    property = create(:property, photos: Array.new(5) { build(:photo) })
+    property = create(:property, photos: Array.new(5) { create(:photo) })
     get property_path(property, include: { photos: { limit: 1 } }, format: 'json')
     assert_equal 1, JSON(response.body)['photos'].length
   end
@@ -323,8 +325,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with distinct key' do
-    account = build(:account)
-    photos = Array.new(5) { build(:photo, account: account) }
+    account = create(:account)
+    photos = Array.new(5) { create(:photo, account: account) }
     property = create(:property, photos: photos)
 
     get property_path(property, include: { photos: { distinct: true } }, format: 'json')
@@ -332,8 +334,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with distinct_on key' do
-    account = build(:account)
-    photos = Array.new(5) { build(:photo, account: account) }
+    account = create(:account)
+    photos = Array.new(5) { create(:photo, account: account) }
     property = create(:property, photos: photos)
 
     get property_path(property,

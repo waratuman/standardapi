@@ -1,9 +1,11 @@
-require 'rails/all'
+require 'rails'
+require "active_model/railtie"
+require "active_record/railtie"
+require "action_controller/railtie"
+require "action_view/railtie"
+require "rails/test_unit/railtie"
 Bundler.require(*Rails.groups)
 
-# require 'jbuilder'
-# require 'turbostreamer'
-# require 'wankel'
 require 'standard_api'
 
 # Test Application Config
@@ -11,7 +13,9 @@ Rails.env = 'test'
 class TestApplication < Rails::Application
   config.root = File.join(File.dirname(__FILE__), 'app')
   config.secret_key_base = 'test key base'
-  config.eager_load = false
+  config.eager_load = true
+  config.cache_classes = true
+  config.action_controller.perform_caching = true
   config.cache_store = :memory_store, { size: 8.megabytes }
   config.action_dispatch.show_exceptions = false
 
@@ -23,8 +27,14 @@ end
 # Test Application initialization
 TestApplication.initialize!
 
+# Test Application Models
+require 'app/models'
+
+# Test Application Controllers
+require 'app/controllers'
+
 # Test Application Routes
-TestApplication.routes.draw do
+Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables
 
   [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit].each do |r|
@@ -34,11 +44,10 @@ TestApplication.routes.draw do
   standard_resource :account
 end
 
-# Test Application Models
-require 'app/models'
-
-# Test Application Controllers
-require 'app/controllers'
-
 # Test Application Helpers
 Object.const_set(:ApplicationHelper, Module.new)
+
+# require 'turbostreamer'
+# require 'wankel'
+# ActionView::Template.unregister_template_handler :jbuilder
+# ActionView::Template.register_template_handler :streamer, TurboStreamer::Handler
