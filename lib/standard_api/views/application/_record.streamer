@@ -7,7 +7,6 @@ json.object! do
   end
 
   includes.each do |inc, subinc|
-    puts inc, subinc.inspect
     next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
     
     case association = record.class.reflect_on_association(inc)
