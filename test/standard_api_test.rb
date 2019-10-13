@@ -285,9 +285,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with limit key' do
-    property = create(:property, photos: Array.new(5) { create(:photo) })
-    get property_path(property, include: { photos: { limit: 1 } }, format: 'json')
-    assert_equal 1, JSON(response.body)['photos'].length
+    5.times { create(:property, photos: Array.new(5) { create(:photo) }) }
+    get properties_path(include: { photos: { limit: 1 } }, limit: 5, format: 'json')
+
+    properties = JSON(response.body)
+    assert_equal 5, properties.length
+
+    properties.each do |property|
+      assert_equal 1, property['photos'].length
+    end
   end
 
   test 'include with when key' do
