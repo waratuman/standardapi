@@ -11,8 +11,8 @@ module StandardAPI
     end
 
     def tables
-      Rails.application.eager_load! if Rails.env == 'development'.freeze
-      
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+
       controllers = ApplicationController.descendants
       controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
       controllers.map!(&:model).compact!

@@ -1,4 +1,4 @@
-require File.expand_path('../app', __FILE__)
+require File.expand_path('../standard_api/test_app', __FILE__)
 
 require "minitest/autorun"
 require 'minitest/unit'

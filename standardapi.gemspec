@@ -13,9 +13,9 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = %w(README.md)
   spec.rdoc_options.concat ['--main', 'README.md']
 
-  spec.files         = `git ls-files -- README.md {lib,ext}/*`.split("\n")
+  spec.files         = `git ls-files -- README.md {lib,ext}/* test/standard_api/test_app.rb test/standard_api/test_app/*`.split("\n")
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
-  spec.require_paths = ["lib"]
+  spec.require_paths = ["lib", "test"]
 
   spec.add_runtime_dependency 'rails', '>= 6.0.0'
   spec.add_runtime_dependency 'activesupport', '>= 6.0.0'
