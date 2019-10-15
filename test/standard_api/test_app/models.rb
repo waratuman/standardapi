@@ -18,11 +18,9 @@ class Pdf < Document
 end
 
 class Property < ActiveRecord::Base
-  has_and_belongs_to_many :landlords
   has_and_belongs_to_many :photos
   has_many :accounts
   has_one :landlord, class_name: 'Account'
-
 
   validates :name, presence: true
   accepts_nested_attributes_for :photos
@@ -30,11 +28,6 @@ class Property < ActiveRecord::Base
   def english_name
     'A Name'
   end
-end
-
-# TODO: Remove, not sure why this is here and not just using account.
-class Landlord < ActiveRecord::Base
-  has_and_belongs_to_many :properties
 end
 
 class Reference < ActiveRecord::Base
@@ -51,10 +44,6 @@ class CreateModelTables < ActiveRecord::Migration[5.2]
       t.string   'name',                 limit: 255
       t.integer  'property_id'
       t.integer  'photos_count', null: false, default: 0
-    end
-
-    create_table "landlords", force: :cascade do |t|
-      t.string  "name"
     end
 
     create_table "photos", force: :cascade do |t|

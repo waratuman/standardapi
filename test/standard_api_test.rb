@@ -522,11 +522,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   
   test 'calculate count distinct' do
     photo = create(:photo)
-    landlord = create(:landlord)
-    create(:property, landlords: [landlord], photos: [photo])
-    create(:property, landlords: [landlord], photos: [photo])
+    landlord = create(:account)
+    create(:property, landlord: landlord, photos: [photo])
+    create(:property, landlord: landlord, photos: [photo])
     
-    get '/photos/calculate', params: {select: {count: "*"}, where: {properties: {landlords: {id: landlord.id}}}, distinct: true}
+    get '/photos/calculate', params: {select: {count: "*"},
+      where: {properties: {landlord: {id: landlord.id}}},
+      distinct: true
+    }
+
     assert_equal [1], JSON(response.body)
   end
 
