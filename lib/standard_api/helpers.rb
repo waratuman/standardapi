@@ -1,6 +1,48 @@
 module StandardAPI
   module Helpers
-    
+
+    def preloadables(record, includes)
+      preloads = {}
+
+      includes.each do |key, value|
+        if reflection = record.klass.reflections[key]
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
+                preloads[key] = preloadables_hash(reflection.klass, value)
+              end
+            end
+          end
+        end
+      end
+      
+      preloads.empty? ? record : record.preload(preloads)
+    end
+
+    def preloadables_hash(klass, iclds)
+      preloads = {}
+
+      iclds.each do |key, value|
+        if reflection = klass.reflections[key] 
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
+                preloads[key] = preloadables_hash(reflection.klass, value)
+              end
+            end
+          end
+        end
+      end
+  
+      preloads
+    end
+
     def model_partial(record)
       if lookup_context.exists?(record.model_name.element, record.model_name.plural, true)
         [record.model_name.plural, record.model_name.element].join('/')
@@ -56,13 +98,13 @@ module StandardAPI
         raise ArgumentError, 'Unkown association type'
       end
     end
-    
+
     def cached_at_columns_for_includes(includes)
       includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end
-    
+
     def includes_to_cache_key(relation, subincludes)
       if subincludes.empty?
         relation.to_s

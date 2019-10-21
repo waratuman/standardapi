@@ -3,7 +3,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :resource_limit,
-        :default_limit, :preloadables
+        :default_limit
       klass.before_action :set_standardapi_headers
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -21,7 +21,7 @@ module StandardAPI
     end
 
     def index
-      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      records = helpers.preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
       instance_variable_set("@#{model.model_name.plural}", records)
     end
 
@@ -39,7 +39,7 @@ module StandardAPI
     end
 
     def show
-      record = preloadables(resources, includes).find(params[:id])
+      record = helpers.preloadables(resources, includes).find(params[:id])
       instance_variable_set("@#{model.model_name.singular}", record)
     end
 
@@ -211,53 +211,11 @@ module StandardAPI
     def includes
       @includes ||= StandardAPI::Includes.sanitize(params[:include], model_includes)
     end
-    
-    def preloadables(record, includes)
-      preloads = {}
-      
-      includes.each do |key, value|
-        if reflection = record.klass.reflections[key]
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
-          end
-        end
-      end
-      
-      preloads.empty? ? record : record.preload(preloads)
-    end
 
-    def preloadables_hash(klass, iclds)
-      preloads = {}
-
-      iclds.each do |key, value|
-        if reflection = klass.reflections[key] 
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
-          end
-        end
-      end
-  
-      preloads
-    end
-    
     def required_orders
       []
     end
-    
+
     def default_orders
       nil
     end
