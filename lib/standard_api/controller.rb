@@ -1,6 +1,8 @@
 module StandardAPI
   module Controller
 
+    delegate :preloadables, to: :helpers
+
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :resource_limit,
         :default_limit
@@ -21,7 +23,7 @@ module StandardAPI
     end
 
     def index
-      records = helpers.preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
       instance_variable_set("@#{model.model_name.plural}", records)
     end
 
@@ -39,7 +41,7 @@ module StandardAPI
     end
 
     def show
-      record = helpers.preloadables(resources, includes).find(params[:id])
+      record = preloadables(resources, includes).find(params[:id])
       instance_variable_set("@#{model.model_name.singular}", record)
     end
 
