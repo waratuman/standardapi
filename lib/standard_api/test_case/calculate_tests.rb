@@ -12,7 +12,7 @@ module StandardAPI
         create_model
 
         math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
-        
+
         if math_column
           column = math_column
           selects = [{ count: column.name }, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
@@ -35,7 +35,7 @@ module StandardAPI
         create_model
 
         math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
-        
+
         if math_column
           column = math_column
           selects = [{ count: column.name}, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
