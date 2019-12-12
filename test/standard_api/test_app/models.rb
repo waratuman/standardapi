@@ -36,9 +36,14 @@ end
 
 # = Migration
 
-class CreateModelTables < ActiveRecord::Migration[5.2]
+class CreateModelTables < ActiveRecord::Migration[6.0]
 
   def self.up
+
+    comment = "test comment"
+    exec_query(<<-SQL, "SQL")
+      COMMENT ON DATABASE #{quote_column_name(current_database)} IS #{quote(comment)};
+    SQL
 
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255

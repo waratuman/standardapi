@@ -37,6 +37,7 @@ require 'standard_api/test_app/controllers'
 # Test Application Routes
 Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables
+  get :schema, to: 'application#schema', as: :schema
 
   [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit].each do |r|
     standard_resources r

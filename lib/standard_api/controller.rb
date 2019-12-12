@@ -4,7 +4,7 @@ module StandardAPI
     delegate :preloadables, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :resource_limit,
+      klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
@@ -15,11 +15,17 @@ module StandardAPI
     def tables
       Rails.application.eager_load! if !Rails.application.config.eager_load
 
-      controllers = ApplicationController.descendants
-      controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
-      controllers.map!(&:model).compact!
-      controllers.map!(&:table_name)
-      render json: controllers
+      tables = ApplicationController.descendants
+      tables.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+      tables.map!(&:model).compact!
+      tables.map!(&:table_name)
+      render json: tables
+    end
+
+    if Rails.env == 'development'
+      def schema
+        Rails.application.eager_load! if !Rails.application.config.eager_load
+      end
     end
 
     def index
@@ -36,7 +42,7 @@ module StandardAPI
         end
       end
       @calculations = Hash[@calculations] if @calculations[0].is_a?(Array) && params[:group_by]
-      
+
       render json: @calculations
     end
 
@@ -97,12 +103,12 @@ module StandardAPI
       resources.find(params[:id]).destroy!
       head :no_content
     end
-    
+
     def remove_resource
       resource = resources.find(params[:id])
       subresource_class = resource.association(params[:relationship]).klass
       subresource = subresource_class.find_by_id(params[:resource_id])
-      
+
       if(subresource)
         result = resource.send(params[:relationship]).delete(subresource)
         head result ? :no_content : :bad_request
@@ -110,10 +116,10 @@ module StandardAPI
         head :not_found
       end
     end
-    
+
     def add_resource
       resource = resources.find(params[:id])
-      
+
       subresource_class = resource.association(params[:relationship]).klass
       subresource = subresource_class.find_by_id(params[:resource_id])
       if(subresource)
@@ -122,7 +128,7 @@ module StandardAPI
       else
         head :not_found
       end
-      
+
     end
 
     # Override if you want to support masking
@@ -131,7 +137,7 @@ module StandardAPI
     end
 
     module ClassMethods
-    
+
       def model
         return @model if defined?(@model)
         @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
@@ -151,6 +157,15 @@ module StandardAPI
 
     def model
       self.class.model
+    end
+
+    def models
+      return @models if defined?(@models)
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+
+      @models = ApplicationController.descendants
+      @models.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+      @models.map!(&:model).compact!
     end
 
     def model_includes
@@ -192,21 +207,21 @@ module StandardAPI
 
     def resources
       query = model.filter(params['where']).filter(current_mask[model.table_name])
-      
+
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
       elsif params[:distinct]
         query = query.distinct
       end
-      
+
       if params[:join]
         query = query.joins(params[:join].to_sym)
       end
-      
+
       if params[:group_by]
         query = query.group(params[:group_by])
       end
-      
+
       query
     end
 
@@ -224,7 +239,7 @@ module StandardAPI
 
     def orders
       exluded_required_orders = required_orders.map(&:to_s)
-      
+
       case params[:order]
       when Hash, ActionController::Parameters
         exluded_required_orders -= params[:order].keys.map(&:to_s)
@@ -240,7 +255,7 @@ module StandardAPI
       when String
         exluded_required_orders.delete(params[:order])
       end
-      
+
       if !exluded_required_orders.empty?
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
@@ -298,7 +313,7 @@ module StandardAPI
             @model = parts[0].singularize.camelize.constantize
             column = parts[1]
           end
-          
+
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
             node = (defined?(@model) ? @model : model).arel_table[column].send(func)

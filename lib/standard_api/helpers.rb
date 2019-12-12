@@ -18,7 +18,7 @@ module StandardAPI
           end
         end
       end
-      
+
       preloads.empty? ? record : record.preload(preloads)
     end
 
@@ -26,7 +26,7 @@ module StandardAPI
       preloads = {}
 
       iclds.each do |key, value|
-        if reflection = klass.reflections[key] 
+        if reflection = klass.reflections[key]
           case value
           when true
             preloads[key] = value
@@ -39,8 +39,18 @@ module StandardAPI
           end
         end
       end
-  
+
       preloads
+    end
+
+    def schema_partial(model)
+      path = model.model_name.plural
+
+      if lookup_context.exists?("schema", path, true)
+        [path, "schema"].join('/')
+      else
+        'application/schema'
+      end
     end
 
     def model_partial(record)
@@ -59,7 +69,7 @@ module StandardAPI
         false
       end
     end
-    
+
     def cache_key(record, includes)
       timestamp_keys = ['cached_at'] + record.class.column_names.select{|x| x.ends_with? "_cached_at"}
       if includes.empty?
@@ -69,7 +79,7 @@ module StandardAPI
         "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
       end
     end
-    
+
     def can_cache_relation?(klass, relation, subincludes)
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       if (cache_columns - klass.column_names).empty?
@@ -78,12 +88,12 @@ module StandardAPI
         false
       end
     end
-    
+
     def association_cache_key(record, relation, subincludes)
       timestamp = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       timestamp.map! { |col| record.send(col) }
       timestamp = timestamp.max
-      
+
       case association = record.class.reflect_on_association(relation)
       when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection
         "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
@@ -112,7 +122,7 @@ module StandardAPI
         "#{relation}-#{digest_hash(sort_hash(subincludes))}"
       end
     end
-    
+
     def sort_hash(hash)
       hash.keys.sort.reduce({}) do |seed, key|
         if seed[key].is_a?(Hash)
@@ -123,7 +133,7 @@ module StandardAPI
         seed
       end
     end
-    
+
     def digest_hash(*hashes)
       hashes.compact!
       hashes.map! { |h| sort_hash(h) }

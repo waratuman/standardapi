@@ -91,9 +91,6 @@ module StandardAPI
         mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
-        file_upload = attrs.any? { |k, v| v.is_a?(Rack::Test::UploadedFile) }
-        as = file_upload ? nil : :json
-
         assert_difference("#{model.name}.count") do
           post resource_path(:create), params: { singular_name => attrs }, as: :html
           assert_response :redirect

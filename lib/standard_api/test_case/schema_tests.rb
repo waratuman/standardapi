@@ -9,11 +9,11 @@ module StandardAPI
         get resource_path(:schema, format: :json)
         assert_response :ok
         json = JSON(@response.body)
-        assert json['columns']
+        assert json['attributes']
 
         model.columns.map do |column|
-          actual_column = json['columns'][column.name]
-          assert actual_column['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
+          actual_column = json['attributes'][column.name]
+          assert_not_nil actual_column['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
           assert_equal_or_nil model.primary_key == column.name, actual_column['primary_key']
           assert_equal_or_nil column.null, actual_column['null']
           assert_equal_or_nil column.array, actual_column['array']
