@@ -7,6 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
+      klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
@@ -284,9 +285,9 @@ module StandardAPI
         limit = params.permit(:limit)[:limit]&.to_i || default_limit
 
         if !limit
-          raise ActionController::ParameterMissing.new(:limit)
+          raise StandardAPI::ParameterMissing.new(:limit)
         elsif limit > resource_limit
-          raise ActionController::UnpermittedParameters.new([:limit, limit])
+          raise StandardAPI::UnpermittedParameters.new([:limit, limit])
         end
 
         limit

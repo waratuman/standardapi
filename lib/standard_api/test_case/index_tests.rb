@@ -37,10 +37,10 @@ module StandardAPI
 
       test '#index.json params[:limit] does not exceed maximum limit' do
         return if !resource_limit || resource_limit == Float::INFINITY
-        
-        assert_raises ActionController::UnpermittedParameters do
-          get resource_path(:index, format: :json), params: { limit: resource_limit + 1 }
-        end
+
+        get resource_path(:index, format: :json), params: { limit: resource_limit + 1 }
+        assert_response :bad_request
+        assert_equal 'found unpermitted parameters: :limit, 1001', response.body
       end
 
       test '#index.json params[:where]' do

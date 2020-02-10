@@ -85,9 +85,12 @@ module StandardAPI
       end
 
       test '#create.html' do
-        return unless supports_format(:html)
+        return unless supports_format(:html, :create)
 
-        attrs = attributes_for(singular_name, :nested).select{ |k,v| !model.readonly_attributes.include?(k.to_s) }
+        attrs = attributes_for(singular_name, :nested).select do |k,v|
+          !model.readonly_attributes.include?(k.to_s)
+        end
+
         mask.each { |k, v| attrs[k] = v }
         create_webmocks(attrs)
 
@@ -98,7 +101,7 @@ module StandardAPI
       end
 
       test '#create.html with invalid attributes renders edit action' do
-        return unless supports_format(:html)
+        return unless supports_format(:html, :create)
 
         trait = FactoryBot.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 

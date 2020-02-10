@@ -2,6 +2,15 @@ module StandardAPI
   class StandardAPIError < StandardError
   end
 
+  class ParameterMissing < StandardAPIError
+    attr_reader :param
+
+    def initialize(param)
+      @param = param
+      super("param is missing or the value is empty: #{param}")
+    end
+  end
+
   class UnpermittedParameters < StandardAPIError
     attr_reader :params
 

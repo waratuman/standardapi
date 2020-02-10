@@ -18,7 +18,7 @@ module StandardAPI::TestCase
       assert_equal(expected, *args)
     end
   end
-      
+
   def self.included(klass)
     [:filters, :orders, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
@@ -53,14 +53,14 @@ module StandardAPI::TestCase
     end
   end
 
-  def supports_format(format)
+  def supports_format(format, action=nil)
     count = controller_class.view_paths.count do |path|
-      !Dir.glob("#{path.instance_variable_get(:@path)}/{#{model.name.underscore},application}/**/*.#{format}*").empty?
+      !Dir.glob("#{path.instance_variable_get(:@path)}/{#{model.name.underscore},application}/**/#{action || '*'}.#{format}*").empty?
     end
-    
+
     count > 0
   end
-  
+
   def default_orders
     controller_class.new.send(:default_orders)
   end
@@ -76,7 +76,7 @@ module StandardAPI::TestCase
   def model
     self.class.model
   end
-  
+
   def mask
     {}
   end
@@ -98,11 +98,11 @@ module StandardAPI::TestCase
   def singular_name
     model.model_name.singular
   end
-  
+
   def plural_name
     model.model_name.plural
   end
-    
+
   def create_webmocks(attributes)
     attributes.each do |attribute, value|
       self.class.model.validators_on(attribute)
@@ -122,7 +122,7 @@ module StandardAPI::TestCase
       value
     end
   end
-    
+
   def normalize_to_json(record, attribute, value)
     value = normalize_attribute(record, attribute, value)
     return nil if value.nil?
@@ -149,7 +149,7 @@ module StandardAPI::TestCase
 
     def controller_class
       controller_class_name = self.name.gsub(/Test$/, '')
-      controller_class_name.constantize 
+      controller_class_name.constantize
     rescue NameError => e
       raise e if e.message != "uninitialized constant #{controller_class_name}"
     end
@@ -166,7 +166,7 @@ module StandardAPI::TestCase
       return @model if defined?(@model) && @model
 
       klass_name = controller_class.name.gsub(/Controller$/, '').singularize
-        
+
       begin
         @model = klass_name.constantize
       rescue NameError
