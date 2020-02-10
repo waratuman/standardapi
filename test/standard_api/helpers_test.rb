@@ -1,4 +1,4 @@
-require 'test_helper'
+require 'standard_api/test_helper'
 
 class HelpersTest < ActionView::TestCase
   include StandardAPI::Helpers

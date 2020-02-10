@@ -1,4 +1,4 @@
-require 'test_helper'
+require 'standard_api/test_helper'
 
 class AccountsControllerTest < ActionController::TestCase
 
@@ -8,21 +8,21 @@ class AccountsControllerTest < ActionController::TestCase
 
     t1 = 1.day.from_now
     t2 = 2.days.from_now
-    
+
     columns = Account.column_names + ['photos_account_cached_at', 'photos_cached_at']
     Account.stubs(:column_names).returns(columns)
-    
+
     # Cache Miss
     Account.any_instance.stubs(:photos_cached_at).returns(t1)
     get :show, params: {id: account.id, include: :photos}, format: :json
     assert_equal [photo.id], JSON(response.body)['photos'].map{|x| x['id']}
-    
+
     # Cache Hit
     Account.any_instance.stubs(:photos).returns([])
     Account.any_instance.stubs(:photos_cached_at).returns(t1)
     get :show, params: {id: account.id, include: :photos}, format: :json
     assert_equal [photo.id], JSON(response.body)['photos'].map{|x| x['id']}
-    
+
     # Cache Miss, photos_cached_at updated
     Account.any_instance.stubs(:photos).returns(Photo.where('false = true'))
     Account.any_instance.stubs(:photos_cached_at).returns(t2)

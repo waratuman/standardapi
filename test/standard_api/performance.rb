@@ -1,4 +1,4 @@
-require "test_helper"
+require 'standard_api/test_helper'
 require "benchmark/ips"
 
 TIME    = (ENV["BENCHMARK_TIME"] || 20).to_i

@@ -1,4 +1,4 @@
-require 'test_helper'
+require 'standard_api/test_helper'
 
 class PropertiesControllerTest < ActionDispatch::IntegrationTest
   include StandardAPI::TestCase

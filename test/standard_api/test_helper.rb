@@ -1,4 +1,4 @@
-require File.expand_path('../standard_api/test_app', __FILE__)
+require File.expand_path('../test_app', __FILE__)
 
 require "minitest/autorun"
 require 'minitest/unit'
@@ -38,7 +38,7 @@ class ActiveSupport::TestCase
             count: 1,
             path: virtual_path,
             format: format,
-            handler: handler 
+            handler: handler
           }
         end
       else
@@ -49,7 +49,7 @@ class ActiveSupport::TestCase
             count: 1,
             path: virtual_path,
             format: format,
-            handler: handler 
+            handler: handler
           }
         end
       end
