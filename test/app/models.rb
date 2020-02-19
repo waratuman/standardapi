@@ -22,6 +22,8 @@ class Property < ActiveRecord::Base
   has_and_belongs_to_many :photos
   has_many :accounts
   has_one :landlord, class_name: 'Account'
+  has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
+  has_one :document, through: "document_attachments"
 
 
   validates :name, presence: true
@@ -38,6 +40,11 @@ end
 
 class Reference < ActiveRecord::Base
   belongs_to :subject, polymorphic: true
+end
+
+class Attachment < ActiveRecord::Base
+  belongs_to :record, polymorphic: true
+  belongs_to :document
 end
 
 # = Migration
@@ -91,6 +98,12 @@ class CreateModelTables < ActiveRecord::Migration[5.2]
 
     create_table "documents", force: :cascade do |t|
       t.string   'type'
+    end
+    
+    create_table "attachments", force: :cascade do |t| 
+      t.string  'record_type'
+      t.integer  'record_id'
+      t.integer  'document_id'
     end
   end
 

@@ -185,6 +185,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('landlord')
     assert_nil JSON(response.body)['landlord']
   end
+  
+  test 'rendering null attribute for has_one through' do
+    property = create(:property)
+    get property_path(property, format: 'json'), params: { id: property.id, include: [:document] }
+    assert JSON(response.body).has_key?('document')
+    assert_nil JSON(response.body)['document']
+  end
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [build(:photo)])

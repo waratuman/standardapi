@@ -33,7 +33,7 @@ class ApplicationController < ActionController::Base
   end
 
   def property_includes
-    [:photos, :landlord, :english_name]
+    [:photos, :landlord, :english_name, :document]
   end
 
   def reference_includes
