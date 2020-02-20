@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (6.0.0.30)
+    standardapi (6.0.0.31)
       actionpack (>= 6.0.0)
       activerecord-filter (>= 6.0.0.2)
       activerecord-sort (>= 6.0.0)
@@ -55,7 +55,7 @@ GEM
     activerecord (6.0.1)
       activemodel (= 6.0.1)
       activesupport (= 6.0.1)
-    activerecord-filter (6.0.0.4)
+    activerecord-filter (6.0.0.5)
       activerecord (>= 6.0.0)
       arel-extensions (>= 6.0.0.5)
     activerecord-sort (6.0.0.2)
@@ -103,7 +103,7 @@ GEM
       mimemagic (~> 0.3.2)
     metaclass (0.0.4)
     method_source (0.9.2)
-    mimemagic (0.3.3)
+    mimemagic (0.3.4)
     mini_mime (1.0.2)
     mini_portile2 (2.4.0)
     minitest (5.13.0)
@@ -182,4 +182,4 @@ DEPENDENCIES
   standardapi!
 
 BUNDLED WITH
-   2.0.2
+   2.1.4
