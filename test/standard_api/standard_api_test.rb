@@ -190,23 +190,41 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property = create(:property, photos: [])
     photo = create(:photo)
 
-    post "/properties/#{property.id}/photos/#{photo.id}.json"
+    post "/properties/#{property.id}/photos/#{photo.id}"
     assert_equal property.photos.reload.map(&:id), [photo.id]
     assert_response :created
 
     post "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end
+  
+  test 'Controller#add_resource with has_one' do
+    photo = create(:document)
+    property = create(:property)
+    post "/properties/#{property.id}/document/#{photo.id}"
+    assert_equal property.reload.document, photo
+    assert_response :created
+  end
 
   test 'Controller#remove_resource' do
     photo = create(:photo)
     property = create(:property, photos: [photo])
+    assert_equal property.photos.reload, [photo]
     delete "/properties/#{property.id}/photos/#{photo.id}"
     assert_equal property.photos.reload, []
     assert_response :no_content
 
     delete "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
+  end
+  
+  test 'Controller#remove_resource with has_one' do
+    photo = create(:document)
+    property = create(:property, document: photo)
+    assert_equal property.document, photo
+    delete "/properties/#{property.id}/document/#{photo.id}"
+    assert_nil property.reload.document
+    assert_response :no_content
   end
 
   # = View Tests
