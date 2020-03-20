@@ -138,8 +138,19 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    record.attributes.select { |x| !@controller.send(:excludes_for, record.class).include?(x.to_sym) }
+    record.attributes.select do |x|
+      !@controller.send(:excludes_for, record.class).include?(x.to_sym)
+    end
   end
+
+  def update_attributes(record)
+    return [] if record.nil?
+    record.attributes.select do |x|
+      !record.class.readonly_attributes.include?(x.to_s) &&
+      !@controller.send(:excludes_for, record.class).include?(x.to_sym)
+    end
+  end
+  alias_method :create_attributes, :update_attributes
 
   module ClassMethods
 

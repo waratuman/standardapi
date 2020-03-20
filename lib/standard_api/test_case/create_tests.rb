@@ -22,7 +22,7 @@ module StandardAPI
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
 
-          view_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+          create_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
             if value.is_a?(BigDecimal)
               assert_equal_or_nil normalize_to_json(m, key, attrs[key.to_sym]).to_s.to_f, json[key.to_s].to_s.to_f, message
@@ -53,7 +53,7 @@ module StandardAPI
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
           m.reload
-          view_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+          create_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
             assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), value, message
           end
@@ -146,7 +146,7 @@ module StandardAPI
               next if !association
 
               if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-                view_attributes(m.send(included)) do |key, value|
+                create_attributes(m.send(included)) do |key, value|
                   assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value)
                 end
               else
@@ -160,7 +160,7 @@ module StandardAPI
                   nil
                 end
 
-                view_attributes(m2).each do |key, value|
+                create_attributes(m2).each do |key, value|
                   message = "Model / Attribute: #{m2.class.name}##{key}"
                   if m_json[key.to_s].nil?
                     assert_nil normalize_to_json(m2, key, value), message

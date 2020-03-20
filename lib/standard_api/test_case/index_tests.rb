@@ -69,9 +69,12 @@ module StandardAPI
       end
 
       test '#index.json params[:include]' do
+        next if includes.empty?
+
         travel_to Time.now do
           create_model
           get resource_path(:index, format: :json), params: { limit: 100, include: includes }
+          assert_response :ok
 
           json = JSON.parse(response.body)[0]
           assert json.is_a?(Hash)
