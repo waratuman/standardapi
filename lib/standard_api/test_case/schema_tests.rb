@@ -18,7 +18,13 @@ module StandardAPI
           assert_equal_or_nil column.null, actual_column['null']
           assert_equal_or_nil column.array, actual_column['array']
           assert_equal_or_nil column.comment, actual_column['comment']
-          assert_equal_or_nil (column.default || column.default_function), actual_column['default']
+
+          if column.default
+            default = model.connection.lookup_cast_type_from_column(column).deserialize(column.default)
+            assert_equal default, actual_column['default']
+          else
+            assert_nil column.default
+          end
         end
 
         assert json['limit']

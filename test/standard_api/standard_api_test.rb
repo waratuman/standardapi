@@ -123,8 +123,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
       model.columns.each do |column|
         assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
-        default = column.default || column.default_function
+        default = column.default
         if default then
+          default = model.connection.lookup_cast_type_from_column(column).deserialize(default)
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'default')
@@ -197,7 +198,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     post "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end
-  
+
   test 'Controller#add_resource with has_one' do
     photo = create(:document)
     property = create(:property)
@@ -217,7 +218,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     delete "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end
-  
+
   test 'Controller#remove_resource with has_one' do
     photo = create(:document)
     property = create(:property, document: photo)
