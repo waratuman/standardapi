@@ -219,7 +219,7 @@ module StandardAPI
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
-      elsif params[:distinct]
+      elsif params[:distinct] && action_name != 'calculate'
         query = query.distinct
       end
 

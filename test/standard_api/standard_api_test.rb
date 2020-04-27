@@ -575,6 +575,35 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [1], JSON(response.body)
   end
 
+  test 'calculate distinct uses distinct inside count aggregator' do
+    property = create(:property)
+    assert_sql 'SELECT COUNT(DISTINCT "properties"."id") FROM "properties"' do
+      get '/properties/calculate', params: {
+        select: { count: "id" },
+        distinct: true
+      }
+    end
+    assert_equal [1], JSON(response.body)
+  end
+
+  test 'calculate distinct count' do
+    p1 = create(:property)
+    p2 = create(:property)
+    a1 = create(:account, property: p1)
+    a2 = create(:account, property: p2)
+    get '/properties/calculate', params: {
+      select: { count: 'id' },
+      where: {
+        accounts: {
+          id: [a1.id, a2.id]
+        }
+      },
+      group_by: 'id',
+      distinct: true
+    }
+    assert_equal Hash[p1.id.to_s, 1, p2.id.to_s, 1], JSON(response.body)
+  end
+
   test 'calculate group_by' do
     create(:photo, format: 'jpg')
     create(:photo, format: 'jpg')
