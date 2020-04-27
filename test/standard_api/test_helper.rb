@@ -13,6 +13,54 @@ ActiveSupport.test_order = :random
 
 include ActionDispatch::TestProcess
 
+class SQLLogger
+  class << self
+    attr_accessor :ignored_sql, :log, :log_all
+    def clear_log; self.log = []; self.log_all = []; end
+  end
+
+  self.clear_log
+
+  self.ignored_sql = [/^PRAGMA/i, /^SELECT currval/i, /^SELECT CAST/i, /^SELECT @@IDENTITY/i, /^SELECT @@ROWCOUNT/i, /^SAVEPOINT/i, /^ROLLBACK TO SAVEPOINT/i, /^RELEASE SAVEPOINT/i, /^SHOW max_identifier_length/i, /^BEGIN/i, /^COMMIT/i]
+
+  # FIXME: this needs to be refactored so specific database can add their own
+  # ignored SQL, or better yet, use a different notification for the queries
+  # instead examining the SQL content.
+  oracle_ignored     = [/^select .*nextval/i, /^SAVEPOINT/, /^ROLLBACK TO/, /^\s*select .* from all_triggers/im, /^\s*select .* from all_constraints/im, /^\s*select .* from all_tab_cols/im]
+  mysql_ignored      = [/^SHOW FULL TABLES/i, /^SHOW FULL FIELDS/, /^SHOW CREATE TABLE /i, /^SHOW VARIABLES /, /^\s*SELECT (?:column_name|table_name)\b.*\bFROM information_schema\.(?:key_column_usage|tables)\b/im]
+  postgresql_ignored = [/^\s*select\b.*\bfrom\b.*pg_namespace\b/im, /^\s*select tablename\b.*from pg_tables\b/im, /^\s*select\b.*\battname\b.*\bfrom\b.*\bpg_attribute\b/im, /^SHOW search_path/i]
+  sqlite3_ignored =    [/^\s*SELECT name\b.*\bFROM sqlite_master/im, /^\s*SELECT sql\b.*\bFROM sqlite_master/im]
+
+  [oracle_ignored, mysql_ignored, postgresql_ignored, sqlite3_ignored].each do |db_ignored_sql|
+    ignored_sql.concat db_ignored_sql
+  end
+
+  attr_reader :ignore
+
+  def initialize(ignore = Regexp.union(self.class.ignored_sql))
+    @ignore = ignore
+  end
+
+  def call(name, start, finish, message_id, values)
+    sql = values[:sql]
+
+    # FIXME: this seems bad. we should probably have a better way to indicate
+    # the query was cached
+    return if 'CACHE' == values[:name]
+
+    self.class.log_all << sql
+    unless ignore =~ sql
+      if $debugging
+      puts caller.select { |l| l.starts_with?(File.expand_path('../../lib', __FILE__)) }
+      puts "\n\n" 
+      end
+    end
+    self.class.log << sql unless ignore =~ sql
+  end
+end
+
+ActiveSupport::Notifications.subscribe('sql.active_record', SQLLogger.new)
+
 class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryBot::Syntax::Methods
@@ -74,6 +122,19 @@ class ActiveSupport::TestCase
 
   def path_with_action(action, options={})
     { :controller => controller_path, :action => action }.merge(options)
+  end
+
+  def assert_sql(*patterns_to_match)
+    SQLLogger.clear_log
+    yield
+    failed_patterns = []
+    patterns_to_match.each do |pattern|
+      failed_patterns << pattern unless SQLLogger.log_all.any?{ |sql| pattern === sql }
+    end
+    assert failed_patterns.empty?, <<-BODY
+      Expected: #{failed_patterns.map(&:inspect).join(', ')}
+      Actual: #{SQLLogger.log.join(', ')}
+    BODY
   end
 
   def assert_rendered(options = {}, message = nil)
