@@ -35,7 +35,7 @@ module StandardAPI
     end
 
     def calculate
-      @calculations = resources.distinct(false).reorder(nil).pluck(*calculate_selects).map do |c|
+      @calculations = resources.reorder(nil).pluck(*calculate_selects).map do |c|
         if c.is_a?(Array)
           c.map { |v| v.is_a?(BigDecimal) ? v.to_f : v }
         else
@@ -317,7 +317,19 @@ module StandardAPI
       @selects = []
       @selects << params[:group_by] if params[:group_by]
       Array(params[:select]).each do |select|
-        select.each do |func, column|
+        select.each do |func, value|
+          distinct = false
+
+          column = case value
+          when ActionController::Parameters
+            # TODO: Add support for other aggregate expressions
+            # https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-AGGREGATES
+            distinct = !value[:distinct].nil?
+            value[:distinct]
+          else
+            value
+          end
+
           if (parts = column.split(".")).length > 1
             @model = parts[0].singularize.camelize.constantize
             column = parts[1]
@@ -326,7 +338,7 @@ module StandardAPI
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
             node = (defined?(@model) ? @model : model).arel_table[column].send(func)
-            node.distinct = true if params[:distinct]
+            node.distinct = distinct
             @selects << node
           end
         end

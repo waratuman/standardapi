@@ -575,7 +575,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [1], JSON(response.body)
   end
 
-  test 'calculate distinct uses distinct inside count aggregator' do
+  test 'calculate distinct aggregation' do
     queries = []
     callback = -> (*, payload) do
       queries << payload[:sql]
@@ -593,7 +593,50 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
       find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
+        SELECT DISTINCT COUNT("properties"."id") FROM "properties"
+      SQL
+  end
+
+  test 'calculate aggregation distinctly' do
+    queries = []
+    callback = -> (*, payload) do
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: { distinct: "id" } }
+      }
+      assert_equal [2], JSON(response.body)
+    end
+
+    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
+      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
         SELECT COUNT(DISTINCT "properties"."id") FROM "properties"
+      SQL
+  end
+
+  test 'calculate distinct aggregation distinctly' do
+    queries = []
+    callback = -> (*, payload) do
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: { distinct: "id" } },
+        distinct: true
+      }
+      assert_equal [2], JSON(response.body)
+    end
+
+    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
+      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
+        SELECT DISTINCT COUNT(DISTINCT "properties"."id") FROM "properties"
       SQL
   end
 
