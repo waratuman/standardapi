@@ -576,14 +576,25 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'calculate distinct uses distinct inside count aggregator' do
-    create(:property, name: "Test")
-    create(:property, name: "Test")
+    queries = []
+    callback = -> (*, payload) do
+      queries << payload[:sql]
+    end
 
-    get '/properties/calculate', params: {
-      select: { count: "name" },
-      distinct: true
-    }
-    assert_equal [1], JSON(response.body)
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: "id" },
+        distinct: true
+      }
+      assert_equal [2], JSON(response.body)
+    end
+
+    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
+      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
+        SELECT COUNT(DISTINCT "properties"."id") FROM "properties"
+      SQL
   end
 
   test 'calculate distinct count' do
