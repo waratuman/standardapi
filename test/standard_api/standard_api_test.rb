@@ -576,12 +576,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'calculate distinct aggregation' do
-    queries = []
-    callback = -> (*, payload) do
-      queries << payload[:sql]
-    end
-
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+    assert_sql(<<-SQL) do
+      SELECT DISTINCT COUNT("properties"."id") FROM "properties"
+    SQL
       create(:property)
       create(:property)
       get '/properties/calculate', params: {
@@ -590,20 +587,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
       assert_equal [2], JSON(response.body)
     end
-
-    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
-      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
-        SELECT DISTINCT COUNT("properties"."id") FROM "properties"
-      SQL
   end
 
   test 'calculate aggregation distinctly' do
-    queries = []
-    callback = -> (*, payload) do
-      queries << payload[:sql]
-    end
-
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+    assert_sql(<<-SQL) do
+      SELECT COUNT(DISTINCT "properties"."id") FROM "properties"
+    SQL
       create(:property)
       create(:property)
       get '/properties/calculate', params: {
@@ -611,20 +600,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
       assert_equal [2], JSON(response.body)
     end
-
-    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
-      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
-        SELECT COUNT(DISTINCT "properties"."id") FROM "properties"
-      SQL
   end
 
   test 'calculate distinct aggregation distinctly' do
-    queries = []
-    callback = -> (*, payload) do
-      queries << payload[:sql]
-    end
-
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+    assert_sql(<<-SQL) do
+      SELECT DISTINCT COUNT(DISTINCT "properties"."id") FROM "properties"
+    SQL
       create(:property)
       create(:property)
       get '/properties/calculate', params: {
@@ -633,11 +614,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
       assert_equal [2], JSON(response.body)
     end
-
-    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
-      find { |x| x == <<-SQL.strip.gsub(/\s+/, ' ') }
-        SELECT DISTINCT COUNT(DISTINCT "properties"."id") FROM "properties"
-      SQL
   end
 
   test 'calculate distinct count' do
