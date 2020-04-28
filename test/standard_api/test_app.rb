@@ -19,7 +19,6 @@ class TestApplication < Rails::Application
   config.action_controller.perform_caching = true
   config.cache_store = :memory_store, { size: 8.megabytes }
   config.action_dispatch.show_exceptions = false
-  # config.logger = ActiveSupport::Logger.new(STDOUT)
 
   # if defined?(FactoryBotRails)
   #   config.factory_bot.definition_file_paths += [ '../factories' ]

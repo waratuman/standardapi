@@ -35,7 +35,7 @@ module StandardAPI
     end
 
     def calculate
-      @calculations = resources.reorder(nil).pluck(*calculate_selects).map do |c|
+      @calculations = resources.distinct(false).reorder(nil).pluck(*calculate_selects).map do |c|
         if c.is_a?(Array)
           c.map { |v| v.is_a?(BigDecimal) ? v.to_f : v }
         else
@@ -126,7 +126,7 @@ module StandardAPI
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
       subresource = association.klass.find_by_id(params[:resource_id])
-      
+
       if(subresource)
         if association.is_a? ActiveRecord::Associations::HasManyAssociation
           result = resource.send(params[:relationship]) << subresource
@@ -219,7 +219,7 @@ module StandardAPI
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
-      elsif params[:distinct] && action_name != 'calculate'
+      elsif params[:distinct]
         query = query.distinct
       end
 

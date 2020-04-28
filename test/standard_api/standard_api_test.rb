@@ -576,13 +576,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'calculate distinct uses distinct inside count aggregator' do
-    property = create(:property)
-    assert_sql 'SELECT COUNT(DISTINCT "properties"."id") FROM "properties"' do
-      get '/properties/calculate', params: {
-        select: { count: "id" },
-        distinct: true
-      }
-    end
+    create(:property, name: "Test")
+    create(:property, name: "Test")
+
+    get '/properties/calculate', params: {
+      select: { count: "name" },
+      distinct: true
+    }
     assert_equal [1], JSON(response.body)
   end
 
