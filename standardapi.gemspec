@@ -13,30 +13,29 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = %w(README.md)
   spec.rdoc_options.concat ['--main', 'README.md']
 
-  spec.files         = `git ls-files -- README.md {lib,ext}/*`.split("\n")
+  spec.files         = `git ls-files -- README.md {lib,ext}/* test/standard_api/*`.split("\n")
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
-  spec.require_paths = ["lib"]
+  spec.require_paths = ["lib", "test"]
 
   spec.add_runtime_dependency 'rails', '>= 6.0.0'
   spec.add_runtime_dependency 'activesupport', '>= 6.0.0'
   spec.add_runtime_dependency 'actionpack', '>= 6.0.0'
   spec.add_runtime_dependency 'activerecord-sort', '>= 6.0.0'
-  spec.add_runtime_dependency 'activerecord-filter', '>= 6.0.0.2'
+  spec.add_runtime_dependency 'activerecord-filter', '>= 6.0.0.6'
 
   spec.add_development_dependency 'pg'
   spec.add_development_dependency "bundler"
   spec.add_development_dependency 'jbuilder'
   spec.add_development_dependency "rake"
   spec.add_development_dependency 'minitest'
-  spec.add_development_dependency 'minitest-reporters'
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_bot_rails"
   spec.add_development_dependency "faker"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency 'mocha'
-
-  # spec.add_development_dependency 'activerecord'
-  # spec.add_development_dependency 'sdoc',                '~> 0.4'
-  # spec.add_development_dependency 'sdoc-templates-42floors', '~> 0.3'
+  spec.add_development_dependency 'benchmark-ips'
+  # spec.add_development_dependency 'turbostreamer'
+  # spec.add_development_dependency 'wankel'
+  # spec.add_development_dependency 'ruby-prof'
 
 end

@@ -1,27 +1,37 @@
 module StandardAPI
   module Controller
 
+    delegate :preloadables, to: :helpers
+
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :resource_limit,
-        :default_limit, :preloadables
+      klass.helper_method :includes, :orders, :model, :models, :resource_limit,
+        :default_limit
       klass.before_action :set_standardapi_headers
+      klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
 
     def tables
-      Rails.application.eager_load! if Rails.env == 'development'.freeze
-      
-      controllers = ApplicationController.descendants
-      controllers.select! { |c| c.ancestors.include?(self.class) && c != self.class }
-      controllers.map!(&:model).compact!
-      controllers.map!(&:table_name)
-      render json: controllers
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+
+      tables = ApplicationController.descendants
+      tables.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+      tables.map!(&:model).compact!
+      tables.map!(&:table_name)
+      render json: tables
+    end
+
+    if Rails.env == 'development'
+      def schema
+        Rails.application.eager_load! if !Rails.application.config.eager_load
+      end
     end
 
     def index
-      instance_variable_set("@#{model.model_name.plural}", resources.limit(limit).offset(params[:offset]).sort(orders))
+      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      instance_variable_set("@#{model.model_name.plural}", records)
     end
 
     def calculate
@@ -33,12 +43,13 @@ module StandardAPI
         end
       end
       @calculations = Hash[@calculations] if @calculations[0].is_a?(Array) && params[:group_by]
-      
+
       render json: @calculations
     end
 
     def show
-      instance_variable_set("@#{model.model_name.singular}", resources.find(params[:id]))
+      record = preloadables(resources, includes).find(params[:id])
+      instance_variable_set("@#{model.model_name.singular}", record)
     end
 
     def new
@@ -93,32 +104,40 @@ module StandardAPI
       resources.find(params[:id]).destroy!
       head :no_content
     end
-    
+
     def remove_resource
       resource = resources.find(params[:id])
-      subresource_class = resource.association(params[:relationship]).klass
-      subresource = subresource_class.find_by_id(params[:resource_id])
-      
+      association = resource.association(params[:relationship])
+      subresource = association.klass.find_by_id(params[:resource_id])
+
       if(subresource)
-        result = resource.send(params[:relationship]).delete(subresource)
-        head result ? :no_content : :bad_request
+        if association.is_a? ActiveRecord::Associations::HasManyAssociation
+          resource.send(params[:relationship]).delete(subresource)
+        else
+          resource.send("#{params[:relationship]}=", nil)
+        end
+        head :no_content
       else
         head :not_found
       end
     end
-    
+
     def add_resource
       resource = resources.find(params[:id])
-      
-      subresource_class = resource.association(params[:relationship]).klass
-      subresource = subresource_class.find_by_id(params[:resource_id])
+      association = resource.association(params[:relationship])
+      subresource = association.klass.find_by_id(params[:resource_id])
+
       if(subresource)
-        result = resource.send(params[:relationship]) << subresource
+        if association.is_a? ActiveRecord::Associations::HasManyAssociation
+          result = resource.send(params[:relationship]) << subresource
+        else
+          result = resource.send("#{params[:relationship]}=", subresource)
+        end
         head result ? :created : :bad_request
       else
         head :not_found
       end
-      
+
     end
 
     # Override if you want to support masking
@@ -127,7 +146,7 @@ module StandardAPI
     end
 
     module ClassMethods
-    
+
       def model
         return @model if defined?(@model)
         @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
@@ -147,6 +166,15 @@ module StandardAPI
 
     def model
       self.class.model
+    end
+
+    def models
+      return @models if defined?(@models)
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+
+      @models = ApplicationController.descendants
+      @models.select! { |c| c.ancestors.include?(self.class) && c != self.class }
+      @models.map!(&:model).compact!
     end
 
     def model_includes
@@ -188,81 +216,39 @@ module StandardAPI
 
     def resources
       query = model.filter(params['where']).filter(current_mask[model.table_name])
-      
+
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
       elsif params[:distinct]
         query = query.distinct
       end
-      
+
       if params[:join]
         query = query.joins(params[:join].to_sym)
       end
-      
+
       if params[:group_by]
         query = query.group(params[:group_by])
       end
-      
+
       query
     end
 
     def includes
       @includes ||= StandardAPI::Includes.sanitize(params[:include], model_includes)
     end
-    
-    def preloadables(record, iclds)
-      preloads = {}
-      
-      iclds.each do |key, value|
-        if reflection = record.klass.reflections[key]
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
-          end
-        end
-      end
-      
-      preloads.empty? ? record : record.preload(preloads)
-    end
 
-    def preloadables_hash(klass, iclds)
-      preloads = {}
-
-      iclds.each do |key, value|
-        if reflection = klass.reflections[key] 
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
-          end
-        end
-      end
-  
-      preloads
-    end
-    
     def required_orders
       []
     end
-    
+
     def default_orders
       nil
     end
 
     def orders
       exluded_required_orders = required_orders.map(&:to_s)
-      
+
       case params[:order]
       when Hash, ActionController::Parameters
         exluded_required_orders -= params[:order].keys.map(&:to_s)
@@ -278,7 +264,7 @@ module StandardAPI
       when String
         exluded_required_orders.delete(params[:order])
       end
-      
+
       if !exluded_required_orders.empty?
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
@@ -307,9 +293,9 @@ module StandardAPI
         limit = params.permit(:limit)[:limit]&.to_i || default_limit
 
         if !limit
-          raise ActionController::ParameterMissing.new(:limit)
+          raise StandardAPI::ParameterMissing.new(:limit)
         elsif limit > resource_limit
-          raise ActionController::UnpermittedParameters.new([:limit, limit])
+          raise StandardAPI::UnpermittedParameters.new([:limit, limit])
         end
 
         limit
@@ -331,16 +317,28 @@ module StandardAPI
       @selects = []
       @selects << params[:group_by] if params[:group_by]
       Array(params[:select]).each do |select|
-        select.each do |func, column|
+        select.each do |func, value|
+          distinct = false
+
+          column = case value
+          when ActionController::Parameters
+            # TODO: Add support for other aggregate expressions
+            # https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-AGGREGATES
+            distinct = !value[:distinct].nil?
+            value[:distinct]
+          else
+            value
+          end
+
           if (parts = column.split(".")).length > 1
             @model = parts[0].singularize.camelize.constantize
             column = parts[1]
           end
-          
+
           column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
             node = (defined?(@model) ? @model : model).arel_table[column].send(func)
-            node.distinct = true if params[:distinct]
+            node.distinct = distinct
             @selects << node
           end
         end

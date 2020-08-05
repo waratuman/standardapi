@@ -17,12 +17,12 @@ FactoryBot.define do
   end
 
   factory :document do
-    file            { fixture_file_upload(Rails.root + '../fixtures/photo.png', 'image/png') }
+    file            { fixture_file_upload(Rails.root + 'test/fixtures/photo.png', 'image/png') }
   end
 
   factory :pdf do
     type            { 'Pdf' }
-    file            { fixture_file_upload(Rails.root + '../fixtures/photo.png', 'image/png') }
+    file            { fixture_file_upload(Rails.root + 'test/fixtures/photo.png', 'image/png') }
   end
 
   factory :reference do

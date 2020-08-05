@@ -9,13 +9,35 @@ module StandardAPI
         get resource_path(:schema, format: :json)
         assert_response :ok
         json = JSON(@response.body)
-        assert json['columns']
+        assert json['attributes']
+
         model.columns.map do |column|
-          assert json['columns'][column.name]['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
+          actual_column = json['attributes'][column.name]
+          assert_not_nil actual_column['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
+          assert_equal_or_nil model.primary_key == column.name, actual_column['primary_key']
+          assert_equal_or_nil column.null, actual_column['null']
+          assert_equal_or_nil column.array, actual_column['array']
+          assert_equal_or_nil column.comment, actual_column['comment']
+
+          if column.default
+            default = model.connection.lookup_cast_type_from_column(column).deserialize(column.default)
+            assert_equal default, actual_column['default']
+          else
+            assert_nil column.default
+          end
         end
+
         assert json['limit']
+        assert_equal_or_nil model.connection.table_comment(model.table_name), json['comment']
       end
 
+      def assert_equal_or_nil(expected, actual, msg=nil)
+        if expected.nil?
+          assert_nil actual, msg
+        else
+          assert_equal expected, actual, msg
+        end
+      end
     end
   end
 end

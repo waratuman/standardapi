@@ -15,6 +15,7 @@ module StandardAPI
       test '#show.json params[:include]' do
         m = create_model
         get resource_path(:show, id: m.id, include: includes, format: :json)
+        assert_response :ok
 
         json = JSON.parse(response.body)
         includes.each do |included|

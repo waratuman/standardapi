@@ -105,11 +105,12 @@ including the author, the photos that the author took can also be included.
 # API Usage
 Resources can be queried via REST style end points
 ```
-GET     /records/:id    fetch record
-PATCH   /records/:id    update record
-GET     /records        fetch records
-POST    /records        create record
-DELETE  /records        destroy record
+GET     /records/:id        fetch record
+PATCH   /records/:id        update record
+GET     /records/           fetch records
+GET     /records/calculate  apply count and other functions on record(s)
+POST    /records            create record
+DELETE  /records            destroy record
 ```
 
 All resource end points can be filtered, ordered, limited, offset, and have includes. All options are passed via query string in a nested URI encoded format.
@@ -163,8 +164,16 @@ location: {within: 0106000020e6...}         WHERE ST_Within("listings"."location
 
 // On Relationships
 property: {size: 10000}         JOIN properties WHERE properties.size = 10000"
+```
+## Calculations
 
-// 
+The only change on calculate routes is the `selects` paramater contains the functions to apply. Currently just `minimum`, `maximum`, `average`, `sum`, and `count`.
+
+```
+{ count: '*' }                                          SELECT COUNT(*)
+[{ count: '*' }]                                        SELECT COUNT(*)
+[{ count: '*', maximum: :id, minimum: :id }]            SELECT COUNT(*), MAXIMUM(id), MINIMUM(id)
+[{ maximum: :id }, { maximum: :count }]                 SELECT MAXIMUM(id), MAXIMUM(count)
 ```
 
 # Testing

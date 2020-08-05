@@ -1,6 +1,58 @@
 module StandardAPI
   module Helpers
-    
+
+    def preloadables(record, includes)
+      preloads = {}
+
+      includes.each do |key, value|
+        if reflection = record.klass.reflections[key]
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
+                preloads[key] = preloadables_hash(reflection.klass, value)
+              end
+            end
+          end
+        end
+      end
+
+      preloads.empty? ? record : record.preload(preloads)
+    end
+
+    def preloadables_hash(klass, iclds)
+      preloads = {}
+
+      iclds.each do |key, value|
+        if reflection = klass.reflections[key]
+          case value
+          when true
+            preloads[key] = value
+          when Hash, ActiveSupport::HashWithIndifferentAccess
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+              if !reflection.polymorphic?
+                preloads[key] = preloadables_hash(reflection.klass, value)
+              end
+            end
+          end
+        end
+      end
+
+      preloads
+    end
+
+    def schema_partial(model)
+      path = model.model_name.plural
+
+      if lookup_context.exists?("schema", path, true)
+        [path, "schema"].join('/')
+      else
+        'application/schema'
+      end
+    end
+
     def model_partial(record)
       if lookup_context.exists?(record.model_name.element, record.model_name.plural, true)
         [record.model_name.plural, record.model_name.element].join('/')
@@ -17,7 +69,7 @@ module StandardAPI
         false
       end
     end
-    
+
     def cache_key(record, includes)
       timestamp_keys = ['cached_at'] + record.class.column_names.select{|x| x.ends_with? "_cached_at"}
       if includes.empty?
@@ -27,7 +79,7 @@ module StandardAPI
         "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
       end
     end
-    
+
     def can_cache_relation?(klass, relation, subincludes)
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       if (cache_columns - klass.column_names).empty?
@@ -36,12 +88,12 @@ module StandardAPI
         false
       end
     end
-    
+
     def association_cache_key(record, relation, subincludes)
       timestamp = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       timestamp.map! { |col| record.send(col) }
       timestamp = timestamp.max
-      
+
       case association = record.class.reflect_on_association(relation)
       when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection
         "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
@@ -56,13 +108,13 @@ module StandardAPI
         raise ArgumentError, 'Unkown association type'
       end
     end
-    
+
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct'].include?(k) }.map do |k, v|
+      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end
-    
+
     def includes_to_cache_key(relation, subincludes)
       if subincludes.empty?
         relation.to_s
@@ -70,7 +122,7 @@ module StandardAPI
         "#{relation}-#{digest_hash(sort_hash(subincludes))}"
       end
     end
-    
+
     def sort_hash(hash)
       hash.keys.sort.reduce({}) do |seed, key|
         if seed[key].is_a?(Hash)
@@ -81,7 +133,7 @@ module StandardAPI
         seed
       end
     end
-    
+
     def digest_hash(*hashes)
       hashes.compact!
       hashes.map! { |h| sort_hash(h) }

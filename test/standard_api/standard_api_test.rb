@@ -1,7 +1,8 @@
-require 'test_helper'
+require 'standard_api/test_helper'
 
 class PropertiesControllerTest < ActionDispatch::IntegrationTest
   include StandardAPI::TestCase
+  include StandardAPI::Helpers
 
   self.includes = [ :photos, :landlord, :english_name ]
 
@@ -103,21 +104,61 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
 
+  test 'ApplicationController#schema.json' do
+    get schema_path(format: 'json')
+
+    schema = JSON(response.body)
+    controllers = ApplicationController.descendants
+    controllers.select! { |c| c.ancestors.include?(StandardAPI::Controller) && c != StandardAPI::Controller }
+
+    @controller.send(:models).reject { |x| x.name == 'Photo' }.each do |model|
+      assert_equal true, schema['models'].has_key?(model.name)
+
+      model_comment = model.connection.table_comment(model.table_name)
+      if model_comment.nil? then
+        assert_nil schema.dig('models', model.name, 'comment')
+      else
+        assert_equal model_comment, schema.dig('models', model.name, 'comment')
+      end
+
+      model.columns.each do |column|
+        assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
+        default = column.default
+        if default then
+          default = model.connection.lookup_cast_type_from_column(column).deserialize(default)
+          assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
+        else
+          assert_nil schema.dig('models', model.name, 'attributes', column.name, 'default')
+        end
+        assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
+        assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
+        assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
+        if column.comment then
+          assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        else
+          assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        end
+      end
+    end
+
+    assert_equal 'test comment', schema['comment']
+  end
+
   test 'Controller#schema.json' do
     get schema_references_path(format: 'json')
 
     schema = JSON(response.body)
-    assert schema.has_key?('columns')
-    assert_equal true, schema['columns']['id']['primary_key']
+    assert_equal true, schema.has_key?('attributes')
+    assert_equal true, schema['attributes']['id']['primary_key']
     assert_equal 1000, schema['limit']
   end
-  
+
   test 'Controller#schema.json w/o limit' do
     get schema_unlimited_index_path(format: 'json')
 
     schema = JSON(response.body)
-    assert schema.has_key?('columns')
-    assert_equal true, schema['columns']['id']['primary_key']
+    assert_equal true, schema.has_key?('attributes')
+    assert_equal true, schema['attributes']['id']['primary_key']
     assert_nil schema['limit']
   end
 
@@ -145,28 +186,46 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     patch document_path(pdf), params: { document: pdf.attributes }
     assert_redirected_to document_path(pdf)
   end
-  
+
   test 'Controller#add_resource' do
     property = create(:property, photos: [])
     photo = create(:photo)
 
-    post "/properties/#{property.id}/photos/#{photo.id}.json"
+    post "/properties/#{property.id}/photos/#{photo.id}"
     assert_equal property.photos.reload.map(&:id), [photo.id]
     assert_response :created
 
     post "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
   end
-  
+
+  test 'Controller#add_resource with has_one' do
+    photo = create(:document)
+    property = create(:property)
+    post "/properties/#{property.id}/document/#{photo.id}"
+    assert_equal property.reload.document, photo
+    assert_response :created
+  end
+
   test 'Controller#remove_resource' do
     photo = create(:photo)
     property = create(:property, photos: [photo])
+    assert_equal property.photos.reload, [photo]
     delete "/properties/#{property.id}/photos/#{photo.id}"
     assert_equal property.photos.reload, []
     assert_response :no_content
 
     delete "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
+  end
+
+  test 'Controller#remove_resource with has_one' do
+    photo = create(:document)
+    property = create(:property, document: photo)
+    assert_equal property.document, photo
+    delete "/properties/#{property.id}/document/#{photo.id}"
+    assert_nil property.reload.document
+    assert_response :no_content
   end
 
   # = View Tests
@@ -182,10 +241,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'rendering null attribute' do
     property = create(:property)
     get property_path(property, format: 'json'), params: { id: property.id, include: [:landlord] }
-    assert JSON(response.body).has_key?('landlord')
+    assert_equal true, JSON(response.body).has_key?('landlord')
     assert_nil JSON(response.body)['landlord']
   end
-  
+
   test 'rendering null attribute for has_one through' do
     property = create(:property)
     get property_path(property, format: 'json'), params: { id: property.id, include: [:document] }
@@ -194,20 +253,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test '#index.json uses overridden partial' do
-    create(:property, photos: [build(:photo)])
-    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id}}] }
+    create(:property, photos: [create(:photo)])
+    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
 
     photo = JSON(response.body)[0]['photos'][0]
-    assert photo.has_key?('template')
+    assert_equal true, photo.has_key?('template')
     assert_equal 'photos/_photo', photo['template']
   end
 
   test '#show.json uses overridden partial' do
-    property = create(:property, photos: [build(:photo)])
+    property = create(:property, photos: [create(:photo)])
     get property_path(property, format: 'json'), params: { id: property.id, include: [:photos] }
 
     photo = JSON(response.body)['photos'][0]
-    assert photo.has_key?('template')
+    assert_equal true, photo.has_key?('template')
     assert_equal 'photos/_photo', photo['template']
   end
 
@@ -215,8 +274,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get schema_photos_path(format: 'json')
 
     schema = JSON(response.body)
-    assert schema.has_key?('template')
+    assert_rendered 'photos/schema', format: 'json', handler: 'jbuilder'
+    assert_equal true, schema.has_key?('template')
     assert_equal 'photos/schema', schema['template']
+  end
+
+  test 'application#schema.json renders overridden #schema.json partials' do
+    get schema_path(format: 'json')
+
+    schema = JSON(response.body)
+    assert_rendered 'application/schema', format: 'json', handler: 'jbuilder'
+    assert_equal 'photos/schema', schema.dig('models', 'Photo', 'template')
   end
 
   test 'belongs_to polymorphic association' do
@@ -243,7 +311,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'has_many association' do
-    p = create(:property, photos: [build(:photo)])
+    p = create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
   end
@@ -271,6 +339,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'include with where key' do
     photo1 = create(:photo, format: 'jpg')
     photo2 = create(:photo, format: 'png')
+
     property = create(:property, photos: [photo1, photo2])
 
     get property_path(property, include: { photos: { where: { format: 'png' } } }, format: :json)
@@ -279,9 +348,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with order key' do
-    property = create(:property)
+    photos = Array.new(5) { create(:photo) }
+    property = create(:property, photos: photos)
+
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
-    assert JSON(response.body)['photos']
+    assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
   
   test 'include with order key with relation having default order' do
@@ -293,9 +364,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with limit key' do
-    property = create(:property, photos: [ create(:photo), create(:photo) ])
-    get property_path(property, include: { photos: { limit: 1 } }, format: 'json')
-    assert 1, JSON(response.body)['photos'].length
+    5.times { create(:property, photos: Array.new(5) { create(:photo) }) }
+    get properties_path(include: { photos: { limit: 1 } }, limit: 5, format: 'json')
+
+    properties = JSON(response.body)
+    assert_equal 5, properties.length
+
+    properties.each do |property|
+      assert_equal 1, property['photos'].length
+    end
   end
 
   test 'include with when key' do
@@ -332,6 +409,43 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal json.find { |x| x['id'] == property_reference.id }.dig('subject', 'landlord', 'id'), account.id
   end
 
+  test 'include with distinct key' do
+    account = create(:account)
+    photos = Array.new(5) { create(:photo, account: account) }
+    property = create(:property, photos: photos)
+
+    get property_path(property, include: { photos: { distinct: true } }, format: 'json')
+    assert_equal 5, JSON(response.body)['photos'].size
+  end
+
+  test 'include with distinct_on key' do
+    account = create(:account)
+    photos = Array.new(5) { create(:photo, account: account) }
+    property = create(:property, photos: photos)
+
+    get property_path(property,
+      include: {
+        photos: {
+          distinct_on: :account_id,
+          # order: [:account_id, { id: :asc }]
+          order: { account_id: :asc, id: :asc }
+        }
+      },
+      format: 'json')
+
+    assert_equal [photos.first.id], JSON(response.body)['photos'].map { |x| x['id'] }
+
+    get property_path(property,
+      include: {
+        photos: {
+          distinct_on: :account_id,
+          order: { account_id: :asc, id: :desc }
+        }
+      }, format: 'json')
+
+    assert_equal [photos.last.id], JSON(response.body)['photos'].map { |x| x['id'] }
+  end
+
   test 'unknown inlcude' do
     property = create(:property, accounts: [ create(:account) ])
     get property_path(property, include: [:accounts], format: 'json')
@@ -340,7 +454,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'unknown order' do
-    property = create(:property)
+    create(:property)
     get properties_path(order: 'updated_at', limit: 1, format: 'json')
     assert_response :bad_request
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
@@ -432,7 +546,33 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
   end
-  
+
+  test 'order: :attribute' do
+    properties = Array.new(2) { create(:property) }
+
+    get properties_path(order: :id, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order: { attribute: :direction }' do
+    properties = Array.new(2) { create(:property) }
+
+    get properties_path(order: { id: :asc }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+
+    get properties_path(order: { id: :desc }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order: { attribute: { direction: :nulls } }' do
+    properties = [ create(:property), create(:property, description: nil) ]
+
+    get properties_path(order: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
+
+    get properties_path(order: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
+    assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
+  end
   test 'ordering via nulls_first/last' do
     property1 = create(:property, description: 'test')
     property2 = create(:property, description: nil)
@@ -445,14 +585,73 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     properties = JSON(response.body)
     assert_equal properties.first[:id], property1.id
   end
-  
+
   # Calculate Test
   test 'calculate' do
     create(:photo)
     get '/photos/calculate', params: {select: {count: "*"}}
     assert_equal [1], JSON(response.body)
   end
-  
+
+  test 'calculate distinct aggregation' do
+    assert_sql(<<-SQL) do
+      SELECT DISTINCT COUNT("properties"."id") FROM "properties"
+    SQL
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: "id" },
+        distinct: true
+      }
+      assert_equal [2], JSON(response.body)
+    end
+  end
+
+  test 'calculate aggregation distinctly' do
+    assert_sql(<<-SQL) do
+      SELECT COUNT(DISTINCT "properties"."id") FROM "properties"
+    SQL
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: { distinct: "id" } }
+      }
+      assert_equal [2], JSON(response.body)
+    end
+  end
+
+  test 'calculate distinct aggregation distinctly' do
+    assert_sql(<<-SQL) do
+      SELECT DISTINCT COUNT(DISTINCT "properties"."id") FROM "properties"
+    SQL
+      create(:property)
+      create(:property)
+      get '/properties/calculate', params: {
+        select: { count: { distinct: "id" } },
+        distinct: true
+      }
+      assert_equal [2], JSON(response.body)
+    end
+  end
+
+  test 'calculate distinct count' do
+    p1 = create(:property)
+    p2 = create(:property)
+    a1 = create(:account, property: p1)
+    a2 = create(:account, property: p2)
+    get '/properties/calculate', params: {
+      select: { count: 'id' },
+      where: {
+        accounts: {
+          id: [a1.id, a2.id]
+        }
+      },
+      group_by: 'id',
+      distinct: true
+    }
+    assert_equal Hash[p1.id.to_s, 1, p2.id.to_s, 1], JSON(response.body)
+  end
+
   test 'calculate group_by' do
     create(:photo, format: 'jpg')
     create(:photo, format: 'jpg')
@@ -460,7 +659,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get '/photos/calculate', params: {select: {count: "*"}, group_by: 'format'}
     assert_equal ({'png' => 1, 'jpg' => 2}), JSON(response.body)
   end
-  
+
   test 'calculate join' do
     p1 = create(:property)
     p2 = create(:property)
@@ -470,14 +669,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get '/properties/calculate', params: {select: {sum: "accounts.photos_count"}, join: 'accounts'}
     assert_equal [3], JSON(response.body)
   end
-  
+
   test 'calculate count distinct' do
     photo = create(:photo)
-    landlord = create(:landlord)
-    property = create(:property, landlords: [landlord], photos: [photo])
-    create(:property, landlords: [landlord], photos: [photo])
-    
-    get '/photos/calculate', params: {select: {count: "*"}, where: {properties: {landlords: {id: landlord.id}}}, distinct: true}
+    landlord = create(:account)
+    create(:property, landlord: landlord, photos: [photo])
+    create(:property, landlord: landlord, photos: [photo])
+
+    get '/photos/calculate', params: {select: {count: "*"},
+      where: {properties: {landlord: {id: landlord.id}}},
+      distinct: true
+    }
+
     assert_equal [1], JSON(response.body)
   end
 

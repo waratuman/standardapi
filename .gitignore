@@ -1,4 +1,5 @@
 coverage
 *.gem
-test/app/log
 .byebug_history
+tmp
+test/standard_api/test_app/log

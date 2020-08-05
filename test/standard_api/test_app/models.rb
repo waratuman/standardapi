@@ -18,7 +18,6 @@ class Pdf < Document
 end
 
 class Property < ActiveRecord::Base
-  has_and_belongs_to_many :landlords
   has_and_belongs_to_many :photos
   has_many :accounts, -> { order(:created_at) }
   has_one :landlord, class_name: 'Account'
@@ -34,12 +33,12 @@ class Property < ActiveRecord::Base
   end
 end
 
-class Landlord < ActiveRecord::Base
-  has_and_belongs_to_many :properties
-end
-
 class Reference < ActiveRecord::Base
   belongs_to :subject, polymorphic: true
+end
+
+class Document < ActiveRecord::Base
+  attr_accessor :file
 end
 
 class Attachment < ActiveRecord::Base
@@ -49,9 +48,14 @@ end
 
 # = Migration
 
-class CreateModelTables < ActiveRecord::Migration[5.2]
+class CreateModelTables < ActiveRecord::Migration[6.0]
 
   def self.up
+
+    comment = "test comment"
+    exec_query(<<-SQL, "SQL")
+      COMMENT ON DATABASE #{quote_column_name(current_database)} IS #{quote(comment)};
+    SQL
 
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255

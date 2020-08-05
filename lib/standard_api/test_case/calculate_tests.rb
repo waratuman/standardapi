@@ -12,7 +12,7 @@ module StandardAPI
         create_model
 
         math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
-        
+
         if math_column
           column = math_column
           selects = [{ count: column.name }, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
@@ -26,8 +26,7 @@ module StandardAPI
         calculations = @controller.instance_variable_get('@calculations')
         expectations = selects.map { |s| model.send(s.keys.first, column.name) }
         expectations = [expectations] if expectations.length > 1
-        assert_equal expectations,
-          calculations
+        assert_equal expectations.map{|a|a.map{|b|b.round(9)}}, calculations.map{|a|a.map{|b|b.round(9)}}
       end
 
       test '#calculate.json params[:where]' do
@@ -35,7 +34,7 @@ module StandardAPI
         create_model
 
         math_column = model.columns.find { |x| CALCULATE_COLUMN_TYPES.include?(x.sql_type) }
-        
+
         if math_column
           column = math_column
           selects = [{ count: column.name}, { maximum: column.name }, { minimum: column.name }, { average: column.name }]
