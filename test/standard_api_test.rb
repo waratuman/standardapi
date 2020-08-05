@@ -269,15 +269,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with where key' do
-    property = create(:property)
-    get property_path(property, include: { photos: { where: { id: 1 } } }, format: :json)
+    photo1 = create(:photo, format: 'jpg')
+    photo2 = create(:photo, format: 'png')
+    property = create(:property, photos: [photo1, photo2])
+
+    get property_path(property, include: { photos: { where: { format: 'png' } } }, format: :json)
     assert JSON(response.body)['photos']
+    assert_equal JSON(response.body)['photos'][0]["id"], photo2.id
   end
-  
+
   test 'include with order key' do
     property = create(:property)
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
     assert JSON(response.body)['photos']
+  end
+  
+  test 'include with order key with relation having default order' do
+    property = create(:property)
+    account = create(:account, property: property)
+    account2 = create(:account, property: property)
+    get property_path(property, include: { accounts: { order: { created_at: :desc } } }, format: 'json')
+    assert_equal JSON(response.body)['accounts'].map{|x| x["id"]}, [account2.id, account.id]
   end
 
   test 'include with limit key' do
