@@ -356,6 +356,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
+  
+  test 'include with order key with relation having default order' do
+    property = create(:property)
+    account = create(:account, property: property)
+    account2 = create(:account, property: property)
+    get property_path(property, include: { accounts: { order: { created_at: :desc } } }, format: 'json')
+    assert_equal JSON(response.body)['accounts'].map{|x| x["id"]}, [account2.id, account.id]
+  end
 
   test 'include with limit key' do
     5.times { create(:property, photos: Array.new(5) { create(:photo) }) }
@@ -566,6 +574,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     get properties_path(order: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
+  end
+  test 'ordering via nulls_first/last' do
+    property1 = create(:property, description: 'test')
+    property2 = create(:property, description: nil)
+    
+    get properties_path(format: 'json'), params: { limit: 100, order: {description: {desc: 'nulls_last'}} }
+    properties = JSON(response.body)
+    assert_equal properties.first[:id], property1.id
+    
+    get properties_path(format: 'json'), params: { limit: 100, order: {description: {asc: 'nulls_last'}} }
+    properties = JSON(response.body)
+    assert_equal properties.first[:id], property1.id
   end
 
   # Calculate Test

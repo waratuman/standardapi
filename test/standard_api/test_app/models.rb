@@ -19,10 +19,11 @@ end
 
 class Property < ActiveRecord::Base
   has_and_belongs_to_many :photos
-  has_many :accounts
+  has_many :accounts, -> { order(:created_at) }
   has_one :landlord, class_name: 'Account'
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
+
 
   validates :name, presence: true
   accepts_nested_attributes_for :photos
@@ -60,6 +61,11 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.string   'name',                 limit: 255
       t.integer  'property_id'
       t.integer  'photos_count', null: false, default: 0
+      t.datetime "created_at",                         null: false
+    end
+
+    create_table "landlords", force: :cascade do |t|
+      t.string  "name"
     end
 
     create_table "photos", force: :cascade do |t|
