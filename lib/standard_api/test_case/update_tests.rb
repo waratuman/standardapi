@@ -34,7 +34,7 @@ module StandardAPI
         get resource_path(:show, id: m.id), as: :json
 
         return if @controller.method(:update).owner != StandardAPI
-        
+
         attrs = attributes_for(singular_name).select{|k,v| !model.readonly_attributes.include?(k.to_s) }
         create_webmocks(attrs)
 
@@ -59,7 +59,7 @@ module StandardAPI
         # (m.attribute_names & attrs.keys.map(&:to_s)).each do |test_key|
         update_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
           message = "Model / Attribute: #{m.class.name}##{key}"
-          assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), value, message
+          assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), normalize_attribute(m, key, value), message
         end
         assert JSON.parse(@response.body).is_a?(Hash)
       end
@@ -94,7 +94,7 @@ module StandardAPI
 
           put resource_path(:update, :id => m.id, format: format), params: { include: includes, singular_name => attrs }, as: as
           assert_response :ok, "Updating #{m.class.name} with #{attrs.inspect}"
-        
+
           controller_model = @controller.instance_variable_get("@#{singular_name}")
           json = JSON.parse(response.body)
           includes.each do |included|

@@ -55,7 +55,7 @@ module StandardAPI
           m.reload
           create_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
-            assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), value, message
+            assert_equal_or_nil normalize_attribute(m, key, attrs[key.to_sym]), normalize_attribute(m, key, value), message
           end
         end
       end

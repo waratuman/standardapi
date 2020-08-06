@@ -9,7 +9,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   def normalizers
     {
       Property => {
-        "size" => lambda { |value| value.round(4) }
+        "size" => lambda { |value| value.round(4).to_s }
       }
     }
   end
