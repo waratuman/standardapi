@@ -26,7 +26,14 @@ module StandardAPI
         calculations = @controller.instance_variable_get('@calculations')
         expectations = selects.map { |s| model.send(s.keys.first, column.name) }
         expectations = [expectations] if expectations.length > 1
-        assert_equal expectations.map{|a|a.map{|b|b.round(9)}}, calculations.map{|a|a.map{|b|b.round(9)}}
+
+        if math_column
+          assert_equal expectations.map { |a| a.map { |b| b.round(9) } },
+            calculations.map { |a| a.map { |b| b.round(9) } }
+        else
+          assert_equal expectations.map { |b| b.round(9) },
+            calculations.map { |b| b.round(9) }
+        end
       end
 
       test '#calculate.json params[:where]' do
