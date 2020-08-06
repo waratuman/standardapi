@@ -6,13 +6,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   self.includes = [ :photos, :landlord, :english_name ]
 
-  # def normalizers
-  #   {
-  #     Property => {
-  #       "size" => lambda { |value| value.to_i }
-  #     }
-  #   }
-  # end
+  def normalizers
+    {
+      Property => {
+        "size" => lambda { |value| value.round(4) }
+      }
+    }
+  end
 
   # = Routing Tests
   #
@@ -356,13 +356,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
-  
-  test 'include with order key with relation having default order' do
-    property = create(:property)
-    account = create(:account, property: property)
-    account2 = create(:account, property: property)
-    get property_path(property, include: { accounts: { order: { created_at: :desc } } }, format: 'json')
-    assert_equal JSON(response.body)['accounts'].map{|x| x["id"]}, [account2.id, account.id]
+
+  test 'include relation with default order using an order key' do
+    p1 = create(:photo)
+    p2 = create(:photo)
+    account = create(:account, photos: [ p1, p2 ])
+    get account_path(account, include: { photos: { order: { created_at: :desc } } }, format: 'json')
+    assert_equal [ p2.id, p1.id ], JSON(response.body)['photos'].map { |x| x["id"] }
   end
 
   test 'include with limit key' do
@@ -575,17 +575,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get properties_path(order: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
   end
+
   test 'ordering via nulls_first/last' do
-    property1 = create(:property, description: 'test')
-    property2 = create(:property, description: nil)
-    
-    get properties_path(format: 'json'), params: { limit: 100, order: {description: {desc: 'nulls_last'}} }
+    p1 = create(:property, description: 'test')
+    p2 = create(:property, description: nil)
+
+    get properties_path(format: 'json'), params: { limit: 100, order: { description: { desc: 'nulls_last' } } }
     properties = JSON(response.body)
-    assert_equal properties.first[:id], property1.id
-    
-    get properties_path(format: 'json'), params: { limit: 100, order: {description: {asc: 'nulls_last'}} }
+    assert_equal p1.id, properties.first['id']
+
+    get properties_path(format: 'json'), params: { limit: 100, order: { description: { asc: 'nulls_last' } } }
     properties = JSON(response.body)
-    assert_equal properties.first[:id], property1.id
+    assert_equal p1.id, properties.first['id']
   end
 
   # Calculate Test

@@ -2,6 +2,7 @@ json.set! :id,          photo.id
 json.set! :account_id,  photo.account_id
 json.set! :property_id, photo.property_id
 json.set! :format,      photo.format
+json.set! :created_at,  photo.created_at
 json.set! :template,    'photos/_photo'
 
 if includes[:account]

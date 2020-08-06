@@ -33,7 +33,7 @@ class ApplicationController < ActionController::Base
   end
 
   def property_includes
-    [:photos, :landlord, :english_name, :document, :accounts]
+    [ :photos, :landlord, :english_name, :document ]
   end
 
   def reference_includes
@@ -46,6 +46,11 @@ class PropertiesController < ApplicationController
 end
 
 class AccountsController < ApplicationController
+
+  def show
+    @account = Account.last
+  end
+
 end
 
 class DocumentsController < ApplicationController
@@ -53,9 +58,9 @@ class DocumentsController < ApplicationController
   def document_params
     [ :file, :type ]
   end
-  
+
   def document_orders
-    [:id]
+    [ :id ]
   end
 
 end

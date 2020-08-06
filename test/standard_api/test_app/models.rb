@@ -1,7 +1,7 @@
 # = Models
 
 class Account < ActiveRecord::Base
-  has_many :photos
+  has_many :photos, -> { order(:created_at) }
   belongs_to :property
 end
 
@@ -19,7 +19,7 @@ end
 
 class Property < ActiveRecord::Base
   has_and_belongs_to_many :photos
-  has_many :accounts, -> { order(:created_at) }
+  has_many :accounts
   has_one :landlord, class_name: 'Account'
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
@@ -72,6 +72,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "account_id"
       t.integer  "property_id"
       t.string   "format",                 limit: 255
+      t.datetime "created_at",                         null: false
     end
 
     create_table "properties", force: :cascade do |t|
@@ -90,12 +91,12 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.string   "key"
       t.string   "value"
     end
-    
+
     create_table "photos_properties", force: :cascade do |t|
       t.integer  "photo_id"
       t.integer  "property_id"
     end
-    
+
     create_table "landlords_properties", force: :cascade do |t|
       t.integer  "landlord_id"
       t.integer  "property_id"
@@ -104,8 +105,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "documents", force: :cascade do |t|
       t.string   'type'
     end
-    
-    create_table "attachments", force: :cascade do |t| 
+
+    create_table "attachments", force: :cascade do |t|
       t.string  'record_type'
       t.integer  'record_id'
       t.integer  'document_id'
