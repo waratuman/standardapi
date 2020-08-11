@@ -3,6 +3,7 @@
 class Account < ActiveRecord::Base
   has_many :photos, -> { order(:created_at) }
   belongs_to :property
+  belongs_to :subject, polymorphic: true
 end
 
 class Photo < ActiveRecord::Base
@@ -60,6 +61,10 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255
       t.integer  'property_id'
+      t.integer  "subject_id"
+      t.string   "subject_type"
+      t.datetime "property_cached_at"
+      t.datetime "subject_cached_at"
       t.integer  'photos_count', null: false, default: 0
       t.datetime "created_at",                         null: false
     end

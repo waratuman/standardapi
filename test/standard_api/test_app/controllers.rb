@@ -13,7 +13,7 @@ class ApplicationController < ActionController::Base
   end
 
   def account_includes
-    [ "photos" ]
+    [ "photos", "subject", "property" ]
   end
 
   def property_params
@@ -72,11 +72,11 @@ class PhotosController < ApplicationController
   end
 
   def photo_orders
-    [:id]
+    [ :id ]
   end
 
   def photo_includes
-    [:account]
+    [ :account ]
   end
 
 end

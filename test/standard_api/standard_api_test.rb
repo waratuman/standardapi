@@ -241,7 +241,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'rendering null attribute' do
     property = create(:property)
     get property_path(property, format: 'json'), params: { id: property.id, include: [:landlord] }
-    assert_equal true, JSON(response.body).has_key?('landlord')
+    assert JSON(response.body).has_key?('landlord')
     assert_nil JSON(response.body)['landlord']
   end
 
@@ -407,8 +407,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     json = JSON(response.body)
 
-    assert_equal json.find { |x| x['id'] == account_reference.id }.dig('subject', 'photos', 0, 'id'), photo.id
-    assert_equal json.find { |x| x['id'] == property_reference.id }.dig('subject', 'landlord', 'id'), account.id
+    assert_equal photo.id, json.find { |x| x['id'] == account_reference.id }.dig('subject', 'photos', 0, 'id')
+    assert_equal account.id, json.find { |x| x['id'] == property_reference.id }.dig('subject', 'landlord', 'id')
   end
 
   test 'include with distinct key' do

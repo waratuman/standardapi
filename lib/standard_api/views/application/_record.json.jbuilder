@@ -12,9 +12,10 @@ includes.each do |inc, subinc|
   when ActiveRecord::Reflection::AbstractReflection
     if association.collection?
       can_cache = can_cache_relation?(record.class, inc, subinc)
-      json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
-        partial = model_partial(association.klass)
-        json.set! inc do
+      json.set! inc do
+        json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
+          partial = model_partial(association.klass)
+
           # TODO limit causes preloaded assocations to reload
           sub_records = record.send(inc)
 
@@ -33,13 +34,13 @@ includes.each do |inc, subinc|
       if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
         can_cache = can_cache && !record.send(association.foreign_key).nil?
       end
-      json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
-        value = record.send(inc)
-        if value.nil?
-          json.set! inc, nil
-        else
-          partial = model_partial(value)
-          json.set! inc do
+      json.set! inc do
+        json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
+          value = record.send(inc)
+          if value.nil?
+            json.null!
+          else
+            partial = model_partial(value)
             json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
           end
         end
