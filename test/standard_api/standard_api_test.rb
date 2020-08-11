@@ -339,14 +339,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'include with where key' do
     photo_a = create(:photo)
     photo_b = create(:photo)
+    photo_c = create(:photo)
 
-    property = create(:property, photos: [photo_b])
+    property = create(:property, photos: [photo_b, photo_c])
     get property_path(property, include: { photos: { where: { id: photo_a.id } } }, format: :json)
     assert_equal [], JSON(response.body)['photos']
 
     property.photos << photo_a
     get property_path(property, include: { photos: { where: { id: photo_a.id } } }, format: :json)
     assert_equal [photo_a.id], JSON(response.body)['photos'].map { |x| x['id'] }
+    
+    get property_path(property, include: { photos: { where: [
+      { id: photo_a.id },
+      'OR',
+      { id: photo_c.id}
+    ] } }, format: :json)
+    assert_equal [photo_a.id, photo_c.id].sort, JSON(response.body)['photos'].map { |x| x['id'] }.sort
   end
 
   test 'include with order key' do
