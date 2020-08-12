@@ -20,6 +20,15 @@ module StandardAPI
           normalized[k] = case k.to_s
           when 'when', 'where', 'order'
             case v
+            when Array
+              v.map do |x|
+                case x
+                when Hash then x.to_h
+                when ActionController::Parameters then x.to_unsafe_h
+                else
+                  x
+                end
+              end
             when Hash then v.to_h
             when ActionController::Parameters then v.to_unsafe_h
             end
