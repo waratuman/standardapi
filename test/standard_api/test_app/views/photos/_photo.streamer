@@ -11,7 +11,7 @@ json.object! do
             if photo.account
                 json.partial! 'application/record', record: photo.account, includes: includes[:account]
             else
-                json.null!
+                json.value! nil
             end
         end
     end
