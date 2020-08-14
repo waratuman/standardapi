@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module StandardAPI
-  VERSION = '6.0.0.38'
+  VERSION = '6.0.0.39'
 end

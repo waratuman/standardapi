@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 if !defined?(record)
   record = instance_variable_get("@#{model.model_name.singular}")
 end

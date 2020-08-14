@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'active_support/test_case'
 
 require File.expand_path(File.join(__FILE__, '../test_case/calculate_tests'))

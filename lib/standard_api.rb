@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'rails'
 require 'action_view'
 require 'action_pack'

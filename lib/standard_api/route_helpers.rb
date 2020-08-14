@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 module StandardAPI
   module RouteHelpers
-    
+
     # StandardAPI wrapper for ActionDispatch::Routing::Mapper::Resources#resources
     #
     # Includes the following routes
-    #   
+    #
     #   GET /schema
     #   GET /calculate
     #
@@ -20,7 +22,7 @@ module StandardAPI
     #   end
     def standard_resources(*resources, &block)
       options = resources.extract_options!.dup
-      
+
       resources(*resources, options) do
         get :schema, on: :collection
         get :calculate, on: :collection
@@ -33,7 +35,7 @@ module StandardAPI
     # StandardAPI wrapper for ActionDispatch::Routing::Mapper::Resources#resource
     #
     # Includes the following routes
-    #   
+    #
     #   GET /schema
     #   GET /calculate
     #
@@ -49,7 +51,7 @@ module StandardAPI
     #   end
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
-      
+
       resource(*resource, options) do
         get :schema, on: :collection
         get :calculate, on: :collection

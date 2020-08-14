@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 json.object! do
 
   record.attributes.each do |name, value|
@@ -19,14 +21,14 @@ json.object! do
             # TODO limit causes preloaded assocations to reload
             sub_records = record.send(inc)
 
-            sub_records = sub_records.limit(subinc['limit']) if subinc['limit']
-            sub_records = sub_records.offset(subinc['offset']) if subinc['offset']
-            sub_records = sub_records.reorder(subinc['order']) if subinc['order']
-            sub_records = sub_records.filter(subinc['where']) if subinc['where']
-            sub_records = sub_records.distinct if subinc['distinct']
-            sub_records = sub_records.distinct_on(subinc['distinct_on']) if subinc['distinct_on']
+            sub_records = sub_records.limit(subinc["limit"]) if subinc["limit"]
+            sub_records = sub_records.offset(subinc["offset"]) if subinc["offset"]
+            sub_records = sub_records.reorder(subinc["order"]) if subinc["order"]
+            sub_records = sub_records.filter(subinc["where"]) if subinc["where"]
+            sub_records = sub_records.distinct if subinc["distinct"]
+            sub_records = sub_records.distinct_on(subinc["distinct_on"]) if subinc["distinct_on"]
 
-            json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+            json.array! sub_records, partial: partial, as: partial.split("/").last, locals: { includes: subinc }
           end
         end
       else
@@ -41,7 +43,7 @@ json.object! do
               json.value! nil
             else
               partial = model_partial(value)
-              json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+              json.partial! partial, partial.split("/").last.to_sym => value, includes: subinc
             end
           end
         end
@@ -54,7 +56,7 @@ json.object! do
         elsif value.is_a?(ActiveModel::Model)
           json.set! inc do
             partial = model_partial(value)
-            json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+            json.partial! partial, partial.split("/").last.to_sym => value, includes: subinc
           end
         else
           json.set! inc, value.as_json
@@ -67,7 +69,7 @@ json.object! do
   if !record.errors.blank?
     errs = record.errors.to_hash
     errs.default_proc = nil
-    json.set! 'errors', errs
+    json.set! "errors", errs
   end
 
 end

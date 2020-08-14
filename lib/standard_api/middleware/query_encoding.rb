@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'msgpack'
 
 # QueryEncoding middleware intercepts and parsing the query sting as MessagePack
@@ -13,8 +15,8 @@ require 'msgpack'
 module StandardAPI
   module Middleware
     class QueryEncoding
-      MSGPACK_MIME_TYPE = "application/msgpack".freeze
-      HTTP_METHOD_OVERRIDE_HEADER = "HTTP_QUERY_ENCODING".freeze
+      MSGPACK_MIME_TYPE = "application/msgpack"
+      HTTP_METHOD_OVERRIDE_HEADER = "HTTP_QUERY_ENCODING"
 
       def initialize(app)
         @app = app

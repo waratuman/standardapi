@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module StandardAPI
   class StandardAPIError < StandardError
   end
