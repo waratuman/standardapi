@@ -217,7 +217,8 @@ module StandardAPI
     end
 
     def resources
-      query = model.filter(params['where']).filter(current_mask[model.table_name])
+      mask = current_mask[model.table_name] || current_mask[model.table_name.to_sym]
+      query = model.filter(params['where']).filter(mask)
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
