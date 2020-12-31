@@ -1,4 +1,5 @@
 FactoryBot.define do
+
   factory :account do
     name            { Faker::Name.name }
 
@@ -7,7 +8,7 @@ FactoryBot.define do
       name { nil }
     end
   end
-  
+
   factory :landlord do
     name            { Faker::Name.name }
   end
@@ -17,12 +18,12 @@ FactoryBot.define do
   end
 
   factory :document do
-    file            { fixture_file_upload(Rails.root + 'test/fixtures/photo.png', 'image/png') }
+    file            { Rack::Test::UploadedFile.new(File.join(Rails.root, 'test/fixtures/photo.png'), 'image/png') }
   end
 
   factory :pdf do
     type            { 'Pdf' }
-    file            { fixture_file_upload(Rails.root + 'test/fixtures/photo.png', 'image/png') }
+    file            { Rack::Test::UploadedFile.new(File.join(Rails.root, 'test/fixtures/photo.png'), 'image/png') }
   end
 
   factory :reference do
