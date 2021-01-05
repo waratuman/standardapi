@@ -3,8 +3,16 @@
 module StandardAPI
   class Railtie < ::Rails::Railtie
 
-    initializer 'standardapi' do
-      ActiveSupport.on_load(:action_controller) do
+    initializer 'standardapi', :before => :set_autoload_paths do |app|
+      if app.root.join('app', 'controllers', 'acl').exist?
+        ActiveSupport::Inflector.inflections(:en) do |inflect|
+          inflect.acronym 'ACL'
+        end
+        
+        app.config.autoload_paths << app.root.join('app', 'controllers', 'acl').to_s
+      end
+
+      ActiveSupport.on_load(:before_configuration) do
         ::ActionDispatch::Routing::Mapper.send :include, StandardAPI::RouteHelpers
       end
 
