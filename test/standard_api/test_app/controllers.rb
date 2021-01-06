@@ -1,44 +1,7 @@
 class ApplicationController < ActionController::Base
   include StandardAPI::Controller
+  include StandardAPI::AccessControlList
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
-
-  private
-
-  def account_params
-    [ "property_id", "name" ]
-  end
-
-  def account_orders
-    [ "id" ]
-  end
-
-  def account_includes
-    [ "photos", "subject", "property" ]
-  end
-
-  def property_params
-    [ :name,
-      :aliases,
-      :description,
-      :constructed,
-      :size,
-      :active,
-      :photos_attributes,
-      { photos_attributes: [ :id, :account_id, :property_id, :format] }
-    ]
-  end
-
-  def property_orders
-    ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
-  end
-
-  def property_includes
-    [ :photos, :landlord, :english_name, :document ]
-  end
-
-  def reference_includes
-    { subject: [ :landlord, :photos ] }
-  end
 
 end
 
@@ -55,7 +18,7 @@ end
 
 class DocumentsController < ApplicationController
 
-  def document_params
+  def document_attributes
     [ :file, :type ]
   end
 
@@ -67,7 +30,7 @@ end
 
 class PhotosController < ApplicationController
 
-  def photo_params
+  def photo_attributes
     [ :id, :account_id, :property_id, :format ]
   end
 

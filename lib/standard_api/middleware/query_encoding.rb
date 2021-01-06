@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 require 'msgpack'
 
 # QueryEncoding middleware intercepts and parsing the query sting as MessagePack

@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 module StandardAPI
   class Railtie < ::Rails::Railtie
 
@@ -8,7 +6,7 @@ module StandardAPI
         ActiveSupport::Inflector.inflections(:en) do |inflect|
           inflect.acronym 'ACL'
         end
-        
+
         app.config.autoload_paths << app.root.join('app', 'controllers', 'acl').to_s
       end
 

@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 record.attributes.each do |name, value|
   # Skip if attribute is included in excludes
   next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == name.to_s }

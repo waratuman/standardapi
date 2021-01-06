@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 if !defined?(records)
   records = instance_variable_get("@#{model.model_name.plural}")
 end

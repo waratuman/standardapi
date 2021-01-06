@@ -10,11 +10,11 @@ module StandardAPI
         end
       end
     end
-    
+
     def self.included(application_controller)
       acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
       return if !acl_dir.exist?
-      
+
       traverse(acl_dir) do |child|
         mod = child.classify.constantize
         prefix = child.delete_suffix('_acl').gsub('/', '_')
@@ -43,7 +43,7 @@ module StandardAPI
       if self.respond_to?("#{model.model_name.singular}_orders", true)
         self.send("#{model.model_name.singular}_orders")
       else
-        [:id]
+        []
       end
     end
 
@@ -58,7 +58,7 @@ module StandardAPI
     def filter_model_params(model_params, model, id: nil, allow_id: nil)
       permitted_params = if self.respond_to?("#{model_name(model)}_attributes", true)
         permits = self.send("#{model_name(model)}_attributes")
-        
+
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
       else
         ActionController::Parameters.new
@@ -101,7 +101,7 @@ module StandardAPI
 
       permitted_params
     end
-    
+
     def model_name(model)
       if model.model_name.singular.starts_with?('habtm_')
         model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
@@ -109,6 +109,6 @@ module StandardAPI
         model.model_name.singular
       end
     end
-  
+
   end
 end

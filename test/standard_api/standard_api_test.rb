@@ -94,7 +94,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'Controller#model_params defaults to []' do
     @controller = ReferencesController.new
-    assert_equal @controller.send(:model_params), []
+    @controller.params = {}
+    assert_equal @controller.send(:model_params), ActionController::Parameters.new
   end
 
   test 'Controller#current_mask' do

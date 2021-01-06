@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 module StandardAPI
   module Controller
 
@@ -199,7 +197,7 @@ module StandardAPI
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
       else
-        []
+        ActionController::Parameters.new
       end
     end
 

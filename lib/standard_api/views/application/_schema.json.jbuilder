@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 if model.nil? && controller_name == "application"
   routes = Rails.application.routes.routes.reject(&:internal).collect do |route|
     { name: route.name,
