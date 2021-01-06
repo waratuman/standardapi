@@ -25,14 +25,7 @@ module StandardAPI::TestCase
     end
 
     begin
-      model_class = if klass.respond_to?(:model)
-        klass.model
-      else
-        model_class_name = klass.name.gsub(/ControllerTest$/, '').singularize
-        model_class = model_class_name.constantize
-      end
-
-
+      model_class = klass.name.gsub(/Test$/, '').constantize.model
 
       klass.send(:filters=, model_class.attribute_names)
       klass.send(:orders=, model_class.attribute_names)
