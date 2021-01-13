@@ -68,9 +68,9 @@ module StandardAPI
         self.send("nested_#{model_name(model)}_attributes").each do |relation|
           relation = model.reflect_on_association(relation)
           attributes_key = "#{relation.name}_attributes"
-          filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
 
           if model_params.has_key?(attributes_key)
+            filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
             if model_params[attributes_key].nil?
               permitted_params[attributes_key] = nil
             elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
