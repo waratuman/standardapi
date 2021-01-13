@@ -80,9 +80,10 @@ module StandardAPI
       end
     end
 
-    def can_cache_relation?(klass, relation, subincludes)
+    def can_cache_relation?(record, relation, subincludes)
+      return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
-      if (cache_columns - klass.column_names).empty?
+      if (cache_columns - record.class.column_names).empty?
         true
       else
         false
@@ -91,7 +92,7 @@ module StandardAPI
 
     def association_cache_key(record, relation, subincludes)
       timestamp = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
-      timestamp.map! { |col| record.send(col) }
+      timestamp = (timestamp & record.class.column_names).map! { |col| record.send(col) }
       timestamp = timestamp.max
 
       case association = record.class.reflect_on_association(relation)
