@@ -67,7 +67,7 @@ module StandardAPI
       if self.respond_to?("nested_#{model_name(model)}_attributes", true)
         self.send("nested_#{model_name(model)}_attributes").each do |relation|
           relation = model.reflect_on_association(relation)
-          attributes_key = "#{relation.klass.base_class.model_name.singular}_attributes"
+          attributes_key = "#{relation.name}_attributes"
           filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
 
           if model_params.has_key?(attributes_key)
