@@ -64,8 +64,7 @@ module StandardAPI
         trait = FactoryBot.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 
         if !trait
-          Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")
-          warn("No invalid trait for #{model.name}. Skipping invalid tests")
+          skip("No invalid trait for #{model.name}. Skipping invalid tests")
           return
         end
 
@@ -106,8 +105,7 @@ module StandardAPI
         trait = FactoryBot.factories[singular_name].definition.defined_traits.any? { |x| x.name.to_s == 'invalid' }
 
         if !trait
-          Rails.logger.try(:warn, "No invalid trait for #{model.name}. Skipping invalid tests")
-          warn("No invalid trait for #{model.name}. Skipping invalid tests")
+          skip("No invalid trait for #{model.name}. Skipping invalid tests")
           return
         end
 
