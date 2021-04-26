@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    standardapi (6.1.0.rc4)
+    standardapi (6.1.0)
       actionpack (>= 6.1.0)
       activerecord-filter (>= 6.1.0.rc1)
       activerecord-sort (>= 6.1.0.rc1)
@@ -57,12 +57,12 @@ GEM
     activerecord (6.1.0)
       activemodel (= 6.1.0)
       activesupport (= 6.1.0)
-    activerecord-filter (6.1.0.rc1)
+    activerecord-filter (6.1.0)
       activerecord (>= 6.1.0)
       arel-extensions (>= 6.1.0.rc2)
-    activerecord-sort (6.1.0.rc1)
+    activerecord-sort (6.1.0.2)
       activerecord (>= 6.1.0)
-      arel-extensions (>= 6.1.0.rc2)
+      arel-extensions (>= 6.1.0)
     activestorage (6.1.0)
       actionpack (= 6.1.0)
       activejob (= 6.1.0)
@@ -76,7 +76,7 @@ GEM
       minitest (>= 5.1)
       tzinfo (~> 2.0)
       zeitwerk (~> 2.3)
-    arel-extensions (6.1.0.rc2)
+    arel-extensions (6.1.0)
       activerecord (>= 6.1.0)
     benchmark-ips (2.8.4)
     builder (3.2.4)
@@ -106,12 +106,14 @@ GEM
     marcel (0.3.3)
       mimemagic (~> 0.3.2)
     method_source (1.0.0)
-    mimemagic (0.3.5)
-    mini_mime (1.0.2)
+    mimemagic (0.3.10)
+      nokogiri (~> 1)
+      rake
+    mini_mime (1.1.0)
     mini_portile2 (2.4.0)
     minitest (5.14.2)
     mocha (1.12.0)
-    nio4r (2.5.4)
+    nio4r (2.5.7)
     nokogiri (1.10.10)
       mini_portile2 (~> 2.4.0)
     pg (1.2.3)
@@ -184,4 +186,4 @@ DEPENDENCIES
   standardapi!
 
 BUNDLED WITH
-   2.1.4
+   2.2.16

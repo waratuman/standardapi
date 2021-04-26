@@ -44,6 +44,8 @@ Rails.application.routes.draw do
   end
 
   standard_resource :account
+  # standard_resources :photos, only: [ :index, :show ]
+
 end
 
 # Test Application Helpers
