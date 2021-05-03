@@ -236,7 +236,11 @@ module StandardAPI
     end
 
     def includes
-      @includes ||= StandardAPI::Includes.sanitize(params[:include], model_includes)
+      @includes ||= if params[:include]
+        StandardAPI::Includes.sanitize(params[:include], model_includes)
+      else
+        {}
+      end
     end
 
     def required_orders
