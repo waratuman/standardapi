@@ -113,6 +113,9 @@ module StandardAPI
       if(subresource)
         if association.is_a? ActiveRecord::Associations::HasManyAssociation
           resource.send(params[:relationship]).delete(subresource)
+        elsif association.is_a? ActiveRecord::Associations::BelongsToAssociation
+          resource.send("#{params[:relationship]}=", nil)
+          resource.save
         else
           resource.send("#{params[:relationship]}=", nil)
         end
@@ -128,10 +131,13 @@ module StandardAPI
       subresource = association.klass.find_by_id(params[:resource_id])
 
       if(subresource)
-        if association.is_a? ActiveRecord::Associations::HasManyAssociation
-          result = resource.send(params[:relationship]) << subresource
+        result = if association.is_a? ActiveRecord::Associations::HasManyAssociation
+          resource.send(params[:relationship]) << subresource
+        elsif association.is_a? ActiveRecord::Associations::BelongsToAssociation
+          resource.send("#{params[:relationship]}=", subresource)
+          resource.save
         else
-          result = resource.send("#{params[:relationship]}=", subresource)
+          resource.send("#{params[:relationship]}=", subresource)
         end
         head result ? :created : :bad_request
       else

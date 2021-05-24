@@ -188,7 +188,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to document_path(pdf)
   end
 
-  test 'Controller#add_resource' do
+  test 'Controller#add_resource with has_many' do
     property = create(:property, photos: [])
     photo = create(:photo)
 
@@ -198,6 +198,28 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     post "/properties/#{property.id}/photos/9999999"
     assert_response :not_found
+  end
+  
+  test 'Controller#add_resource with has_and_belongs_to_many' do
+    photo1 = create(:photo)
+    photo2 = create(:photo)
+    property = create(:property, photos: [photo1])
+
+    post "/properties/#{property.id}/photos/#{photo2.id}"
+    assert_equal property.photos.reload.map(&:id), [photo1.id, photo2.id]
+    assert_response :created
+
+    post "/properties/#{property.id}/photos/9999999"
+    assert_response :not_found
+  end
+  
+  test 'Controller#add_resource with belongs_to' do
+    photo = create(:photo)
+    account = create(:account)
+
+    post "/photos/#{photo.id}/account/#{account.id}"
+    assert_equal photo.reload.account_id, account.id
+    assert_response :created
   end
 
   test 'Controller#add_resource with has_one' do
@@ -226,6 +248,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal property.document, photo
     delete "/properties/#{property.id}/document/#{photo.id}"
     assert_nil property.reload.document
+    assert_response :no_content
+  end
+  
+  test 'Controller#remove_resource with belongs_to' do
+    account = create(:account)
+    photo = create(:photo, account: account)
+
+    delete "/photos/#{photo.id}/account/#{account.id}"
+    assert_nil photo.reload.account_id
     assert_response :no_content
   end
 
