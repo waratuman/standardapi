@@ -259,6 +259,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_nil photo.reload.account_id
     assert_response :no_content
   end
+  
+  test 'Controller#remove_resource with belongs_to unless not match' do
+    account1 = create(:account)
+    account2 = create(:account)
+    photo = create(:photo, account: account1)
+
+    delete "/photos/#{photo.id}/account/#{account2.id}"
+    assert_equal photo.reload.account_id, account1.id
+    assert_response :no_content
+  end
 
   # = View Tests
 
