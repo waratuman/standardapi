@@ -108,44 +108,30 @@ module StandardAPI
     def remove_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-      subresource = association.klass.find_by_id(params[:resource_id])
 
-      if(subresource)
-        if association.is_a? ActiveRecord::Associations::HasManyAssociation
-          resource.send(params[:relationship]).delete(subresource)
-        elsif subresource&.id == resource.send("#{params[:relationship]}")&.id
-          if association.is_a? ActiveRecord::Associations::BelongsToAssociation
-            resource.send("#{params[:relationship]}=", nil)
-            resource.save
-          else
-            resource.send("#{params[:relationship]}=", nil)
-          end
+      result = case association
+      when ActiveRecord::Associations::CollectionAssociation
+        association.delete(association.klass.find(params[:resource_id]))
+      when ActiveRecord::Associations::SingularAssociation
+        if resource.send(params[:relationship])&.id&.to_s == params[:resource_id]
+          resource.update(params[:relationship] => nil)
         end
-        head :no_content
-      else
-        head :not_found
       end
+      head result ? :no_content : :not_found
     end
 
     def add_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-      subresource = association.klass.find_by_id(params[:resource_id])
+      subresource = association.klass.find(params[:resource_id])
 
-      if(subresource)
-        result = if association.is_a? ActiveRecord::Associations::HasManyAssociation
-          resource.send(params[:relationship]) << subresource
-        elsif association.is_a? ActiveRecord::Associations::BelongsToAssociation
-          resource.send("#{params[:relationship]}=", subresource)
-          resource.save
-        else
-          resource.send("#{params[:relationship]}=", subresource)
-        end
-        head result ? :created : :bad_request
-      else
-        head :not_found
+      result = case association
+      when ActiveRecord::Associations::CollectionAssociation
+        association.concat(subresource)
+      when ActiveRecord::Associations::SingularAssociation
+        resource.update(params[:relationship] => subresource)
       end
-
+      head result ? :created : :bad_request
     end
 
     # Override if you want to support masking

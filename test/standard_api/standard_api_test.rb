@@ -196,8 +196,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal property.photos.reload.map(&:id), [photo.id]
     assert_response :created
 
-    post "/properties/#{property.id}/photos/9999999"
-    assert_response :not_found
+    assert_raises ActiveRecord::RecordNotFound do
+      post "/properties/#{property.id}/photos/9999999"
+    end
   end
   
   test 'Controller#add_resource with has_and_belongs_to_many' do
@@ -209,8 +210,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal property.photos.reload.map(&:id), [photo1.id, photo2.id]
     assert_response :created
 
-    post "/properties/#{property.id}/photos/9999999"
-    assert_response :not_found
+    assert_raises ActiveRecord::RecordNotFound do
+      post "/properties/#{property.id}/photos/9999999"
+    end
   end
   
   test 'Controller#add_resource with belongs_to' do
@@ -238,8 +240,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal property.photos.reload, []
     assert_response :no_content
 
-    delete "/properties/#{property.id}/photos/9999999"
-    assert_response :not_found
+    assert_raises ActiveRecord::RecordNotFound do
+      delete "/properties/#{property.id}/photos/9999999"
+    end
   end
 
   test 'Controller#remove_resource with has_one' do
@@ -267,7 +270,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     delete "/photos/#{photo.id}/account/#{account2.id}"
     assert_equal photo.reload.account_id, account1.id
-    assert_response :no_content
+    assert_response :not_found
+  end
+  
+  test 'Controller#remove_resource with belongs_to unless not match and is nil' do
+    account = create(:account)
+    photo = create(:photo)
+
+    delete "/photos/#{photo.id}/account/#{account.id}"
+    assert_nil photo.reload.account_id
+    assert_response :not_found
   end
 
   # = View Tests
