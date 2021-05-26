@@ -117,16 +117,16 @@ module StandardAPI
         end
       end
 
-      test '#index.json mask' do
+      test '#index.json mask_for' do
         # This is just to instance @controller
         get resource_path(:index, format: :json), params: { limit: 1 }
 
-        # If #current_mask isn't defined by StandardAPI we don't know how to
-        # test other's implementation of #current_mask. Return and don't test.
-        return if @controller.method(:current_mask).owner != StandardAPI
+        # If #mask_for isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #mask_for. Return and don't test.
+        return if @controller.method(:mask_for).owner != StandardAPI
 
         m = create_model
-        @controller.define_singleton_method(:current_mask) do |table_name|
+        @controller.define_singleton_method(:mask_for) do |table_name|
           { id: m.id }
         end
         get :index, format: :json

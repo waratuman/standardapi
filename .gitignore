@@ -3,3 +3,4 @@ coverage
 .byebug_history
 tmp
 test/standard_api/test_app/log
+*.log
