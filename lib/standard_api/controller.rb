@@ -135,7 +135,7 @@ module StandardAPI
     end
 
     # Override if you want to support masking
-    def current_mask
+    def current_mask(table_name)
       @current_mask ||= {}
     end
 
@@ -209,7 +209,7 @@ module StandardAPI
     end
 
     def resources
-      mask = current_mask[model.table_name] || current_mask[model.table_name.to_sym]
+      mask = current_mask(model.table_name.to_sym)
       query = model.filter(params['where']).filter(mask)
 
       if params[:distinct_on]

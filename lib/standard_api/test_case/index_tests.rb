@@ -126,18 +126,12 @@ module StandardAPI
         return if @controller.method(:current_mask).owner != StandardAPI
 
         m = create_model
-        @controller.current_mask[plural_name] = { id: m.id }
+        @controller.define_singleton_method(:current_mask) do |table_name|
+          { id: m.id }
+        end
         get :index, format: :json
         models = @controller.instance_variable_get("@#{plural_name}")
         assert_equal model.where(id: m.id).sort(required_orders).to_sql, models.to_sql
-        @controller.current_mask.delete(plural_name)
-
-        @controller.current_mask[plural_name.to_sym] = { id: m.id }
-        get :index, format: :json
-        models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.where(id: m.id).sort(required_orders).to_sql, models.to_sql
-        @controller.current_mask.delete(plural_name.to_sym)
-
       end
     end
   end

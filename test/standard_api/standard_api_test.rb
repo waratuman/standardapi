@@ -100,7 +100,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'Controller#current_mask' do
     @controller = ReferencesController.new
-    @controller.instance_variable_set('@current_mask', { 'references' => { 'subject_id' => 1 }})
+    @controller.define_singleton_method(:current_mask) do |table_name|
+      {references: {subject_id: 1}}[table_name]
+    end
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end

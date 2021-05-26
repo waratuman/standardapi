@@ -208,7 +208,7 @@ And example contoller and it's tests.
         # The mask is then applyed to all actions when querring ActiveRecord
         # Will only allow photos that have id one. For more on the syntax see
         # the activerecord-filter gem.
-        def current_mask
+        def current_mask(table_name)
             { id: 1 }
         end
 

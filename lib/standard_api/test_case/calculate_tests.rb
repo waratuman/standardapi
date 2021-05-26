@@ -69,12 +69,13 @@ module StandardAPI
 
         m = create_model
 
-        @controller.current_mask[plural_name] = { id: m.id + 100 }
+        @controller.define_singleton_method(:current_mask) do |table_name|
+          { id: m.id + 100 }
+        end
         selects = [{ count: :id}, { maximum: :id }, { minimum: :id }, { average: :id }]
         get :calculate, select: selects, format: 'json'
         assert_response :ok
         assert_equal [[0, nil, nil, nil]], @controller.instance_variable_get('@calculations')
-        @controller.current_mask.delete(plural_name)
       end
 
     end

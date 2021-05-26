@@ -23,11 +23,12 @@ module StandardAPI
         # test other's implementation of #current_mask. Return and don't test.
         return if @controller.method(:current_mask).owner != StandardAPI
 
-        @controller.current_mask[plural_name] = { id: m.id + 1 }
+        @controller.define_singleton_method(:current_mask) do |table_name|
+          { id: m.id + 1 }
+        end
         assert_raises(ActiveRecord::RecordNotFound) do
           delete resource_path(:destroy, id: m.id, format: :json)
         end
-        @controller.current_mask.delete(plural_name)
       end
 
     end
