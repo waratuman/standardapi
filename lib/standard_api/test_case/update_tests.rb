@@ -131,21 +131,22 @@ module StandardAPI
         end
       end
 
-      test '#update.json mask' do
+      test '#update.json mask_for' do
         m = create_model
 
         # This is just to instance @controller
         get resource_path(:index, format: :json), params: { limit: 1 }
 
-        # If #current_mask isn't defined by StandardAPI we don't know how to
-        # test other's implementation of #current_mask. Return and don't test.
-        return if @controller.method(:current_mask).owner != StandardAPI
+        # If #mask_for isn't defined by StandardAPI we don't know how to
+        # test other's implementation of #mask_for. Return and don't test.
+        return if @controller.method(:mask_for).owner != StandardAPI
 
-        @controller.current_mask[plural_name] = { id: m.id + 1 }
+        @controller.define_singleton_method(:mask_for) do |table_name|
+          { id: m.id + 1 }
+        end
         assert_raises(ActiveRecord::RecordNotFound) do
           put resource_path(:update, :id => m.id), as: :json
         end
-        @controller.current_mask.delete(plural_name)
       end
 
     end

@@ -134,9 +134,17 @@ module StandardAPI
       head result ? :created : :bad_request
     end
 
+    def mask
+      @mask ||= Hash.new do |hash, key|
+        hash[key] = mask_for(key)
+      end
+    end
+    
     # Override if you want to support masking
-    def current_mask
-      @current_mask ||= {}
+    def mask_for(table_name)
+      # case table_name
+      # when 'accounts'
+      # end
     end
 
     module ClassMethods
@@ -209,8 +217,7 @@ module StandardAPI
     end
 
     def resources
-      mask = current_mask[model.table_name] || current_mask[model.table_name.to_sym]
-      query = model.filter(params['where']).filter(mask)
+      query = model.filter(params['where']).filter(mask[model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])

@@ -1,0 +1,1 @@
+exclude = '{$exclude,test/standard_api/test_app/log,.git,.tm_properties}'
