@@ -150,6 +150,7 @@ class HelpersTest < ActionView::TestCase
     assert_equal 'string', json_column_type('character varying(2)')
     assert_equal 'string', json_column_type('character varying(255)')
     assert_equal 'datetime', json_column_type('timestamp without time zone')
+    assert_equal 'datetime', json_column_type('timestamp(6) without time zone')
     assert_equal 'datetime', json_column_type('time without time zone')
     assert_equal 'string', json_column_type('text')
     assert_equal 'hash', json_column_type('json')

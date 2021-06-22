@@ -156,7 +156,7 @@ module StandardAPI
 
     def json_column_type(sql_type)
       case sql_type
-      when 'timestamp without time zone'
+      when /timestamp(\(\d+\))? without time zone/
         'datetime'
       when 'time without time zone'
         'datetime'
