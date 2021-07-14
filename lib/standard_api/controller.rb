@@ -139,7 +139,7 @@ module StandardAPI
         hash[key] = mask_for(key)
       end
     end
-    
+
     # Override if you want to support masking
     def mask_for(table_name)
       # case table_name
@@ -152,6 +152,39 @@ module StandardAPI
       def model
         return @model if defined?(@model)
         @model = name.sub(/Controller\z/, '').singularize.camelize.safe_constantize
+      end
+
+      def model_attributes
+        return if !model
+
+        method_name = "#{ model.model_name.singular }_attributes"
+        if respond_to?(method_name)
+          send(method_name)
+        else
+          []
+        end
+      end
+
+      def model_orders
+        return if !model
+
+        method_name = "#{ model.model_name.singular }_orders"
+        if respond_to?(method_name)
+          send(method_name)
+        else
+          []
+        end
+      end
+
+      def model_includes
+        return if !model
+
+        method_name = "#{ model.model_name.singular }_includes"
+        if respond_to?(method_name)
+          send(method_name)
+        else
+          []
+        end
       end
 
     end

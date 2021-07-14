@@ -72,7 +72,6 @@ module StandardAPI
     #   end
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
-
       resource(*resource, options) do
         available_actions = if only = parent_resource.instance_variable_get(:@only)
           Array(only).map(&:to_sym)

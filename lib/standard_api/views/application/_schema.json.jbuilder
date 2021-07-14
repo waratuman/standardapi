@@ -29,12 +29,32 @@ if model.nil? && controller_name == "application"
       next if controller.nil?
 
       resource_limit = controller.resource_limit if controller.respond_to?(:resource_limit)
+      resource_attributes = if controller.respond_to?(:model_attributes)
+        controller.model_attributes&.select { |x| controller.model.has_attribute?(x) }&.inject({}) do |acc, attr_name|
+          model = controller.model
+          column = model.columns_hash[attr_name.to_s]
+          acc[attr_name] = {
+            type: json_column_type(column.sql_type),
+            default: column.default ? model.connection.lookup_cast_type_from_column(column).deserialize(column.default) : nil,
+            primary_key: column.name == model.primary_key,
+            null: column.null,
+            array: column.array,
+            comment: column.comment
+          }
+          acc
+        end
+      end
+      resource_orders = controller.model_orders if controller.respond_to?(:model_orders)
+      resource_includes = controller.model_includes if controller.respond_to?(:model_includes)
 
       json.set! 'path', route[:path]
       json.set! 'method', route[:verb]
       json.set! 'model', controller.model&.name
       json.set! 'array', route[:array]
       json.set! 'limit', resource_limit
+      json.set! "wheres", resource_attributes
+      json.set! 'orders', resource_orders
+      json.set! 'includes', resource_includes
     end
   end
 
