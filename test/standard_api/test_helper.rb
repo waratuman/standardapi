@@ -64,6 +64,15 @@ class ActiveSupport::TestCase
 
   # = Helper Methods
 
+  def debug
+    ActiveRecord::Base.logger = Logger.new(STDOUT)
+    $debugging = true
+    yield
+  ensure
+    ActiveRecord::Base.logger = nil
+    $debugging = false
+  end
+
   def controller_path
     if defined?(@controller)
       @controller.controller_path

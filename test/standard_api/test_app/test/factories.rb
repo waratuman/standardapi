@@ -48,4 +48,7 @@ FactoryBot.define do
     end
   end
 
+  factory :camera do
+    make  { ['Sony', 'Nokia', 'Canon', 'Leica'].sample }
+  end
 end
