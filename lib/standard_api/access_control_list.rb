@@ -67,7 +67,7 @@ module StandardAPI
       if self.respond_to?("nested_#{model_name(model)}_attributes", true)
         self.send("nested_#{model_name(model)}_attributes").each do |relation|
           relation = model.reflect_on_association(relation)
-          attributes_key = "#{relation.name}_attributes"
+          attributes_key = "#{relation.name}"
 
           if model_params.has_key?(attributes_key)
             filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
@@ -77,15 +77,49 @@ module StandardAPI
               permitted_params["#{relation.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
             elsif self.respond_to?(filter_method, true)
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                model_params[attributes_key].map { |i| self.send(filter_method, i, allow_id: true) }
+                models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                model_params[attributes_key].map { |i|
+                  i_params = self.send(filter_method, i, allow_id: true)
+                  if i_params['id']
+                    r = models.find { |r| r.id == i_params['id'] }
+                    r.assign_attributes(i_params)
+                    r
+                  else
+                    relation.klass.new(i_params)
+                  end
+                }
               else
-                self.send(filter_method, model_params[attributes_key], allow_id: true)
+                i_params = self.send(filter_method, model_params[attributes_key], allow_id: true)
+                if i_params['id']
+                  r = relation.klass.find(i_params['id'])
+                  r.assign_attributes(i_params)
+                  r
+                else
+                  relation.klass.new(i_params)
+                end
               end
             else
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                model_params[attributes_key].map { |i| filter_model_params(i, relation.klass.base_class, allow_id: true) }
+                models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                model_params[attributes_key].map { |i|
+                  i_params = filter_model_params(i, relation.klass.base_class, allow_id: true)
+                  if i_params['id']
+                    r = models.find { |r| r.id == i_params['id'] }
+                    r.assign_attributes(i_params)
+                    r
+                  else
+                    relation.klass.new(i_params)
+                  end
+                }
               else
-                filter_model_params(model_params[attributes_key], relation.klass.base_class, allow_id: true)
+                i_params = filter_model_params(model_params[attributes_key], relation.klass.base_class, allow_id: true)
+                if i_params['id']
+                  r = relation.klass.find(i_params['id'])
+                  r.assign_attributes(i_params)
+                  r
+                else
+                  relation.klass.new(i_params)
+                end
               end
             end
           elsif relation.collection? && model_params.has_key?("#{relation.name.to_s.singularize}_ids")

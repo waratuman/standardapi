@@ -20,4 +20,21 @@ module StandardAPI
     end
 
   end
+  
+  module AutosaveByDefault
+    def self.included base
+      base.class_eval do
+        class <<self  
+          alias_method :standard_build, :build
+        end
+      
+        def self.build(model, name, scope, options, &block)
+          options[:autosave] = true
+          standard_build(model, name, scope, options, &block)
+        end
+      end
+    end
+  end
+
+  ::ActiveRecord::Associations::Builder::Association.include(AutosaveByDefault)
 end
