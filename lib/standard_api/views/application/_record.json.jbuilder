@@ -5,7 +5,7 @@ record.class.columns.each do |column|
   if column.type == :binary
     json.set! column.name, record.send(column.name)&.unpack1('H*')
   else
-    json.set! column.name.to_s, record.send(column.name)
+    json.set! column.name, record.send(column.name)
   end
 end
 
