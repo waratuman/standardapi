@@ -3,7 +3,7 @@ record.class.columns.each do |column|
   next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == column.name }
   
   if column.type == :binary
-    json.set! column.name.to_s, record.send(column.name)&.unpack('H*')&.first
+    json.set! column.name, record.send(column.name)&.unpack1('H*')
   else
     json.set! column.name.to_s, record.send(column.name)
   end
