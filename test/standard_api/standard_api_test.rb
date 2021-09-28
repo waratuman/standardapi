@@ -300,6 +300,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('landlord')
     assert_nil JSON(response.body)['landlord']
   end
+  
+  test 'rendering binary attribute' do
+    reference = create(:reference, sha: "Hello World")
+    get reference_path(reference, format: 'json'), params: { id: reference.id }
+    assert_equal "48656c6c6f20576f726c64", JSON(response.body)['sha']
+  end
 
   test 'rendering null attribute for has_one through' do
     property = create(:property)
