@@ -92,9 +92,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_includes), []
   end
 
-  test 'Controller#model_params defaults to []' do
+  test 'Controller#model_params defaults to ActionController::Parameters' do
+    @controller = DocumentsController.new
+    @controller.params = ActionController::Parameters.new
+    assert_equal @controller.send(:model_params), ActionController::Parameters.new
+  end
+
+  test 'Controller#model_params defaults to ActionController::Parameters when no resource_attributes' do
     @controller = ReferencesController.new
-    @controller.params = {}
+    @controller.params = ActionController::Parameters.new
     assert_equal @controller.send(:model_params), ActionController::Parameters.new
   end
 

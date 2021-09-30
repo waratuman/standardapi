@@ -56,7 +56,7 @@ module StandardAPI
     end
 
     def filter_model_params(model_params, model, id: nil, allow_id: nil)
-      permitted_params = if self.respond_to?("#{model_name(model)}_attributes", true)
+      permitted_params = if model_params && self.respond_to?("#{model_name(model)}_attributes", true)
         permits = self.send("#{model_name(model)}_attributes")
 
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
