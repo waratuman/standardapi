@@ -7,8 +7,9 @@ class Account < ActiveRecord::Base
 end
 
 class Photo < ActiveRecord::Base
-  belongs_to :account, :counter_cache => true
+  belongs_to :account, counter_cache: true
   has_and_belongs_to_many :properties
+  has_one :camera
 end
 
 class Document < ActiveRecord::Base
@@ -45,6 +46,9 @@ end
 class Attachment < ActiveRecord::Base
   belongs_to :record, polymorphic: true
   belongs_to :document
+end
+
+class Camera < ActiveRecord::Base
 end
 
 # = Migration
@@ -93,6 +97,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "references", force: :cascade do |t|
       t.integer  "subject_id"
       t.string   "subject_type",         limit: 255
+      t.binary   "sha"
       t.string   "key"
       t.string   "value"
     end
@@ -109,6 +114,11 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
     create_table "documents", force: :cascade do |t|
       t.string   'type'
+    end
+    
+    create_table "cameras", force: :cascade do |t|
+      t.integer  'photo_id'
+      t.string   'make'
     end
 
     create_table "attachments", force: :cascade do |t|

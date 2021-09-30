@@ -1,7 +1,12 @@
-record.attributes.each do |name, value|
+record.class.columns.each do |column|
   # Skip if attribute is included in excludes
-  next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == name.to_s }
-  json.set! name, value
+  next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == column.name }
+  
+  if column.type == :binary
+    json.set! column.name, record.send(column.name)&.unpack1('H*')
+  else
+    json.set! column.name, record.send(column.name)
+  end
 end
 
 includes.each do |inc, subinc|
