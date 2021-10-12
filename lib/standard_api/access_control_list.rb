@@ -36,6 +36,7 @@ module StandardAPI
         end
 
         application_controller.include mod
+        application_controller.extend mod
       end
     end
 
