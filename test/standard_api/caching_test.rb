@@ -32,8 +32,8 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     # Two associations that reference the same model
     property = create(:property)
     account = create(:account, property: property, subject: property)
-    Account.any_instance.expects(:property_cached_at).returns(t1).twice
-    Account.any_instance.expects(:subject_cached_at).returns(t1).twice
+    Account.any_instance.expects(:property_cached_at).returns(t1)
+    Account.any_instance.expects(:subject_cached_at).returns(t1)
     get account_path(account, include: { property: true, subject: true }, format: 'json')
     json = JSON(response.body)
     assert json.has_key?('property')

@@ -92,9 +92,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_includes), []
   end
 
-  test 'Controller#model_params defaults to []' do
+  test 'Controller#model_params defaults to ActionController::Parameters' do
+    @controller = DocumentsController.new
+    @controller.params = ActionController::Parameters.new
+    assert_equal @controller.send(:model_params), ActionController::Parameters.new
+  end
+
+  test 'Controller#model_params defaults to ActionController::Parameters when no resource_attributes' do
     @controller = ReferencesController.new
-    @controller.params = {}
+    @controller.params = ActionController::Parameters.new
     assert_equal @controller.send(:model_params), ActionController::Parameters.new
   end
 
@@ -202,7 +208,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       post "/properties/#{property.id}/photos/9999999"
     end
   end
-  
+
   test 'Controller#add_resource with has_and_belongs_to_many' do
     photo1 = create(:photo)
     photo2 = create(:photo)
@@ -216,7 +222,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       post "/properties/#{property.id}/photos/9999999"
     end
   end
-  
+
   test 'Controller#add_resource with belongs_to' do
     photo = create(:photo)
     account = create(:account)
@@ -255,7 +261,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_nil property.reload.document
     assert_response :no_content
   end
-  
+
   test 'Controller#remove_resource with belongs_to' do
     account = create(:account)
     photo = create(:photo, account: account)
@@ -264,7 +270,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_nil photo.reload.account_id
     assert_response :no_content
   end
-  
+
   test 'Controller#remove_resource with belongs_to unless not match' do
     account1 = create(:account)
     account2 = create(:account)
@@ -274,7 +280,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal photo.reload.account_id, account1.id
     assert_response :not_found
   end
-  
+
   test 'Controller#remove_resource with belongs_to unless not match and is nil' do
     account = create(:account)
     photo = create(:photo)
@@ -300,11 +306,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('landlord')
     assert_nil JSON(response.body)['landlord']
   end
-  
+
   test 'rendering binary attribute' do
     reference = create(:reference, sha: "Hello World")
     get reference_path(reference, format: 'json'), params: { id: reference.id }
     assert_equal "48656c6c6f20576f726c64", JSON(response.body)['sha']
+  end
+
+  test 'rendering a custom binary attribute' do
+    reference = create(:reference, custom_binary: 2)
+    get reference_path(reference, format: 'json'), params: { id: reference.id }
+    assert_equal 2, JSON(response.body)['custom_binary']
+    assert_equal "\\x00000002".b,reference.custom_binary_before_type_cast
   end
 
   test 'rendering null attribute for has_one through' do

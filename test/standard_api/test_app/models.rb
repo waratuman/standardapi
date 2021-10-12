@@ -35,8 +35,36 @@ class Property < ActiveRecord::Base
   end
 end
 
+class LSNType < ActiveRecord::Type::Value
+
+  def type
+    :lsn
+  end
+
+  def cast_value(value)
+    case value
+    when Integer
+      [value].pack('N')
+    else
+      value&.to_s&.b
+    end
+  end
+
+  def serialize(value)
+    PG::TextEncoder::Bytea.new.encode(value)
+  end
+
+  def deserialize(value)
+    return nil if value.nil?
+    PG::TextDecoder::Bytea.new.decode(value).unpack1('N')
+  end
+
+end
+
 class Reference < ActiveRecord::Base
   belongs_to :subject, polymorphic: true
+
+  attribute :custom_binary, LSNType.new
 end
 
 class Document < ActiveRecord::Base
@@ -98,6 +126,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "subject_id"
       t.string   "subject_type",         limit: 255
       t.binary   "sha"
+      t.binary   "custom_binary"
       t.string   "key"
       t.string   "value"
     end
@@ -115,7 +144,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "documents", force: :cascade do |t|
       t.string   'type'
     end
-    
+
     create_table "cameras", force: :cascade do |t|
       t.integer  'photo_id'
       t.string   'make'
