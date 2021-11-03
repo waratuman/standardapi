@@ -61,6 +61,22 @@ json.object! do
             partial = model_partial(value)
             json.partial! partial, partial.split("/").last.to_sym => value, includes: subinc
           end
+        elsif value.is_a?(ActiveRecord::Relation)
+          json.set! inc do
+            partial = model_partial(value.klass)
+    
+            # TODO limit causes preloaded assocations to reload
+            sub_records = record.send(inc)
+    
+            sub_records = sub_records.limit(subinc['limit']) if subinc['limit']
+            sub_records = sub_records.offset(subinc['offset']) if subinc['offset']
+            sub_records = sub_records.reorder(subinc['order']) if subinc['order']
+            sub_records = sub_records.filter(subinc['where']) if subinc['where']
+            sub_records = sub_records.distinct if subinc['distinct']
+            sub_records = sub_records.distinct_on(subinc['distinct_on']) if subinc['distinct_on']
+    
+            json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+          end
         else
           json.set! inc, value.as_json
         end

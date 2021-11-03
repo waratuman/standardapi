@@ -178,41 +178,50 @@ The only change on calculate routes is the `selects` paramater contains the func
 
 # Testing
 
+To run the test suite, do the following:
+
+```
+$ createdb standardapi-test
+$ bundle exec rake test
+```
+
 And example contoller and it's tests.
 
-    class PhotosController < ApplicationController
-        include StandardAPI
+```rb
+class PhotosController < ApplicationController
+  include StandardAPI
 
-        # If you have actions you don't want include be sure to hide them,
-        # otherwise if you include StandardAPI::TestCase and you don't have the
-        # action setup, the test will fail.
-        hide_action :destroy
+  # If you have actions you don't want include be sure to hide them,
+  # otherwise if you include StandardAPI::TestCase and you don't have the
+  # action setup, the test will fail.
+  hide_action :destroy
 
-        # Allowed params
-        def photo_params
-          [:id, :file, :caption]
-        end
-  
-        # Allowed orderings
-        def photo_orders
-          [:id, :created_at, :updated_at, :caption]
-        end
+  # Allowed params
+  def photo_params
+    [:id, :file, :caption]
+  end
 
-        # Allowed includes
-        # You can include the author and the authors photos in the JSON response
-        def photo_includes
-          { :author => [:photos] }
-        end
+  # Allowed orderings
+  def photo_orders
+    [:id, :created_at, :updated_at, :caption]
+  end
 
-        # Mask for Photo. Provide this method if you want to mask some records
-        # The mask is then applyed to all actions when querring ActiveRecord
-        # Will only allow photos that have id one. For more on the syntax see
-        # the activerecord-filter gem.
-        def mask_for(table_name)
-            { id: 1 }
-        end
+  # Allowed includes
+  # You can include the author and the authors photos in the JSON response
+  def photo_includes
+    { :author => [:photos] }
+  end
 
-    end
+  # Mask for Photo. Provide this method if you want to mask some records
+  # The mask is then applyed to all actions when querring ActiveRecord
+  # Will only allow photos that have id one. For more on the syntax see
+  # the activerecord-filter gem.
+  def mask_for(table_name)
+      { id: 1 }
+  end
+
+end
+```
 
 # Usage
 
