@@ -73,7 +73,7 @@ module StandardAPI
         end
       else
         if request.format == :html
-          render :edit, status: :bad_request
+          render :new, status: :bad_request
         else
           render :show, status: :bad_request
         end
@@ -96,7 +96,11 @@ module StandardAPI
           render :show, status: :ok
         end
       else
-        render :show, status: :bad_request
+        if request.format == :html
+          render :edit, status: :bad_request
+        else
+          render :show, status: :bad_request
+        end
       end
     end
 
