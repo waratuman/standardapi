@@ -19,4 +19,5 @@ require 'standard_api/railtie'
 
 module StandardAPI
   autoload :AccessControlList, 'standard_api/access_control_list'
+  autoload :Middleware, 'standard_api/middleware'
 end

@@ -1,36 +1,27 @@
 # StandardAPI
 
-StandardAPI makes it easy to expost a [REST](https://en.wikipedia.org/wiki/Representational_state_transfer)
+StandardAPI makes it easy to expose a [REST](https://en.wikipedia.org/wiki/Representational_state_transfer)
 interface to your Rails models.
 
 # Installation
 
     gem install standardapi
 
-In your Gemfile:
+In your `Gemfile`:
 
     gem 'standardapi', require: 'standard_api'
 
-In `config/application.rb:
+Optionally in `config/application.rb`:
 
-    require_relative 'boot'
-
-    require 'rails/all'
-    require 'standard_api/middleware/query_encoding'
-
-    # Require the gems listed in Gemfile, including any gems
-    # you've limited to :test, :development, or :production.
-    Bundler.require(*Rails.groups)
-
-    module Tester
+    module MyApplication
       class Application < Rails::Application
         # Initialize configuration defaults for originally generated Rails version.
-        config.load_defaults 5.2
+        config.load_defaults 6.0
 
-        # Settings in config/environments/* take precedence over those specified here.
-        # Application configuration can go into files in config/initializers
-        # -- all .rb files in that directory are automatically loaded after loading
-        # the framework and any gems in your application.
+        # QueryEncoding middleware intercepts and parses the query string
+        # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
+        # which allows GET request with types as opposed to all values being interpeted
+        # as strings
         config.middleware.insert_after Rack::MethodOverride, StandardAPI::Middleware::QueryEncoding
       end
     end
@@ -41,66 +32,96 @@ StandardAPI is a module that can be included into any controller to expose a API
 for. Alternatly, it can be included into `ApplicationController`, giving all
 inherited controllers an exposed API.
 
-    class ApplicationController < ActiveController::Base
-        include StandardAPI::Controller
-
-    end
-
-By default any paramaters passed to update and create are whitelisted with by
-the method named after the model the controller represents. For example, the
-following will only allow the `caption` attribute of the `Photo` model to be
-updated.
-
-    class PhotosController < ApplicationController
-      include StandardAPI
-      
-      def photo_params
-        [:caption]
-      end
-    end
-
-If greater control of the allowed paramaters is required, the `model_params`
-method can be overridden. It simply returns a set of `StrongParameters`.
-
-    class PhotosController < ApplicationController
-      include StandardAPI
-      
-      def model_params
-        if @photo.author == current_user
-          [:caption]
-        else
-          [:comment]
-        end
-      end
-    end
-
-Similarly, the ordering and includes (including of relationships in the reponse)
-is whitelisted as well.
-
-Full Example:
-
     class PhotosController < ApplicationController
       including StandardAPI
-
+      
       # Allowed paramaters
+      # By default any paramaters passed to update and create are whitelisted by
+      # the method named after the model the controller represents. For example,
+      # the following will only allow the `caption` attribute of the `Photo`
+      # model to be set on update or create.
       def photo_params
         [:caption]
       end
-
+      
       # Allowed orderings
+      # The ordering is whitelisted as well, you will mostly likely want to
+      # ensure indexes have been created on these columns. In this example the
+      # response can be ordered by any permutation of `id`, `created_at`, and
+      # `updated_at`.
       def photo_orders
         [:id, :created_at, :updated_at]
       end
-
+      
       # Allowed includes
+      # Similarly, the includes (including of relationships in the reponse) are
+      # whitelisted. Note how includes can also support nested includes. In this
+      # case when including the author, the photos that the author took can also
+      # be included.
       def photo_includes
         { author: [:photos] }
       end
-
     end
 
-Note how includes can also support nested includes. So in this case when
-including the author, the photos that the author took can also be included.
+##### Access Control List
+
+For greater control of the allowed paramaters and nesting of paramaters
+`StandardAPI::AccessControlList` is available. To use it include it in your base
+controller:
+
+    class ApplicationController
+        include StandardAPI::Control
+        include StandardAPI::AccessControlList
+    end
+
+Then create an ACL file for each model you want in `app/controllers/acl`.
+
+Taking the above example we would remove the `photo_*` methods and create the
+following files:
+
+`app/controllers/acl/photo_acl.rb`:
+
+    module PhotoACL
+      # Allowed attributes
+      def attributes
+        [ :caption ]
+      end
+      
+      # Allowed saving / creating nested attributes
+      def nested
+        [ :camera ]
+      end
+      
+      # Allowed orders
+      def orders
+        [ :id, :created_at, :updated_at ]
+      end
+      
+      # Allowed includes
+      def includes
+        [ :author ]
+      end
+    end
+
+`app/controllers/acl/author_acl.rb`:
+
+    module AuthorACL
+      def includes
+        [ :photos ]
+      end
+    end
+
+All of these methods are optional and will be included in ApplicationController
+for StandardAPI to determine allowed attributes, nested attributes, orders and
+includes.
+
+`includes` now returns a shallow Array, StandardAPI can how determine including
+an `author` and the author's `photos` is allowed by looking at what includes are
+allowed on photo and author.
+
+The `nested` function tells StandardAPI what relations on `Photo` are allowed to
+be set with the API and will determine what attributes are allowed by looking
+for a `camera_acl` file.
 
 # API Usage
 Resources can be queried via REST style end points
@@ -229,5 +250,6 @@ StandardAPI Resource Interface
 | `/models?order[id][asc]=nulls_last` | `{ "order": { "id": { "asc": "nulls_last" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: 1 }, { id: null }]` |
 | `/models?where[id]=1` | `{ where: { id: 1 } }` | `SELECT * FROM models WHERE id = 1` | `[{ id: 1 }]` |
 | `/models?where[id][]=1&where[id][]=2` | `{ where: { id: [1,2] } }` | `SELECT * FROM models WHERE id IN (1, 2)` | `[{ id: 1 }, { id: 2 }]` |
+
 
 
