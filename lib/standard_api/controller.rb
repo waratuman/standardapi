@@ -239,6 +239,16 @@ module StandardAPI
 
       query
     end
+    
+    def nested_includes(model, attributes)
+      includes = {}
+      attributes&.each do |key, value|
+        if association = model.reflect_on_association(key)
+          includes[key] = nested_includes(association.klass, value)
+        end
+      end
+      includes
+    end
 
     def includes
       @includes ||= if params[:include]
@@ -246,6 +256,10 @@ module StandardAPI
       else
         {}
       end
+      if action_name == 'create' || action_name == 'update'
+        @includes = nested_includes(model, params.require(model.model_name.singular).to_unsafe_h).merge(@includes)
+      end
+      @includes
     end
 
     def required_orders
