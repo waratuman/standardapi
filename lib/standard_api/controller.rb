@@ -1,7 +1,7 @@
 module StandardAPI
   module Controller
 
-    delegate :preloadables, to: :helpers
+    delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
@@ -136,6 +136,34 @@ module StandardAPI
         resource.update(params[:relationship] => subresource)
       end
       head result ? :created : :bad_request
+    end
+    
+    def create_resource
+      resource = resources.find(params[:id])
+      association = resource.association(params[:relationship])
+      
+      subresource_params = if self.respond_to?("#{association.klass.model_name.singular}_params", true)
+        params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
+      else
+        ActionController::Parameters.new
+      end
+      
+      subresource = association.klass.new(subresource_params)
+      
+      result = case association
+      when ActiveRecord::Associations::CollectionAssociation
+        association.concat(subresource)
+      when ActiveRecord::Associations::SingularAssociation
+        resource.update(params[:relationship] => subresource)
+      end
+
+      partial = model_partial(subresource)
+      partial_record_name = partial.split('/').last.to_sym
+      if result
+        render partial: partial, locals: {partial_record_name => subresource}, status: :created
+      else
+        render partial: partial, locals: {partial_record_name => subresource}, status: :bad_request
+      end
     end
 
     def mask

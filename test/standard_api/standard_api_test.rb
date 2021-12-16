@@ -196,6 +196,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to document_path(pdf)
   end
 
+  # add_resource
   test 'Controller#add_resource with has_many' do
     property = create(:property, photos: [])
     photo = create(:photo)
@@ -240,6 +241,46 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  # create_resource
+  test 'Controller#create_resource with has_many' do
+    property = create(:property, photos: [])
+    photo = build(:photo)
+
+    post "/properties/#{property.id}/photos", params: { photo: photo.attributes }, as: :json
+    assert_equal property.photos.reload.map(&:id), [JSON.parse(response.body)['id']]
+    assert_equal property.photos.count, 1
+    assert_response :created
+  end
+
+  test 'Controller#create_resource with has_and_belongs_to_many' do
+    photo1 = create(:photo)
+    photo2 = build(:photo)
+    property = create(:property, photos: [photo1])
+
+    post "/properties/#{property.id}/photos", params: { photo: photo2.attributes }, as: :json
+    assert_equal property.photos.reload.map(&:id), [photo1.id, JSON.parse(response.body)['id']]
+    assert_equal property.photos.count, 2
+    assert_response :created
+  end
+
+  test 'Controller#create_resource with belongs_to' do
+    photo = create(:photo)
+    account = build(:account)
+
+    post "/photos/#{photo.id}/account", params: { account: account.attributes }, as: :json
+    assert_equal photo.reload.account_id, JSON.parse(response.body)['id']
+    assert_response :created
+  end
+
+  test 'Controller#create_resource with has_one' do
+    account = build(:account)
+    property = create(:property)
+    post "/properties/#{property.id}/landlord", params: { landlord: account.attributes }, as: :json
+    assert_equal property.reload.landlord.id, JSON.parse(response.body)['id']
+    assert_response :created
+  end
+
+  # remove_resource
   test 'Controller#remove_resource' do
     photo = create(:photo)
     property = create(:property, photos: [photo])

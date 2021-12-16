@@ -29,7 +29,7 @@ module StandardAPI
             [:index, :create, :show, :update, :destroy]
           else
             [:index, :create, :new, :show, :update, :destroy, :edit]
-          end + [ :schema, :calculate, :add_resource, :remove_resource ]
+          end + [ :schema, :calculate, :add_resource, :remove_resource, :create_resource ]
         end
 
         actions = if except = parent_resource.instance_variable_get(:@except)
@@ -43,6 +43,10 @@ module StandardAPI
 
         if actions.include?(:add_resource)
           post ':relationship/:resource_id' => :add_resource, on: :member
+        end
+        
+        if actions.include?(:create_resource)
+          post ':relationship' => :create_resource, on: :member
         end
 
         if actions.include?(:remove_resource)
