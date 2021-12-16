@@ -54,7 +54,10 @@ class RouteHelpersTest < ActionDispatch::IntegrationTest
       assert_routing({ path: '/photos/1', method: :patch }, { controller: 'photos', action: 'update', id: '1' })
       assert_routing({ path: '/photos/schema', method: :get }, { controller: 'photos', action: 'schema' })
       assert_routing({ path: '/photos/calculate', method: :get }, { controller: 'photos', action: 'calculate' })
-      assert_equal 11, set.routes.size
+      assert_routing({ path: '/photos/1/properties/1', method: :post }, { controller: 'photos', action: 'add_resource', id: '1', relationship: 'properties', resource_id: '1' })
+      assert_routing({ path: '/photos/1/properties/1', method: :delete }, { controller: 'photos', action: 'remove_resource', id: '1', relationship: 'properties', resource_id: '1' })
+      assert_routing({ path: '/photos/1/properties', method: :post }, { controller: 'photos', action: 'create_resource', id: '1', relationship: 'properties' })
+      assert_equal 12, set.routes.size
     end
   end
 
