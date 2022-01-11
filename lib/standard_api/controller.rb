@@ -288,9 +288,11 @@ module StandardAPI
       else
         {}
       end
-      if action_name == 'create' || action_name == 'update'
-        @includes = nested_includes(model, params[model.model_name.singular].to_unsafe_h).merge(@includes)
+      
+      if (action_name == 'create' || action_name == 'update') && model
+        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
+      
       @includes
     end
 

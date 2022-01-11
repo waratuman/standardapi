@@ -48,6 +48,8 @@ class ReferencesController < ApplicationController
 end
 
 class SessionsController < ApplicationController
+  def create
+  end
 end
 
 class UnlimitedController < ApplicationController
