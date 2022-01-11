@@ -112,6 +112,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
+  
+  test "Auto includes on a controller without a model" do
+    @controller = SessionsController.new
+    assert_nil @controller.send(:model)
+    post sessions_path(format: :json), params: {session: {user: 'user', pass: 'pass'}}
+    assert_response :ok
+  end
 
   test 'ApplicationController#schema.json' do
     get schema_path(format: 'json')
