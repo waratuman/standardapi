@@ -33,7 +33,7 @@ for. Alternatly, it can be included into `ApplicationController`, giving all
 inherited controllers an exposed API.
 
     class PhotosController < ApplicationController
-      including StandardAPI
+      include StandardAPI
       
       # Allowed paramaters
       # By default any paramaters passed to update and create are whitelisted by
