@@ -7,7 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes
+      klass.before_action :includes, execpt: [:destroy]
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
