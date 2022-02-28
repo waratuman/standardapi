@@ -204,7 +204,11 @@ module StandardAPI
     end
 
     def model
-      self.class.model
+      if action_name&.end_with?('_resource')
+        self.class.model.reflect_on_association(params[:relationship]).klass
+      else
+        self.class.model
+      end
     end
 
     def models
@@ -254,7 +258,7 @@ module StandardAPI
     end
 
     def resources
-      query = model.filter(params['where']).filter(mask[model.table_name.to_sym])
+      query = self.class.model.filter(params['where']).filter(mask[self.class.model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])

@@ -4,6 +4,52 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
   # = Including an invalid include
   
+  test "Controller#create with a valid include" do
+    property = build(:property)
+
+    json = assert_difference 'Property.count', 1 do
+      post "/properties", params: { property: property.attributes, include: [:photos] }, as: :json
+      JSON.parse(response.body)
+    end
+
+    assert_response :created
+    assert_equal [], json['photos']
+  end
+
+  test "Controller#update with a valid include" do
+    photo = create(:photo)
+    property = create(:property, {name: "A", photos: [photo]})
+    patch "/properties/#{property.id}", params: { property: {name: "B"}, include: [:photos] }, as: :json
+
+    json = JSON.parse(response.body)
+    assert_response :ok
+    assert_equal [photo.id], json['photos'].map { |j| j['id'] }
+  end
+
+  # # test "Controller#destroy with a valid include" do
+  # # end
+
+  test "Controller#create_resource with a valid include" do
+    property = create(:property, accounts: [])
+    account = build(:account)
+
+    post "/properties/#{property.id}/accounts", params: { account: account.attributes, include: [:photos] }, as: :json
+    
+    json = JSON.parse(response.body)
+    assert_response :created
+    assert_equal [], json['photos']
+  end
+
+  # test "Controller#add_resource with a valid include" do
+  #   NO BODY AS OF NOW
+  # end
+
+  # test "Controller#remove_resource with an invalid include" do
+  #   NO BODY AS OF NOW
+  # end
+
+  # = Including an invalid include
+  
   test "Controller#create with an invalid include" do
     property = build(:property)
     
