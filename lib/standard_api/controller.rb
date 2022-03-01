@@ -7,7 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, execpt: [:destroy]
+      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource]
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -204,7 +204,11 @@ module StandardAPI
     end
 
     def model
-      self.class.model
+      if action_name&.end_with?('_resource')
+        self.class.model.reflect_on_association(params[:relationship]).klass
+      else
+        self.class.model
+      end
     end
 
     def models
@@ -254,7 +258,7 @@ module StandardAPI
     end
 
     def resources
-      query = model.filter(params['where']).filter(mask[model.table_name.to_sym])
+      query = self.class.model.filter(params['where']).filter(mask[self.class.model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
