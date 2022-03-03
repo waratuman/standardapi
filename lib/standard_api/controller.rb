@@ -137,6 +137,10 @@ module StandardAPI
         resource.update(params[:relationship] => subresource)
       end
       head result ? :created : :bad_request
+    rescue ActiveRecord::RecordNotUnique
+      render json: {errors: [
+        "Relationship between #{resource.class.name} and #{subresource.class.name} violates unique constraints"
+      ]}, status: :bad_request
     end
     
     def create_resource

@@ -134,6 +134,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "photos_properties", force: :cascade do |t|
       t.integer  "photo_id"
       t.integer  "property_id"
+      t.index ["photo_id", "property_id"], unique: true
     end
 
     create_table "landlords_properties", force: :cascade do |t|
