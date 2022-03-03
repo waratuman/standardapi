@@ -294,7 +294,7 @@ module StandardAPI
         {}
       end
       
-      if (action_name == 'create' || action_name == 'update') && model
+      if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
       
