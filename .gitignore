@@ -4,3 +4,4 @@ coverage
 tmp
 test/standard_api/test_app/log
 *.log
+.DS_Store
