@@ -7,7 +7,11 @@ module PhotoACL
   end
   
   def nested
-    [ :account, :camera ]
+    [ :account, :camera, :properties ]
+  end
+  
+  def includes
+    [ :properties ]
   end
 
 end

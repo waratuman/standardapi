@@ -4,6 +4,8 @@ class Account < ActiveRecord::Base
   has_many :photos, -> { order(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
+  
+  validates :name, presence: true
 end
 
 class Photo < ActiveRecord::Base
@@ -25,7 +27,6 @@ class Property < ActiveRecord::Base
   has_one :landlord, class_name: 'Account'
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
-
 
   validates :name, presence: true
   accepts_nested_attributes_for :photos
@@ -77,6 +78,9 @@ class Attachment < ActiveRecord::Base
 end
 
 class Camera < ActiveRecord::Base
+  
+  validates :make, presence: true
+  
 end
 
 # = Migration

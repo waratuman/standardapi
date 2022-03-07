@@ -17,7 +17,7 @@ module NestedAttributes
       assert_equal 'Beach House', property.name
       assert_equal ['image/jpeg'], property.photos.map(&:format)
     end
-  
+
     test 'create record and update nested record' do
       photo = create(:photo, format: 'image/png')
 
@@ -64,6 +64,29 @@ module NestedAttributes
 
       assert_response :ok
       assert_equal [], property.reload.photos
+    end
+    
+    # = Errors Test
+    
+    test 'create record and create invalid nested record' do
+      @controller = PhotosController.new
+      post photos_path, params: { photo: { format: 'image/jpeg', properties: [{size: 1000}] } }, as: :json
+
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "properties.name": ["can't be blank"]
+      }
+    end
+    
+    test 'update record and create invalid nested record' do
+      photo = create(:photo)
+      @controller = PhotosController.new
+      put photo_path(photo), params: { photo: { format: 'image/jpeg', properties: [{size: 1000}] } }, as: :json
+
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "properties.name": ["can't be blank"]
+      }
     end
 
   end
