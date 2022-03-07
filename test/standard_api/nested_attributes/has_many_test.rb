@@ -89,7 +89,7 @@ module NestedAttributes
 
       assert_response :bad_request
       assert_equal JSON.parse(response.body)["errors"], {
-        "accounts.name": ["can't be blank"]
+        "accounts.name" => ["can't be blank"]
       }
     end
     
@@ -100,7 +100,7 @@ module NestedAttributes
 
       assert_response :bad_request
       assert_equal JSON.parse(response.body)["errors"], {
-        "accounts.name": ["can't be blank"]
+        "accounts.name" => ["can't be blank"]
       }
     end
 
