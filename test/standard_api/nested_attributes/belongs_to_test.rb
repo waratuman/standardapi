@@ -83,7 +83,10 @@ module NestedAttributes
       photo = create(:photo)
 
       @controller = PhotosController.new
-      put photo_path(photo), params: { photo: { account: {property_id: 999}} }, as: :json
+      put photo_path(photo), params: {
+        photo: { account: {property_id: 999}},
+        include: :account,
+      }, as: :json
       
       assert_response :bad_request
       assert_equal JSON.parse(response.body)["errors"], {

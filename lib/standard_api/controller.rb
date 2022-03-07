@@ -288,6 +288,7 @@ module StandardAPI
           includes[key] = nested_includes(association.klass, value)
         end
       end
+
       includes
     end
 
