@@ -28,6 +28,9 @@ class DocumentsController < ApplicationController
 
 end
 
+class KeywordsController < ApplicationController
+end
+
 class PhotosController < ApplicationController
 
   def photo_attributes

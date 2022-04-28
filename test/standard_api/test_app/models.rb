@@ -79,6 +79,10 @@ end
 class Camera < ActiveRecord::Base
 end
 
+class Keyword < ActiveRecord::Base
+  belongs_to :transaxtion, class_name: "Account"
+end
+
 # = Migration
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
@@ -156,6 +160,12 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  'record_id'
       t.integer  'document_id'
     end
+
+    create_table "keywords", force: :cascade do |t|
+      t.string   'name',                 limit: 255
+      t.integer  'transaxtion_id'
+    end
+
   end
 
 end
