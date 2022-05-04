@@ -22,6 +22,8 @@ module StandardAPI
       options = resources.extract_options!.dup
 
       resources(*resources, options) do
+        block.call if block # custom routes take precedence over standardapi routes
+
         available_actions = if only = parent_resource.instance_variable_get(:@only)
           Array(only).map(&:to_sym)
         else
@@ -52,8 +54,6 @@ module StandardAPI
         if actions.include?(:remove_resource)
           delete ':relationship/:resource_id' => :remove_resource, on: :member
         end
-
-        block.call if block
       end
     end
 
