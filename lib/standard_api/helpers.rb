@@ -1,5 +1,9 @@
 module StandardAPI
   module Helpers
+    
+    def dump_attribute(record, name)
+      record.send(name)
+    end
 
     def preloadables(record, includes)
       preloads = {}
