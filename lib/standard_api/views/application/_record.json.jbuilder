@@ -5,7 +5,7 @@ record.attribute_names.each do |name|
   if record.type_for_attribute(name).type == :binary
     json.set! name, record.send(name)&.unpack1('H*')
   else
-    json.set! name, dump_attribute(record, name)
+    json.set! name, record.send(name)
   end
 end
 

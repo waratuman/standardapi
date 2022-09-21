@@ -2,13 +2,6 @@ class ApplicationController < ActionController::Base
   include StandardAPI::Controller
   include StandardAPI::AccessControlList
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
-  
-  helper_method :dump_attribute
-
-  def dump_attribute(record, attribute)
-    return 'See it changed!' if attribute.to_sym == :description && params["magic"] === "true"
-    record.send(attribute)
-  end
 
 end
 
