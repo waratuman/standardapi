@@ -3,11 +3,16 @@ class ApplicationController < ActionController::Base
   include StandardAPI::AccessControlList
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
   
-  helper_method :dump_attribute
+  helper_method :serialize_attribute
 
-  def dump_attribute(record, attribute)
-    return 'See it changed!' if attribute.to_sym == :description && params["magic"] === "true"
-    record.send(attribute)
+  def serialize_attribute(json, record, attribute, type)
+    value = if attribute == 'description' && params["magic"] === "true"
+      'See it changed!'
+    else
+      record.send(attribute)
+    end
+    
+    json.set! attribute, type == :binary ? value&.unpack1('H*') : value
   end
 
 end

@@ -2,11 +2,7 @@ record.attribute_names.each do |name|
   # Skip if attribute is included in excludes
   next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == name }
 
-  if record.type_for_attribute(name).type == :binary
-    json.set! name, record.send(name)&.unpack1('H*')
-  else
-    json.set! name, dump_attribute(record, name)
-  end
+  serialize_attribute(json, record, name, record.type_for_attribute(name).type)
 end
 
 includes.each do |inc, subinc|

@@ -240,7 +240,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_nil JSON(response.body)['document']
   end
   
-  test 'rendering dump_attribute' do
+  test 'rendering serialize_attribute' do
     property = create(:property, description: 'This text will magically change')
     get property_path(property, format: 'json'), params: { id: property.id, magic: true }
 
