@@ -1,5 +1,11 @@
 module StandardAPI
   module Helpers
+    
+    def serialize_attribute(json, record, name, type)
+      value = record.send(name)
+      
+      json.set! name, type == :binary ? value&.unpack1('H*') : value
+    end
 
     def preloadables(record, includes)
       preloads = {}

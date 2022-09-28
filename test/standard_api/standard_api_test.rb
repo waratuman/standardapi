@@ -239,6 +239,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('document')
     assert_nil JSON(response.body)['document']
   end
+  
+  test 'rendering serialize_attribute' do
+    property = create(:property, description: 'This text will magically change')
+    get property_path(property, format: 'json'), params: { id: property.id, magic: true }
+
+    body = JSON(response.body)
+    assert_equal body['description'], 'See it changed!'
+  end
 
   test '#index.json uses overridden partial' do
     create(:property, photos: [create(:photo)])
