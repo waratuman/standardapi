@@ -31,7 +31,9 @@ module StandardAPI
     end
 
     def index
-      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      range # set instance variables @offset/@limit
+      records = preloadables(resources.limit(@limit).offset(@offset).sort(orders), includes)
+      # TODO: get resource count
       instance_variable_set("@#{model.model_name.plural}", records)
     end
 
@@ -348,13 +350,34 @@ module StandardAPI
       1000
     end
 
-    # The default limit if params[:limit] is no specified in a request.
+    # The default limit if params[:limit] is not specified in a request.
     # If this value should be less than the `resource_limit`. Return `nil` if
     # you want the limit param to be required.
     def default_limit
       nil
     end
+    
+    # Only support one range case
+    # Used only for index method
+    # Range: records=<range-start>-<range-end>
+    # infer limit/offset from range values
 
+    # return offset and limit
+    def range
+      if request.headers['Range'].test /^records\=\d+-\d+$/
+        _, range_value = request.headers['Range'].split('=')
+        @offset, max = range_value.split('-').map(&:to_i)
+        @limit = max - @offset
+      else
+        @offset = 0
+        @limit = limit
+      end
+      [@offset, @limit]
+    end
+
+    # TODO: read from Range header.
+    # Fallback to limit/offset
+    # Always return Content-Range
     def limit
       if resource_limit
         limit = params.permit(:limit)[:limit]&.to_i || default_limit
