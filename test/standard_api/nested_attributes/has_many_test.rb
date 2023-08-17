@@ -80,6 +80,29 @@ module NestedAttributes
       assert_equal account.id, attributes["accounts"][0]["id"]
       assert_equal "B Co.", attributes["accounts"][0]["name"]
     end
+    
+    # = Errors Test
+    
+    test 'create record and create invalid nested record' do
+      @controller = PropertiesController.new
+      post properties_path, params: { property: { name: 'Beach House', accounts: [{property_id: 182828}]} }, as: :json
+
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "accounts.name" => ["can't be blank"]
+      }
+    end
+    
+    test 'update record and create invalid nested record' do
+      property = create(:property, name: 'Empire State Building')
+      @controller = PropertiesController.new
+      put property_path(property), params: { property: { accounts: [{property_id: 182828}]} }, as: :json
+
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "accounts.name" => ["can't be blank"]
+      }
+    end
 
   end
 end

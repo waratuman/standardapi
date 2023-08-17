@@ -66,6 +66,31 @@ module NestedAttributes
       photo.reload
       assert_nil photo.camera
     end
+    
+    # = Errors Test
+    
+    test 'create record and create invalid nested record' do
+      @controller = PhotosController.new
+
+      post photos_path, params: { photo: { camera: {photo_id: 999}} }, as: :json
+
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "camera.make": ["can't be blank"]
+      }
+    end
+    
+    test 'update record and create invalid nested record' do
+      photo = create(:photo)
+
+      @controller = PhotosController.new
+      put photo_path(photo), params: { photo: { camera: {photo_id: 999}} }, as: :json
+      
+      assert_response :bad_request
+      assert_equal JSON.parse(response.body)["errors"], {
+        "camera.name": ["can't be blank"]
+      }
+    end
 
   end
 end
