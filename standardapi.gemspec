@@ -17,11 +17,11 @@ Gem::Specification.new do |spec|
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
   spec.require_paths = ["lib", "test"]
 
-  spec.add_runtime_dependency 'rails', '>= 7.0.0'
-  spec.add_runtime_dependency 'activesupport', '>= 7.0.0'
-  spec.add_runtime_dependency 'actionpack', '>= 7.0.0'
-  spec.add_runtime_dependency 'activerecord-sort', '>= 7.0.0'
-  spec.add_runtime_dependency 'activerecord-filter', '>= 7.0.0'
+  spec.add_runtime_dependency 'rails', '>= LATEST_VERSION'
+  spec.add_runtime_dependency 'activesupport', '>= LATEST_VERSION'
+  spec.add_runtime_dependency 'actionpack', '>= LATEST_VERSION'
+  spec.add_runtime_dependency 'activerecord-sort', '>= LATEST_VERSION'
+  spec.add_runtime_dependency 'activerecord-filter', '>= LATEST_VERSION'
 
   spec.add_development_dependency 'pg'
   spec.add_development_dependency "bundler"
