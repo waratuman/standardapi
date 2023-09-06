@@ -127,7 +127,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     controllers = ApplicationController.descendants
     controllers.select! { |c| c.ancestors.include?(StandardAPI::Controller) && c != StandardAPI::Controller }
 
-    @controller.send(:models).reject { |x| x.name == 'Photo' }.each do |model|
+    @controller.send(:models).reject { |x| %w(Photo Document).include?(x.name)  }.each do |model|
       assert_equal true, schema['models'].has_key?(model.name)
 
       model_comment = model.connection.table_comment(model.table_name)
@@ -176,6 +176,26 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, schema.has_key?('attributes')
     assert_equal true, schema['attributes']['id']['primary_key']
     assert_nil schema['limit']
+  end
+
+  test 'Controller#schema.json for an enum with default' do
+    get schema_documents_path(format: 'json')
+
+    schema = JSON(response.body)
+
+    assert_equal true, schema.has_key?('attributes')
+    assert_equal 'string', schema['attributes']['level']['type']
+    assert_equal 'public', schema['attributes']['level']['default']
+  end
+
+  test 'Controller#schema.json for an enum without default' do
+    get schema_documents_path(format: 'json')
+
+    schema = JSON(response.body)
+
+    assert_equal true, schema.has_key?('attributes')
+    assert_equal 'string', schema['attributes']['rating']['type']
+    assert_nil schema['attributes']['rating']['default']
   end
 
   test 'Controller#index w/o limit' do
@@ -248,6 +268,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal body['description'], 'See it changed!'
   end
 
+  test 'rendering an enum' do
+    public_document = create(:document, level: 'public')
+    
+    get documents_path(format: 'json'), params: { limit: 1 }
+    assert_equal JSON(response.body)[0]['level'], 'public'
+    
+    secret_document = create(:document, level: 'secret')
+    get document_path(secret_document, format: 'json')
+    assert_equal JSON(response.body)['level'], 'secret'
+  end
+  
   test '#index.json uses overridden partial' do
     create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
