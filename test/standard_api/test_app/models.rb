@@ -14,6 +14,9 @@ end
 
 class Document < ActiveRecord::Base
   attr_accessor :file
+  
+  enum level:   { public: 0, secret: 1 }, _suffix: true
+  enum rating:  { poor: 0, ok: 1, good: 2 }
 end
 
 class Pdf < Document
@@ -143,6 +146,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     end
 
     create_table "documents", force: :cascade do |t|
+      t.integer  'level', limit: 2, null: false, default: 0
+      t.integer  'rating', limit: 2
       t.string   'type'
     end
 

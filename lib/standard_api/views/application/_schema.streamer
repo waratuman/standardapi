@@ -59,9 +59,18 @@ else
     json.set! 'attributes' do
       json.object! do
         model.columns.each do |column|
+          default = column.default ? model.connection.lookup_cast_type_from_column(column).deserialize(column.default) : nil
+          type = case model.type_for_attribute(column.name)
+          when ActiveRecord::Enum::EnumType
+            default = model.defined_enums[column.name].key(default)
+            "string"
+          else
+            json_column_type(column.sql_type)
+          end
+
           json.set! column.name, {
-            type: json_column_type(column.sql_type),
-            default: column.default ? model.connection.lookup_cast_type_from_column(column).deserialize(column.default) : nil,
+            type: type,
+            default: default,
             primary_key: column.name == model.primary_key,
             null: column.null,
             array: column.array,
