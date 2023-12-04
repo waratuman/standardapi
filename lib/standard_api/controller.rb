@@ -106,9 +106,7 @@ module StandardAPI
     end
 
     def destroy
-      resource_ids = if params[:id].include?('/')
-        params[:id].split('/')
-      elsif params[:id].include?(',')
+      resource_ids = if params[:id].include?(',')
         params[:id].split(',')
       else
         params[:id]
