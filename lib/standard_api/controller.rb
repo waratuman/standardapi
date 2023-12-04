@@ -147,12 +147,12 @@ module StandardAPI
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
     
-      subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
-        self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
+      subresource_params = if self.respond_to?("sanitize_#{model_name(association.klass)}_params", true)
+        self.send("sanitize_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
         params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
-      elsif self.respond_to?("filter_model_params", true)
-        filter_model_params(params[model_name(association.klass)], association.klass.base_class)
+      elsif self.respond_to?("sanitize_model_params", true)
+        sanitize_model_params(params[model_name(association.klass)], association.klass.base_class)
       else
         ActionController::Parameters.new
       end
