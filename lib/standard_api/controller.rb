@@ -106,7 +106,20 @@ module StandardAPI
     end
 
     def destroy
-      resources.find(params[:id]).destroy!
+      resource_ids = if params[:id].include?('/')
+        params[:id].split('/')
+      elsif params[:id].include?(',')
+        params[:id].split(',')
+      else
+        params[:id]
+      end
+      ActiveRecord::Base.transaction do
+        records = resources.where(id: resource_ids)
+        records.each do |record|
+          record.destroy!
+        end
+      end
+
       head :no_content
     end
 
