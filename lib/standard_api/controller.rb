@@ -106,7 +106,8 @@ module StandardAPI
     end
 
     def destroy
-      ActiveRecord::Base.transaction { resources.find(params[:id].split(',')).each(&:destroy!) }
+      records = resources.find(params[:id].split(','))
+      ActiveRecord::Base.transaction { records.each(&:destroy!) }
 
       head :no_content
     end
