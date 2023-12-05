@@ -31,7 +31,7 @@ module StandardAPI
         end
       end
 
-      test '#destroy.json with array of comma separated ids' do
+      test '#destroy.json with comma separated ids' do
         m1 = create_model
         m2 = create_model
         m3 = create_model
