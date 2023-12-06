@@ -106,7 +106,9 @@ module StandardAPI
     end
 
     def destroy
-      resources.find(params[:id]).destroy!
+      records = resources.find(params[:id].split(','))
+      model.transaction { records.each(&:destroy!) }
+
       head :no_content
     end
 

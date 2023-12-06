@@ -31,6 +31,17 @@ module StandardAPI
         end
       end
 
+      test '#destroy.json with comma separated ids' do
+        m1 = create_model
+        m2 = create_model
+        m3 = create_model
+
+        assert_difference("#{model.name}.count", -3) do
+          delete resource_path(:destroy, id: "#{m1.id},#{m2.id},#{m3.id}", format: :json)
+          assert_response :no_content
+          assert_equal '', response.body
+        end
+      end
     end
   end
 end
