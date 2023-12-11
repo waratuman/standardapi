@@ -7,7 +7,7 @@ require 'rake/testtask'
 # Test Task
 Rake::TestTask.new do |t|
     t.libs << 'lib' << 'test'
-    t.test_files = FileList['test/standard_api/**/*_test.rb']
+    t.test_files = FileList[ARGV[1] ? ARGV[1] : 'test/standard_api/**/*_test.rb']
     # t.warning = true
     # t.verbose = true
 end
