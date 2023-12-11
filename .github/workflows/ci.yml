@@ -38,10 +38,18 @@ jobs:
           sudo -u postgres createuser runner --superuser
           sudo -u postgres psql -c "ALTER USER runner WITH PASSWORD 'runner';"
 
+      - name: Install YAJL
+        run: |
+          wget 'https://github.com/lloyd/yajl/archive/refs/tags/2.1.0.tar.gz'
+          tar -xvf '2.1.0.tar.gz'
+          cd 'yajl-2.1.0' && ./configure && make && sudo make install
+          sudo ldconfig
+
       - uses: actions/checkout@v4
 
       - run: |
           echo 'gem "rails", "${{ matrix.rails-version }}"' >> Gemfile
+          echo 'gem "wankel"' >> Gemfile
           sed -i -e "s/spec.add_development_dependency 'jbuilder'/spec.add_development_dependency '${{matrix.encoder}}'/" standardapi.gemspec
 
       - uses: ruby/setup-ruby@v1
