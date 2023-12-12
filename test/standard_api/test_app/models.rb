@@ -82,7 +82,10 @@ end
 class Camera < ActiveRecord::Base
 end
 
-# = Migration
+# = Create/recreate database and migration
+task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
+task.drop
+task.create
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
 
