@@ -140,7 +140,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       model.columns.each do |column|
         assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
         default = column.default
-        if default then
+        if default
           default = model.connection.lookup_cast_type_from_column(column).deserialize(default)
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
@@ -149,10 +149,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        if column.comment then
+        if column.comment
           assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        end
+        
+        if column.respond_to?(:auto_populated?)
+          assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
         end
       end
     end
@@ -230,7 +234,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do
@@ -470,7 +474,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       },
       format: 'json')
 
-    assert_equal [photos.first.id], JSON(response.body)['photos'].map { |x| x['id'] }
+    assert_equal [photos.map(&:id).sort.first], JSON(response.body)['photos'].map { |x| x['id'] }
 
     get property_path(property,
       include: {

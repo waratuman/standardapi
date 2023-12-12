@@ -66,7 +66,9 @@ else
         json.set! 'null', column.null
         json.set! 'array', column.array
         json.set! 'comment', column.comment
-        json.set! 'auto_populated', column.auto_populated? if column.respond_to?(:auto_populated?)
+        # TODO: it would be nice if rails responded with a true or false here
+        # instead of the function itself
+        json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
       end
     end
   end

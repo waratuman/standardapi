@@ -82,6 +82,9 @@ end
 class Camera < ActiveRecord::Base
 end
 
+class UuidModel < ActiveRecord::Base
+end
+
 # = Create/recreate database and migration
 task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
 task.drop
@@ -164,6 +167,12 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  'record_id'
       t.integer  'document_id'
     end
+    
+    create_table "uuid_models", id: :uuid, force: :cascade do |t|
+      t.string 'title', default: 'recruit'
+      t.string 'name', default: -> { 'round(random() * 1000)' }
+    end
+    
   end
 
 end
