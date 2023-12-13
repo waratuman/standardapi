@@ -44,12 +44,12 @@ inherited controllers an exposed API.
         [:caption]
       end
       
-      # Allowed orderings
-      # The ordering is whitelisted as well, you will mostly likely want to
+      # Allowed sortings
+      # The sorting is whitelisted as well, you will mostly likely want to
       # ensure indexes have been created on these columns. In this example the
-      # response can be ordered by any permutation of `id`, `created_at`, and
+      # response can be sorted by any permutation of `id`, `created_at`, and
       # `updated_at`.
-      def photo_orders
+      def photo_sorts
         [:id, :created_at, :updated_at]
       end
       
@@ -92,8 +92,8 @@ following files:
         [ :camera ]
       end
       
-      # Allowed orders
-      def orders
+      # Allowed sorts
+      def sorts
         [ :id, :created_at, :updated_at ]
       end
       
@@ -112,7 +112,7 @@ following files:
     end
 
 All of these methods are optional and will be included in ApplicationController
-for StandardAPI to determine allowed attributes, nested attributes, orders and
+for StandardAPI to determine allowed attributes, nested attributes, sorts and
 includes.
 
 `includes` now returns a shallow Array, StandardAPI can how determine including
@@ -134,7 +134,7 @@ POST    /records            create record
 DELETE  /records            destroy record
 ```
 
-All resource end points can be filtered, ordered, limited, offset, and have includes. All options are passed via query string in a nested URI encoded format.
+All resource end points can be filtered, sorted, limited, offset, and have includes. All options are passed via query string in a nested URI encoded format.
 
 ```javascript
 // Example
@@ -152,12 +152,12 @@ params = {
         },
         photos: true
     },
-    order: {
+    sort: {
         created_at: 'desc'
     }
 }
 // should be
-'limit=5&offset=0&where%5Bregion_ids%5D%5Bcontains%5D=20106&include%5Bproperty%5D%5Baddresses%5D=true&include%5Bphotos%5D=true&order%5Bcreated_at%5D=desc'
+'limit=5&offset=0&where%5Bregion_ids%5D%5Bcontains%5D=20106&include%5Bproperty%5D%5Baddresses%5D=true&include%5Bphotos%5D=true&sort%5Bcreated_at%5D=desc'
 ```
 ### Include Options
 Preload some relationships and have it delivered with each record in the resource.
@@ -214,8 +214,8 @@ And example contoller and it's tests.
           [:id, :file, :caption]
         end
   
-        # Allowed orderings
-        def photo_orders
+        # Allowed sortings
+        def photo_sorts
           [:id, :created_at, :updated_at, :caption]
         end
 
@@ -244,10 +244,10 @@ StandardAPI Resource Interface
 | `/models` | `{}` | `SELECT * FROM models` | `[{ id: 1 }, { id: 2 }]` |
 | `/models?limit=1` | `{ "limit": 1 }` | `SELECT * FROM models LIMIT 1` | `[{ id: 1 }]` |
 | `/models?offset=1` | `{ "offset": 1 }` | `SELECT * FROM models OFFSET 1` | `[{ id: 2 }]` |
-| `/models?order[id]=asc` | `{ "order": { "id": "asc" } }` | `SELECT * FROM models ORDER BY models.id ASC` | `[{ id: 1 }, { id: 2 }]` |
-| `/models?order[id]=desc` | `{ "order": { "id": "desc" } }` | `SELECT * FROM models ORDER BY models.id DESC` | `[{ id: 2 }, { id: 1 }]` |
-| `/models?order[id][asc]=nulls_first` | `{ "order": { "id": { "asc": "nulls_first" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: null }, { id: 1 }]` |
-| `/models?order[id][asc]=nulls_last` | `{ "order": { "id": { "asc": "nulls_last" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: 1 }, { id: null }]` |
+| `/models?sort[id]=asc` | `{ "sort": { "id": "asc" } }` | `SELECT * FROM models ORDER BY models.id ASC` | `[{ id: 1 }, { id: 2 }]` |
+| `/models?sort[id]=desc` | `{ "sort": { "id": "desc" } }` | `SELECT * FROM models ORDER BY models.id DESC` | `[{ id: 2 }, { id: 1 }]` |
+| `/models?sort[id][asc]=nulls_first` | `{ "sort": { "id": { "asc": "nulls_first" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: null }, { id: 1 }]` |
+| `/models?sort[id][asc]=nulls_last` | `{ "sort": { "id": { "asc": "nulls_last" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: 1 }, { id: null }]` |
 | `/models?where[id]=1` | `{ where: { id: 1 } }` | `SELECT * FROM models WHERE id = 1` | `[{ id: 1 }]` |
 | `/models?where[id][]=1&where[id][]=2` | `{ where: { id: [1,2] } }` | `SELECT * FROM models WHERE id IN (1, 2)` | `[{ id: 1 }, { id: 2 }]` |
 

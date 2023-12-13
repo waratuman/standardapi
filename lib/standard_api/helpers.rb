@@ -1,9 +1,9 @@
 module StandardAPI
   module Helpers
-    
+
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
-      
+
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
 
@@ -16,7 +16,7 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'sort', 'distinct'].include?(x) }
               if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
@@ -37,7 +37,7 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'sort', 'distinct'].include?(x) }
               if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
@@ -117,7 +117,7 @@ module StandardAPI
     end
 
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
+      includes.select { |k,v| !['when', 'where', 'limit', 'sort', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end

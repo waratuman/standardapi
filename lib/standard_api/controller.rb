@@ -4,7 +4,7 @@ module StandardAPI
     delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :models, :resource_limit,
+      klass.helper_method :includes, :sorts, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource]
@@ -31,7 +31,7 @@ module StandardAPI
     end
 
     def index
-      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(sorts), includes)
       instance_variable_set("@#{model.model_name.plural}", records)
     end
 
@@ -144,11 +144,11 @@ module StandardAPI
         "Relationship between #{resource.class.name} and #{subresource.class.name} violates unique constraints"
       ]}, status: :bad_request
     end
-    
+
     def create_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-    
+
       subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
         self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
@@ -158,9 +158,9 @@ module StandardAPI
       else
         ActionController::Parameters.new
       end
-    
+
       subresource = association.klass.new(subresource_params)
-    
+
       result = case association
       when ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
@@ -182,7 +182,7 @@ module StandardAPI
         hash[key] = mask_for(key)
       end
     end
-    
+
     # Override if you want to support masking
     def mask_for(table_name)
       # case table_name
@@ -234,9 +234,9 @@ module StandardAPI
       end
     end
 
-    def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
+    def model_sorts
+      if self.respond_to?("#{model.model_name.singular}_sorts", true)
+        self.send("#{model.model_name.singular}_sorts")
       else
         []
       end
@@ -282,7 +282,7 @@ module StandardAPI
 
       query
     end
-    
+
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
@@ -299,46 +299,46 @@ module StandardAPI
       else
         {}
       end
-      
+
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
-      
+
       @includes
     end
 
-    def required_orders
+    def required_sorts
       []
     end
 
-    def default_orders
+    def default_sorts
       nil
     end
 
-    def orders
-      exluded_required_orders = required_orders.map(&:to_s)
+    def sorts
+      exluded_required_sorts = required_sorts.map(&:to_s)
 
-      case params[:order]
+      case params[:sort]
       when Hash, ActionController::Parameters
-        exluded_required_orders -= params[:order].keys.map(&:to_s)
+        exluded_required_sorts -= params[:sort].keys.map(&:to_s)
       when Array
-        params[:order].flatten.each do |v|
+        params[:sort].flatten.each do |v|
           case v
           when Hash, ActionController::Parameters
-            exluded_required_orders -= v.keys.map(&:to_s)
+            exluded_required_sorts -= v.keys.map(&:to_s)
           when String
-            exluded_required_orders.delete(v)
+            exluded_required_sorts.delete(v)
           end
         end
       when String
-        exluded_required_orders.delete(params[:order])
+        exluded_required_sorts.delete(params[:sort])
       end
 
-      if !exluded_required_orders.empty?
-        params[:order] = exluded_required_orders.unshift(params[:order])
+      if !exluded_required_sorts.empty?
+        params[:sort] = exluded_required_sorts.unshift(params[:sort])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
+      @sorts ||= StandardAPI::Sorts.sanitize(params[:sort] || default_sorts, model_sorts | required_sorts)
     end
 
     def excludes

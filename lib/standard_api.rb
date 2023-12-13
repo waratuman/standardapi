@@ -9,7 +9,7 @@ require 'active_support/core_ext/hash/indifferent_access'
 
 require 'standard_api/version'
 require 'standard_api/errors'
-require 'standard_api/orders'
+require 'standard_api/sorts'
 require 'standard_api/includes'
 require 'standard_api/controller'
 require 'standard_api/helpers'

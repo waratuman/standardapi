@@ -8,7 +8,7 @@ module StandardAPI
     # { x: { y: true } }            => { x: { y: {} } }
     # { x: [:y] }                   => { x: { y: {} } }
     # { x: { where: { y: false } } }    => { x: { where: { y: false } } }
-    # { x: { order: { y: :asc } } }    => { x: { order: { y: :asc } } }
+    # { x: { sort: { y: :asc } } }    => { x: { sort: { y: :asc } } }
     def self.normalize(includes)
       normalized = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -18,7 +18,7 @@ module StandardAPI
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
           normalized[k] = case k.to_s
-          when 'when', 'where', 'order'
+          when 'when', 'where', 'sort'
             case v
             when Array
               v.map do |x|
@@ -81,7 +81,7 @@ module StandardAPI
       includes.each do |k, v|
         permitted[k] = if permit.has_key?(k)
           sanitize(v, permit[k] || {}, true)
-        elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
+        elsif ['limit', 'when', 'where', 'sort', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
           raise StandardAPI::UnpermittedParameters.new([k])

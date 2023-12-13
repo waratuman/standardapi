@@ -96,8 +96,8 @@ class HelpersTest < ActionView::TestCase
     account.expects(:photos_cached_at).returns(t1)
     account.expects(:photos_property_cached_at).returns(t2)
     assert_equal(
-      "accounts/#{account.id}/photos-779c17ef027655fd8c06c3083d2df64b-#{t2.utc.to_s(ActiveRecord::Base.cache_timestamp_format)}",
-      association_cache_key(account, :photos, { "property" =>  { "order" => { "x" => "desc" }}})
+      "accounts/#{account.id}/photos-65b1019b2d108a0808bd98579e1f2793-#{t2.utc.to_s(ActiveRecord::Base.cache_timestamp_format)}",
+      association_cache_key(account, :photos, { "property" =>  { "sort" => { "x" => "desc" }}})
     )
 
     Account.expects(:column_names).returns(['id', 'cached_at', 'photos_cached_at', 'photos_property_cached_at', 'photos_agents_cached_at'])

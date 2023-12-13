@@ -20,7 +20,7 @@ module StandardAPI::TestCase
   end
 
   def self.included(klass)
-    [:filters, :orders, :includes].each do |attribute|
+    [:filters, :sorts, :includes].each do |attribute|
       klass.send(:class_attribute, attribute)
     end
 
@@ -28,7 +28,7 @@ module StandardAPI::TestCase
       model_class = klass.name.gsub(/Test$/, '').constantize.model
 
       klass.send(:filters=, model_class.attribute_names)
-      klass.send(:orders=, model_class.attribute_names)
+      klass.send(:sorts=, model_class.attribute_names)
       klass.send(:includes=, model_class.reflect_on_all_associations.map(&:name))
     rescue NameError => e
       raise e if e.message != "uninitialized constant #{model_class_name}"
@@ -60,8 +60,8 @@ module StandardAPI::TestCase
     count > 0
   end
 
-  def default_orders
-    controller_class.new.send(:default_orders)
+  def default_sorts
+    controller_class.new.send(:default_sorts)
   end
 
   def resource_limit
@@ -167,7 +167,7 @@ module StandardAPI::TestCase
     def model=(val)
       @model = val
       self.filters = val.attribute_names
-      self.orders = val.attribute_names
+      self.sorts = val.attribute_names
       self.includes = val.reflect_on_all_associations.map(&:name)
       @model
     end

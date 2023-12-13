@@ -4,10 +4,10 @@ module StandardAPI
       extend ActiveSupport::Testing::Declarative
 
       test '#index.json' do
-        get resource_path(:index, format: :json), params: { limit: 10, order: orders.first }
+        get resource_path(:index, format: :json), params: { limit: 10, sort: sorts.first }
         assert_response :ok
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.order(orders.first).limit(10).all.map(&:id).sort, models.map(&:id).sort
+        assert_equal model.sort(sorts.first).limit(10).all.map(&:id).sort, models.map(&:id).sort
         assert JSON.parse(response.body).is_a?(Array)
       end
 
@@ -32,7 +32,7 @@ module StandardAPI
       test '#index.json params[:limit]' do
         get resource_path(:index, format: :json), params: { limit: 1 }
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.filter(mask).limit(1).sort(default_orders).to_sql, models.to_sql
+        assert_equal model.filter(mask).limit(1).sort(default_sorts).to_sql, models.to_sql
       end
 
       test '#index.json params[:limit] does not exceed maximum limit' do
@@ -51,21 +51,21 @@ module StandardAPI
         assert_equal [m], models
       end
 
-      test '#index.json params[:order]' do
+      test '#index.json params[:sort]' do
         # This is just to instance @controller
         get resource_path(:index, format: :json), params: { limit: 1 }
 
-        orders.each do |order|
-          get resource_path(:index, format: :json), params: { limit: 10, order: order }
+        sorts.each do |sort|
+          get resource_path(:index, format: :json), params: { limit: 10, sort: sort }
           models = @controller.instance_variable_get("@#{plural_name}")
-          assert_equal model.filter(mask).sort(order).limit(10).sort(order).to_sql, models.to_sql
+          assert_equal model.filter(mask).sort(sort).limit(10).sort(sort).to_sql, models.to_sql
         end
       end
 
       test '#index.json params[:offset]' do
         get resource_path(:index, format: :json), params: { limit: 10, offset: 13 }
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.filter(mask).offset(13).limit(10).sort(default_orders).to_sql, models.to_sql
+        assert_equal model.filter(mask).offset(13).limit(10).sort(default_sorts).to_sql, models.to_sql
       end
 
       test '#index.json params[:include]' do
@@ -131,7 +131,7 @@ module StandardAPI
         end
         get :index, format: :json
         models = @controller.instance_variable_get("@#{plural_name}")
-        assert_equal model.where(id: m.id).sort(required_orders).to_sql, models.to_sql
+        assert_equal model.where(id: m.id).sort(required_sorts).to_sql, models.to_sql
       end
     end
   end

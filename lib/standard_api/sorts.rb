@@ -1,16 +1,16 @@
 module StandardAPI
-  module Orders
+  module Sorts
 
-    def self.sanitize(orders, permit)
-      return nil if orders.nil?
+    def self.sanitize(sorts, permit)
+      return nil if sorts.nil?
 
       permit = [permit] if !permit.is_a?(Array)
       permit = permit.flatten.map { |x| x.is_a?(Hash) ? x.with_indifferent_access : x.to_s }
       permitted = []
 
-      case orders
+      case sorts
       when Hash, ActionController::Parameters
-        orders.each do |key, value|
+        sorts.each do |key, value|
           if key.to_s.count('.') == 1
             key2, key3 = *key.to_s.split('.')
             permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit)
@@ -29,26 +29,26 @@ module StandardAPI
             sanitized_value = sanitize(value, subpermit)
             permitted << { key.to_sym => sanitized_value }
           else
-            raise(StandardAPI::UnpermittedParameters.new([orders]))
+            raise(StandardAPI::UnpermittedParameters.new([sorts]))
           end
         end
       when Array
-        orders.each do |order|
-          order = sanitize(order, permit)
-          if order.is_a?(Array)
-            permitted += order
+        sorts.each do |sort|
+          sort = sanitize(sort, permit)
+          if sort.is_a?(Array)
+            permitted += sort
           else
-            permitted << order
+            permitted << sort
           end
         end
       else
-        if orders.to_s.count('.') == 1
-          key, value = *orders.to_s.split('.')
+        if sorts.to_s.count('.') == 1
+          key, value = *sorts.to_s.split('.')
           permitted = sanitize({key.to_sym => value.to_sym}, permit)
-        elsif permit.include?(orders.to_s)
-          permitted = orders
+        elsif permit.include?(sorts.to_s)
+          permitted = sorts
         else
-          raise(StandardAPI::UnpermittedParameters.new([orders]))
+          raise(StandardAPI::UnpermittedParameters.new([sorts]))
         end
       end
 

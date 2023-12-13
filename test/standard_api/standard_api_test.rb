@@ -82,9 +82,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Controller#model_orders defaults to []' do
+  test 'Controller#model_sorts defaults to []' do
     @controller = ReferencesController.new
-    assert_equal @controller.send(:model_orders), []
+    assert_equal @controller.send(:model_sorts), []
   end
 
   test 'Controller#model_includes defaults to []' do
@@ -112,7 +112,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
-  
+
   test "Auto includes on a controller without a model" do
     @controller = SessionsController.new
     assert_nil @controller.send(:model)
@@ -259,7 +259,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('document')
     assert_nil JSON(response.body)['document']
   end
-  
+
   test 'rendering serialize_attribute' do
     property = create(:property, description: 'This text will magically change')
     get property_path(property, format: 'json'), params: { id: property.id, magic: true }
@@ -270,18 +270,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'rendering an enum' do
     public_document = create(:document, level: 'public')
-    
+
     get documents_path(format: 'json'), params: { limit: 1 }
     assert_equal JSON(response.body)[0]['level'], 'public'
-    
+
     secret_document = create(:document, level: 'secret')
     get document_path(secret_document, format: 'json')
     assert_equal JSON(response.body)['level'], 'secret'
   end
-  
+
   test '#index.json uses overridden partial' do
     create(:property, photos: [create(:photo)])
-    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
+    get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { sort: :id }}] }
 
     photo = JSON(response.body)[0]['photos'][0]
     assert_equal true, photo.has_key?('template')
@@ -384,19 +384,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
   end
 
-  test 'include with order key' do
+  test 'include with sort key' do
     photos = Array.new(5) { create(:photo) }
     property = create(:property, photos: photos)
 
-    get property_path(property, include: { photos: { order: { id: :asc } } }, format: 'json')
+    get property_path(property, include: { photos: { sort: { id: :asc } } }, format: 'json')
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
 
-  test 'include relation with default order using an order key' do
+  test 'include relation with default sort using an sort key' do
     p1 = create(:photo)
     p2 = create(:photo)
     account = create(:account, photos: [ p1, p2 ])
-    get account_path(account, include: { photos: { order: { created_at: :desc } } }, format: 'json')
+    get account_path(account, include: { photos: { sort: { created_at: :desc } } }, format: 'json')
     assert_equal [ p2.id, p1.id ], JSON(response.body)['photos'].map { |x| x["id"] }
   end
 
@@ -464,8 +464,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       include: {
         photos: {
           distinct_on: :account_id,
-          # order: [:account_id, { id: :asc }]
-          order: { account_id: :asc, id: :asc }
+          # sort: [:account_id, { id: :asc }]
+          sort: { account_id: :asc, id: :asc }
         }
       },
       format: 'json')
@@ -476,7 +476,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       include: {
         photos: {
           distinct_on: :account_id,
-          order: { account_id: :asc, id: :desc }
+          sort: { account_id: :asc, id: :desc }
         }
       }, format: 'json')
 
@@ -490,9 +490,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "accounts"', response.body
   end
 
-  test 'unknown order' do
+  test 'unknown sort' do
     create(:property)
-    get properties_path(order: 'updated_at', limit: 1, format: 'json')
+    get properties_path(sort: 'updated_at', limit: 1, format: 'json')
     assert_response :bad_request
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
   end
@@ -511,7 +511,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
 
     assert_equal method.call({ x: { where: { y: false } } }), { 'x' => { 'where' => { 'y' => false } } }
-    assert_equal method.call({ x: { order: { y: :asc } } }), { 'x' => { 'order' => { 'y' => :asc } } }
+    assert_equal method.call({ x: { sort: { y: :asc } } }), { 'x' => { 'sort' => { 'y' => :asc } } }
   end
 
   # sanitize({:key => {}}, [:key]) # => {:key => {}}
@@ -547,10 +547,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
   end
 
-  # Order Test
+  # Sort Test
 
-  test 'Orders::sanitize(:column, [:column])' do
-    method = StandardAPI::Orders.method(:sanitize)
+  test 'Sorts::sanitize(:column, [:column])' do
+    method = StandardAPI::Sorts.method(:sanitize)
 
     assert_equal :x, method.call(:x, :x)
     assert_equal :x, method.call(:x, [:x])
@@ -584,42 +584,42 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
   end
 
-  test 'order: :attribute' do
+  test 'sort: :attribute' do
     properties = Array.new(2) { create(:property) }
 
-    get properties_path(order: :id, limit: 100, format: 'json')
+    get properties_path(sort: :id, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
   end
 
-  test 'order: { attribute: :direction }' do
+  test 'sort: { attribute: :direction }' do
     properties = Array.new(2) { create(:property) }
 
-    get properties_path(order: { id: :asc }, limit: 100, format: 'json')
+    get properties_path(sort: { id: :asc }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
 
-    get properties_path(order: { id: :desc }, limit: 100, format: 'json')
+    get properties_path(sort: { id: :desc }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
   end
 
-  test 'order: { attribute: { direction: :nulls } }' do
+  test 'sort: { attribute: { direction: :nulls } }' do
     properties = [ create(:property), create(:property, description: nil) ]
 
-    get properties_path(order: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
+    get properties_path(sort: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort, JSON(response.body).map { |x| x['id'] }
 
-    get properties_path(order: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
+    get properties_path(sort: { description: { asc: :nulls_first } }, limit: 100, format: 'json')
     assert_equal properties.map(&:id).sort.reverse, JSON(response.body).map { |x| x['id'] }
   end
 
-  test 'ordering via nulls_first/last' do
+  test 'sorting via nulls_first/last' do
     p1 = create(:property, description: 'test')
     p2 = create(:property, description: nil)
 
-    get properties_path(format: 'json'), params: { limit: 100, order: { description: { desc: 'nulls_last' } } }
+    get properties_path(format: 'json'), params: { limit: 100, sort: { description: { desc: 'nulls_last' } } }
     properties = JSON(response.body)
     assert_equal p1.id, properties.first['id']
 
-    get properties_path(format: 'json'), params: { limit: 100, order: { description: { asc: 'nulls_last' } } }
+    get properties_path(format: 'json'), params: { limit: 100, sort: { description: { asc: 'nulls_last' } } }
     properties = JSON(response.body)
     assert_equal p1.id, properties.first['id']
   end

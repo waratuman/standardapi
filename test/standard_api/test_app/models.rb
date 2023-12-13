@@ -1,7 +1,7 @@
 # = Models
 
 class Account < ActiveRecord::Base
-  has_many :photos, -> { order(:created_at) }
+  has_many :photos, -> { sort(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
 end
@@ -14,7 +14,7 @@ end
 
 class Document < ActiveRecord::Base
   attr_accessor :file
-  
+
   enum level:   { public: 0, secret: 1 }, _suffix: true
   enum rating:  { poor: 0, ok: 1, good: 2 }
 end

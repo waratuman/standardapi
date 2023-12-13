@@ -2,7 +2,7 @@ class ApplicationController < ActionController::Base
   include StandardAPI::Controller
   include StandardAPI::AccessControlList
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
-  
+
   helper_method :serialize_attribute
 
   def serialize_attribute(json, record, attribute, type)
@@ -11,7 +11,7 @@ class ApplicationController < ActionController::Base
     else
       record.send(attribute)
     end
-    
+
     json.set! attribute, type == :binary ? value&.unpack1('H*') : value
   end
 
@@ -34,7 +34,7 @@ class DocumentsController < ApplicationController
     [ :file, :type ]
   end
 
-  def document_orders
+  def document_sorts
     [ :id ]
   end
 
@@ -46,7 +46,7 @@ class PhotosController < ApplicationController
     [ :id, :account_id, :property_id, :format ]
   end
 
-  def photo_orders
+  def photo_sorts
     [ :id ]
   end
 

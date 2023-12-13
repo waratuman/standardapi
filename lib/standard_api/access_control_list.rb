@@ -19,7 +19,7 @@ module StandardAPI
         mod = child.classify.constantize
         prefix = child.delete_suffix('_acl').gsub('/', '_')
 
-        [:orders, :includes, :attributes].each do |m|
+        [:sorts, :includes, :attributes].each do |m|
           next if !mod.instance_methods.include?(m)
           mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
           mod.send :remove_method, m
@@ -39,9 +39,9 @@ module StandardAPI
       end
     end
 
-    def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
+    def model_sorts
+      if self.respond_to?("#{model.model_name.singular}_sorts", true)
+        self.send("#{model.model_name.singular}_sorts")
       else
         []
       end

@@ -13,8 +13,8 @@ module PropertyACL
     ]
   end
 
-  # Orderings allowed
-  def orders
+  # Sortings allowed
+  def sorts
     ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
   end
 
