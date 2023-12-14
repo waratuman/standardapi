@@ -1,3 +1,4 @@
+require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 module NestedAttributes
@@ -17,7 +18,7 @@ module NestedAttributes
       assert_equal photo.id, photo.camera.photo_id
       assert_equal 'Sony', photo.camera.make
     end
-  
+
     test 'create record and update nested record' do
       camera = create(:camera, make: 'Sony')
 
@@ -31,7 +32,7 @@ module NestedAttributes
     end
 
     # = Update Test
-  
+
     test 'update record and create nested record' do
       photo = create(:photo)
 

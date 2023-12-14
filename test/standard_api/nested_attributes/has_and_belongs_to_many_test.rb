@@ -1,3 +1,4 @@
+require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 module NestedAttributes
@@ -17,7 +18,7 @@ module NestedAttributes
       assert_equal 'Beach House', property.name
       assert_equal ['image/jpeg'], property.photos.map(&:format)
     end
-  
+
     test 'create record and update nested record' do
       photo = create(:photo, format: 'image/png')
 
