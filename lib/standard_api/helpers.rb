@@ -16,7 +16,7 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', order_param_name, 'distinct'].include?(x) }
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
               if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
@@ -37,7 +37,7 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', order_param_name, 'distinct'].include?(x) }
+            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
               if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
@@ -117,7 +117,7 @@ module StandardAPI
     end
 
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| !['when', 'where', 'limit', order_param_name, 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
+      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end
@@ -197,10 +197,6 @@ module StandardAPI
       when /^geometry/
         'ewkb'
       end
-    end
-
-    def order_param_name
-      Rails.application.config.standard_api.order_param_name.to_s
     end
 
   end

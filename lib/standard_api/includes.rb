@@ -1,10 +1,6 @@
 module StandardAPI
   module Includes
 
-    def self.order_param_name
-      Rails.application.config.standard_api.order_param_name.to_s
-    end
-
     # :x                            => { x: {} }
     # [:x, :y]                      => { x: {}, y: {} }
     # [ { x: true }, { y: true } ]  => { x: {}, y: {} }
@@ -22,7 +18,7 @@ module StandardAPI
       when Hash, ActionController::Parameters
         includes.each_pair do |k, v|
           normalized[k] = case k.to_s
-          when 'when', 'where', order_param_name
+          when 'when', 'where', 'order'
             case v
             when Array
               v.map do |x|
@@ -85,7 +81,7 @@ module StandardAPI
       includes.each do |k, v|
         permitted[k] = if permit.has_key?(k)
           sanitize(v, permit[k] || {}, true)
-        elsif ['limit', 'when', 'where', order_param_name, 'distinct', 'distinct_on'].include?(k.to_s)
+        elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
           raise StandardAPI::UnpermittedParameters.new([k])

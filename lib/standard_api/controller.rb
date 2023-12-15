@@ -1,7 +1,7 @@
 module StandardAPI
   module Controller
 
-    delegate :preloadables, :model_partial, :order_param_name, to: :helpers
+    delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
@@ -144,11 +144,11 @@ module StandardAPI
         "Relationship between #{resource.class.name} and #{subresource.class.name} violates unique constraints"
       ]}, status: :bad_request
     end
-
+    
     def create_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-
+    
       subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
         self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
@@ -158,9 +158,9 @@ module StandardAPI
       else
         ActionController::Parameters.new
       end
-
+    
       subresource = association.klass.new(subresource_params)
-
+    
       result = case association
       when ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
@@ -182,7 +182,7 @@ module StandardAPI
         hash[key] = mask_for(key)
       end
     end
-
+    
     # Override if you want to support masking
     def mask_for(table_name)
       # case table_name
@@ -282,7 +282,7 @@ module StandardAPI
 
       query
     end
-
+    
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
@@ -299,11 +299,11 @@ module StandardAPI
       else
         {}
       end
-
+      
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
-
+      
       @includes
     end
 
@@ -315,15 +315,14 @@ module StandardAPI
       nil
     end
 
-   
     def orders
       exluded_required_orders = required_orders.map(&:to_s)
 
-      case params[order_param_name]
+      case params[:order]
       when Hash, ActionController::Parameters
-        exluded_required_orders -= params[order_param_name].keys.map(&:to_s)
+        exluded_required_orders -= params[:order].keys.map(&:to_s)
       when Array
-        params[order_param_name].flatten.each do |v|
+        params[:order].flatten.each do |v|
           case v
           when Hash, ActionController::Parameters
             exluded_required_orders -= v.keys.map(&:to_s)
@@ -332,14 +331,14 @@ module StandardAPI
           end
         end
       when String
-        exluded_required_orders.delete(params[order_param_name])
+        exluded_required_orders.delete(params[:order])
       end
 
       if !exluded_required_orders.empty?
-        params[order_param_name] = exluded_required_orders.unshift(params[order_param_name])
+        params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[order_param_name] || default_orders, model_orders | required_orders)
+      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
     end
 
     def excludes

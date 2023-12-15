@@ -1,4 +1,0 @@
-test:
-  adapter: postgresql
-  database: standardapi-sort-test-app
-  encoding: utf8

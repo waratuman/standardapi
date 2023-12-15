@@ -1,4 +1,3 @@
-require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 module NestedAttributes
@@ -18,7 +17,7 @@ module NestedAttributes
       assert_equal 'Beach House', property.name
       assert_equal ['Billabong'], property.accounts.map(&:name)
     end
-
+  
     test 'create record and update nested record' do
       account = create(:account, name: 'Coco Chanel')
 
@@ -68,7 +67,7 @@ module NestedAttributes
       property.reload
       assert_equal [], property.accounts
     end
-
+    
     test 'update record and include nested record in response' do
       account = create(:account, name: 'A Co.')
       property = create(:property, name: 'Empire State Building', accounts: [account])

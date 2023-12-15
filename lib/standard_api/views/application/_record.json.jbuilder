@@ -6,7 +6,7 @@ record.attribute_names.each do |name|
 end
 
 includes.each do |inc, subinc|
-  next if ["limit", "offset", order_param_name, "when", "where", "distinct", "distinct_on"].include?(inc)
+  next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
 
   case association = record.class.reflect_on_association(inc)
   when ActiveRecord::Reflection::AbstractReflection
@@ -21,7 +21,7 @@ includes.each do |inc, subinc|
 
           sub_records = sub_records.limit(subinc['limit']) if subinc['limit']
           sub_records = sub_records.offset(subinc['offset']) if subinc['offset']
-          sub_records = sub_records.reorder(subinc[order_param_name]) if subinc[order_param_name]
+          sub_records = sub_records.reorder(subinc['order']) if subinc['order']
           sub_records = sub_records.filter(subinc['where']) if subinc['where']
           sub_records = sub_records.distinct if subinc['distinct']
           sub_records = sub_records.distinct_on(subinc['distinct_on']) if subinc['distinct_on']

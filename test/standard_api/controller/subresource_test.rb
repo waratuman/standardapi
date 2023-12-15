@@ -1,8 +1,7 @@
-require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 class ControllerSubresourceTest < ActionDispatch::IntegrationTest
-
+  
   # add_resource
   test 'Controller#add_resource with has_many' do
     property = create(:property, photos: [])
@@ -47,7 +46,7 @@ class ControllerSubresourceTest < ActionDispatch::IntegrationTest
     assert_equal property.reload.document, photo
     assert_response :created
   end
-
+  
   test 'Controller#add_resource that is already there' do
     photo = create(:photo)
     property = create(:property, photos: [photo])

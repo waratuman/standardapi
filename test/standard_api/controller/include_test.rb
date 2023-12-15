@@ -1,7 +1,25 @@
-require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 class ControllerIncludesTest < ActionDispatch::IntegrationTest
+
+  test "Controller#index include account orders" do
+    account = create(:account)
+    order = create(:order, account: account)
+
+    get "/account", params: { include: [:orders] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_equal [
+      {
+        id: order.id,
+        account_id: account.id,
+        name: order.name,
+        price: order.price
+      }.stringify_keys
+    ],json["orders"]
+
+    assert_not_nil json["orders"]
+  end
 
   # = Including an invalid include
 

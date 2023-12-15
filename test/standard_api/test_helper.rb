@@ -1,3 +1,5 @@
+require File.expand_path('../test_app', __FILE__)
+
 require "minitest/autorun"
 require 'minitest/unit'
 require 'factory_bot'
@@ -16,11 +18,7 @@ class ActiveSupport::TestCase
   include FactoryBot::Syntax::Methods
 
   def setup
-    @routes ||= if defined?(TestApplication)
-      TestApplication.routes
-    else
-      SortTestApplication.routes
-    end
+    @routes ||= TestApplication.routes
     @subscribers, @layouts, @partials = [], {}, {}
 
     Rails.cache.clear

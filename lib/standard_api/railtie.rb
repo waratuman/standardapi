@@ -1,9 +1,6 @@
 module StandardAPI
   class Railtie < ::Rails::Railtie
 
-    config.standard_api = ActiveSupport::OrderedOptions.new
-    config.standard_api.order_param_name = :order
-    
     initializer 'standardapi', :before => :set_autoload_paths do |app|
       if app.root.join('app', 'controllers', 'acl').exist?
         ActiveSupport::Inflector.inflections(:en) do |inflect|
