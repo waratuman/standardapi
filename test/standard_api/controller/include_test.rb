@@ -2,6 +2,31 @@ require 'standard_api/test_helper'
 
 class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
+  test "Controller#index include account orders" do
+    account = create(:account)
+    order = create(:order, account: account)
+    account.update(order: order)
+
+    get "/account", params: { include: [ :order, :orders ] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_equal [
+      {
+        id: order.id,
+        account_id: account.id,
+        name: order.name,
+        price: order.price
+      }.stringify_keys
+    ], json["orders"]
+
+    assert_equal({
+      id: order.id,
+      account_id: account.id,
+      name: order.name,
+      price: order.price
+    }.stringify_keys, json["order"])
+  end
+
   # = Including an invalid include
 
   test "Controller#create with a valid include" do
@@ -92,7 +117,7 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     assert_equal 1, property.reload.photos.count
     assert_response :created
   end
-  
+
   # This test passes because includes are not used, response is a HEAD response
   # and no includes are used.
   test "Controller#remove_resource with an invalid include" do

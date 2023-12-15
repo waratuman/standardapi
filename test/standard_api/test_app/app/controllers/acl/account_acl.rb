@@ -9,7 +9,7 @@ module AccountACL
   end
 
   def includes
-    [ "photos", "subject", "property" ]
+    [ "orders", "photos", "subject", "property" ]
   end
 
 end
