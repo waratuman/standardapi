@@ -9,7 +9,12 @@ module AccountACL
   end
 
   def includes
-    [ "order", "orders" ]
+    {
+      order: true,
+      orders: {
+        account: { order: true }
+      }
+    }
   end
 
 end
