@@ -315,7 +315,6 @@ module StandardAPI
       nil
     end
 
-   
     def orders
       exluded_required_orders = required_orders.map(&:to_s)
 

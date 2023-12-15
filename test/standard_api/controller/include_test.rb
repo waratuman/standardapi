@@ -93,7 +93,7 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     assert_equal 1, property.reload.photos.count
     assert_response :created
   end
-
+  
   # This test passes because includes are not used, response is a HEAD response
   # and no includes are used.
   test "Controller#remove_resource with an invalid include" do

@@ -47,7 +47,7 @@ class ControllerSubresourceTest < ActionDispatch::IntegrationTest
     assert_equal property.reload.document, photo
     assert_response :created
   end
-
+  
   test 'Controller#add_resource that is already there' do
     photo = create(:photo)
     property = create(:property, photos: [photo])
