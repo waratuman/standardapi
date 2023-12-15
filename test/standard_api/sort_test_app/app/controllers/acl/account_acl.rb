@@ -9,7 +9,7 @@ module AccountACL
   end
 
   def includes
-    [ "orders" ]
+    [ "order", "orders" ]
   end
 
 end
