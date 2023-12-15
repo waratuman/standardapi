@@ -6,8 +6,6 @@ record.attribute_names.each do |name|
 end
 
 includes.each do |inc, subinc|
-  next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
-
   case association = record.class.reflect_on_association(inc)
   when ActiveRecord::Reflection::AbstractReflection
     if association.collection?

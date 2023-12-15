@@ -5,8 +5,9 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
   test "Controller#index include account orders" do
     account = create(:account)
     order = create(:order, account: account)
+    account.update(order: order)
 
-    get "/account", params: { include: [:orders] }, as: :json
+    get "/account", params: { include: [ :order, :orders ] }, as: :json
     json = JSON.parse(response.body)
 
     assert_equal [
@@ -16,9 +17,14 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
         name: order.name,
         price: order.price
       }.stringify_keys
-    ],json["orders"]
+    ], json["orders"]
 
-    assert_not_nil json["orders"]
+    assert_equal({
+      id: order.id,
+      account_id: account.id,
+      name: order.name,
+      price: order.price
+    }.stringify_keys, json["order"])
   end
 
   # = Including an invalid include
