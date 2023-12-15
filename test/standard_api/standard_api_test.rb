@@ -112,7 +112,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
-
+  
   test "Auto includes on a controller without a model" do
     @controller = SessionsController.new
     assert_nil @controller.send(:model)
@@ -230,7 +230,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "documents", "orders", "photos", "references", "accounts", 'accounts'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do
@@ -259,7 +259,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('document')
     assert_nil JSON(response.body)['document']
   end
-
+  
   test 'rendering serialize_attribute' do
     property = create(:property, description: 'This text will magically change')
     get property_path(property, format: 'json'), params: { id: property.id, magic: true }
@@ -270,15 +270,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'rendering an enum' do
     public_document = create(:document, level: 'public')
-
+    
     get documents_path(format: 'json'), params: { limit: 1 }
     assert_equal JSON(response.body)[0]['level'], 'public'
-
+    
     secret_document = create(:document, level: 'secret')
     get document_path(secret_document, format: 'json')
     assert_equal JSON(response.body)['level'], 'secret'
   end
-
+  
   test '#index.json uses overridden partial' do
     create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }

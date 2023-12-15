@@ -9,11 +9,6 @@ FactoryBot.define do
     end
   end
 
-  factory :order do
-    name            { Faker::Name.name }
-    price           { rand(10..1000) }
-  end
-
   factory :landlord do
     name            { Faker::Name.name }
   end
