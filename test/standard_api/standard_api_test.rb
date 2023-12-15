@@ -1,3 +1,4 @@
+require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 class PropertiesControllerTest < ActionDispatch::IntegrationTest

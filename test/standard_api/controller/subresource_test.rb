@@ -1,7 +1,8 @@
+require 'standard_api/test_app'
 require 'standard_api/test_helper'
 
 class ControllerSubresourceTest < ActionDispatch::IntegrationTest
-  
+
   # add_resource
   test 'Controller#add_resource with has_many' do
     property = create(:property, photos: [])
