@@ -28,6 +28,15 @@ end
 # Test Application initialization
 TestApplication.initialize!
 
+# Make sure to test the right view files
+ActionView::Template.unregister_template_handler :streamer, :jbuilder
+case ENV["TSENCODER"]
+when "turbostreamer"
+  ActionView::Template.register_template_handler :streamer, TurboStreamer::Handler
+else
+  ActionView::Template.register_template_handler :jbuilder, JbuilderHandler
+end
+
 # Test Application Models
 require 'standard_api/test_app/models'
 
