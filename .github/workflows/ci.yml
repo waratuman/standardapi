@@ -16,6 +16,7 @@ jobs:
           - turbostreamer
         ruby-version:
           - 3.2
+          - 3.3
         rails-version:
           - 7.0.8
           - 7.1.2

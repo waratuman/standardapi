@@ -25,7 +25,7 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency 'pg'
   spec.add_development_dependency "bundler"
-  spec.add_development_dependency 'turbostreamer'
+  spec.add_development_dependency 'turbostreamer', '>= 1.11.0'
   spec.add_development_dependency 'jbuilder'
   spec.add_development_dependency "rake"
   spec.add_development_dependency 'minitest'
