@@ -16,7 +16,7 @@ Optionally in `config/application.rb`:
     module MyApplication
       class Application < Rails::Application
         # Initialize configuration defaults for originally generated Rails version.
-        config.load_defaults 6.0
+        config.load_defaults 7.0
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`

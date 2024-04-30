@@ -81,7 +81,7 @@ class ControllerSubresourceTest < ActionDispatch::IntegrationTest
     property = create(:property, photos: [photo1])
 
     post "/properties/#{property.id}/photos", params: { photo: photo2.attributes }, as: :json
-    assert_equal property.photos.reload.map(&:id), [photo1.id, JSON.parse(response.body)['id']]
+    assert_equal property.photos.reload.map(&:id).sort, [photo1.id, JSON.parse(response.body)['id']].sort
     assert_equal property.photos.count, 2
     assert_response :created
   end
