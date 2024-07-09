@@ -1,14 +1,15 @@
 module StandardAPI
   module Helpers
-    
+
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
-      
+
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
 
-    def preloadables(record, includes)
+    def preloadables(record, includes, preload_polymorphic_associations = false)
       preloads = {}
+      polymorphic_preloads = {}
 
       includes.each do |key, value|
         if reflection = record.klass.reflections[key]
@@ -18,14 +19,51 @@ module StandardAPI
           when Hash, ActiveSupport::HashWithIndifferentAccess
             if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
               if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
+                preloads[key.to_sym] = preloadables_hash(reflection.klass, value)
+              elsif preload_polymorphic_associations
+                polymorphic_preloads[key.to_sym] = value
               end
             end
           end
         end
       end
 
-      preloads.empty? ? record : record.preload(preloads)
+      if preloads.present?
+        record = record.preload(preloads)
+      end
+
+      if polymorphic_preloads.present?
+        polymorphic_preloads.each do |assoc, assoc_includes|
+          association_types = record.inject({}) do |acc, result|
+            association_type = result.send("#{ assoc }_type").constantize
+            
+            inclds = {}
+            assoc_includes.each do |key, incld|
+              if incld['when'] && incld['when'].all? { |k, v| result.send(k).as_json == v }
+                incld.delete('when')
+                inclds[key] = preloadables_hash(association_type, incld)
+              end
+            end
+                        
+            acc[association_type] ||= [ [], inclds ]
+            acc[association_type][0] << result.send("#{ assoc }_id")
+            acc
+          end
+
+          association_types.each do |association_type, inclds_ids|
+            association_ids = inclds_ids[0]
+            inclds = inclds_ids[1]
+            association_type.where(id: association_ids).preload(inclds).each do |target|
+              association = record.find do |r|
+                r["#{ assoc }_type"] == target.class.to_s && r["#{ assoc }_id"] == target.id
+              end.association(assoc)
+              association.target = target
+            end
+          end
+        end
+      end
+
+      record
     end
 
     def preloadables_hash(klass, iclds)
@@ -37,7 +75,7 @@ module StandardAPI
           when true
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
+            if !value.keys.any? { |x| [ 'when', 'where', 'limit', 'offset', 'order', 'distinct' ].include?(x) }
               if !reflection.polymorphic?
                 preloads[key] = preloadables_hash(reflection.klass, value)
               end
@@ -100,6 +138,8 @@ module StandardAPI
       timestamp = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       timestamp = (timestamp & record.class.column_names).map! { |col| record.send(col) }
       timestamp = timestamp.max
+
+      return if timestamp.nil?
 
       case association = record.class.reflect_on_association(relation)
       when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection

@@ -725,5 +725,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal [1], JSON(response.body)
   end
+  
+  test 'preloading polymorphic associations' do
+    p1 = create(:property)
+    p2 = create(:property)
+    a1 = create(:account, subject: p1)
+    a2 = create(:account, subject: p2)      
+    
+    assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
+      get accounts_path(limit: 2, include: :subject, format: 'json')
+      
+      assert_equal p1.id, a1.subject_id
+      assert_equal p2.id, a2.subject_id
+    end
+  end
 
 end

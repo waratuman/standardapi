@@ -31,7 +31,7 @@ module StandardAPI
     end
 
     def index
-      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes)
+      records = preloadables(resources.limit(limit).offset(params[:offset]).sort(orders), includes, true)
       instance_variable_set("@#{model.model_name.plural}", records)
     end
 

@@ -85,6 +85,19 @@ class ActiveSupport::TestCase
     { :controller => controller_path, :action => action }.merge(options)
   end
 
+  def assert_no_sql(sql, &block)
+    queries = []
+    callback = -> (*, payload) do
+      queries << payload[:sql]
+    end
+    if block_given?
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &block)
+    end
+
+    assert_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
+      find { |x| x == sql.strip.gsub(/\s+/, ' ') }
+  end
+
   def assert_sql(sql, &block)
     queries = []
     callback = -> (*, payload) do
