@@ -85,29 +85,58 @@ class ActiveSupport::TestCase
     { :controller => controller_path, :action => action }.merge(options)
   end
 
-  def assert_no_sql(sql, &block)
-    queries = []
-    callback = -> (*, payload) do
-      queries << payload[:sql]
-    end
-    if block_given?
-      ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &block)
+  def assert_sql(*expected)
+    return_value = nil
+
+    queries_ran = if block_given?
+      queries_ran = SQLLogger.log.size
+      return_value = yield if block_given?
+      SQLLogger.log[queries_ran...]
+    else
+      [expected.pop]
     end
 
-    assert_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
-      find { |x| x == sql.strip.gsub(/\s+/, ' ') }
+    failed_patterns = []
+    expected.each do |pattern|
+      failed_patterns << pattern unless queries_ran.any?{ |sql| sql_equal(pattern, sql) }
+    end
+
+    assert failed_patterns.empty?, <<~MSG
+      Query pattern(s) not found:
+        - #{failed_patterns.map{|l| l.gsub(/\n\s*/, " ")}.join('\n  - ')}
+      Queries Ran (queries_ran.size):
+        - #{queries_ran.map{|l| l.gsub(/\n\s*/, "\n    ")}.join("\n  - ")}
+    MSG
+
+    return_value
   end
 
-  def assert_sql(sql, &block)
-    queries = []
-    callback = -> (*, payload) do
-      queries << payload[:sql]
+  def assert_no_sql(*not_expected)
+    return_value = nil
+    queries_ran = block_given? ? SQLLogger.log.size : 0
+    return_value = yield if block_given?
+  ensure
+    failed_patterns = []
+    queries_ran = SQLLogger.log[queries_ran...]
+    not_expected.each do |pattern|
+      failed_patterns << pattern if queries_ran.any?{ |sql| sql_equal(pattern, sql) }
+    end
+    assert failed_patterns.empty?, <<~MSG
+      Unexpected Query pattern(s) found:
+        - #{failed_patterns.map(&:inspect).join('\n  - ')}
+      Queries Ran (queries_ran.size):
+        - #{queries_ran.map{|l| l.gsub(/\n\s*/, "\n    ")}.join("\n  - ")}
+    MSG
+
+    return_value
+  end
+  def sql_equal(expected, sql)
+    sql = sql.strip.gsub(/"(\w+)"/, '\1').gsub(/\(\s+/, '(').gsub(/\s+\)/, ')').gsub(/\s+/, ' ')
+    if expected.is_a?(String)
+      expected = Regexp.new(Regexp.escape(expected.strip.gsub(/"(\w+)"/, '\1').gsub(/\(\s+/, '(').gsub(/\s+\)/, ')').gsub(/\s+/, ' ')), Regexp::IGNORECASE)
     end
 
-    ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &block)
-
-    assert_not_nil queries.map { |x| x.strip.gsub(/\s+/, ' ') }.
-      find { |x| x == sql.strip.gsub(/\s+/, ' ') }
+    expected.match(sql)
   end
 
   def assert_rendered(options = {}, message = nil)
@@ -246,6 +275,48 @@ class ActiveSupport::TestCase
       end
     end
   end
+
+  class SQLLogger
+    class << self
+      attr_accessor :ignored_sql, :log, :log_all
+      def clear_log; self.log = []; self.log_all = []; end
+    end
+
+    self.clear_log
+
+    self.ignored_sql = [/^PRAGMA/i, /^SELECT currval/i, /^SELECT CAST/i, /^SELECT @@IDENTITY/i, /^SELECT @@ROWCOUNT/i, /^SAVEPOINT/i, /^ROLLBACK TO SAVEPOINT/i, /^RELEASE SAVEPOINT/i, /^SHOW max_identifier_length/i, /^BEGIN/i, /^COMMIT/i]
+
+    # FIXME: this needs to be refactored so specific database can add their own
+    # ignored SQL, or better yet, use a different notification for the queries
+    # instead examining the SQL content.
+    oracle_ignored     = [/^select .*nextval/i, /^SAVEPOINT/, /^ROLLBACK TO/, /^\s*select .* from all_triggers/im, /^\s*select .* from all_constraints/im, /^\s*select .* from all_tab_cols/im]
+    mysql_ignored      = [/^SHOW FULL TABLES/i, /^SHOW FULL FIELDS/, /^SHOW CREATE TABLE /i, /^SHOW VARIABLES /, /^\s*SELECT (?:column_name|table_name)\b.*\bFROM information_schema\.(?:key_column_usage|tables)\b/im]
+    postgresql_ignored = [/^\s*select\b.*\bfrom\b.*pg_namespace\b/im, /^\s*select tablename\b.*from pg_tables\b/im, /^\s*select\b.*\battname\b.*\bfrom\b.*\bpg_attribute\b/im, /^SHOW search_path/i]
+    sqlite3_ignored =    [/^\s*SELECT name\b.*\bFROM sqlite_master/im, /^\s*SELECT sql\b.*\bFROM sqlite_master/im]
+
+    [oracle_ignored, mysql_ignored, postgresql_ignored, sqlite3_ignored].each do |db_ignored_sql|
+      ignored_sql.concat db_ignored_sql
+    end
+
+    attr_reader :ignore
+
+    def initialize(ignore = Regexp.union(self.class.ignored_sql))
+      @ignore = ignore
+    end
+
+    def call(name, start, finish, message_id, values)
+      sql = values[:sql]
+
+      # FIXME: this seems bad. we should probably have a better way to indicate
+      # the query was cached
+      return if 'CACHE' == values[:name]
+
+      self.class.log_all << sql
+      # puts sql
+      self.class.log << sql unless ignore =~ sql
+    end
+  end
+  ActiveSupport::Notifications.subscribe('sql.active_record', SQLLogger.new)
 
 end
 

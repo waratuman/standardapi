@@ -112,7 +112,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     @controller.params = {}
     assert_equal 'SELECT "references".* FROM "references" WHERE "references"."subject_id" = 1', @controller.send(:resources).to_sql
   end
-  
+
   test "Auto includes on a controller without a model" do
     @controller = SessionsController.new
     assert_nil @controller.send(:model)
@@ -154,7 +154,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
         end
-        
+
         if column.respond_to?(:auto_populated?)
           assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
         end
@@ -263,7 +263,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert JSON(response.body).has_key?('document')
     assert_nil JSON(response.body)['document']
   end
-  
+
   test 'rendering serialize_attribute' do
     property = create(:property, description: 'This text will magically change')
     get property_path(property, format: 'json'), params: { id: property.id, magic: true }
@@ -274,15 +274,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'rendering an enum' do
     public_document = create(:document, level: 'public')
-    
+
     get documents_path(format: 'json'), params: { limit: 1 }
     assert_equal JSON(response.body)[0]['level'], 'public'
-    
+
     secret_document = create(:document, level: 'secret')
     get document_path(secret_document, format: 'json')
     assert_equal JSON(response.body)['level'], 'secret'
   end
-  
+
   test '#index.json uses overridden partial' do
     create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [{:photos => { order: :id }}] }
@@ -725,18 +725,34 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal [1], JSON(response.body)
   end
-  
+
   test 'preloading polymorphic associations' do
     p1 = create(:property)
     p2 = create(:property)
-    a1 = create(:account, subject: p1)
-    a2 = create(:account, subject: p2)      
-    
-    assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
-      get accounts_path(limit: 2, include: :subject, format: 'json')
-      
-      assert_equal p1.id, a1.subject_id
-      assert_equal p2.id, a2.subject_id
+    c1 = create(:camera)
+    c2 = create(:camera)
+    a1 = create(:account, subject: p1, subject_cached_at: Time.now)
+    a2 = create(:account, subject: p2, subject_cached_at: Time.now)
+    a3 = create(:account, subject: c1, subject_cached_at: Time.now)
+    a4 = create(:account, subject: c2, subject_cached_at: Time.now)
+    a5 = create(:account, subject: c2, subject_cached_at: Time.now)
+
+    assert_sql(
+      'SELECT "properties".* FROM "properties" WHERE "properties"."id" IN ($1, $2)',
+      'SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN ($1, $2)'
+    ) do
+      assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
+        get accounts_path(limit: 10, include: { subject: { landlord: { when: { subject_type: 'Property' } } } }, format: 'json')
+
+        assert_equal p1.id, a1.subject_id
+        assert_equal p2.id, a2.subject_id
+        assert_equal c1.id, a3.subject_id
+        assert_equal p1.id, JSON(response.body).dig(0, 'subject', 'id')
+        assert_equal p2.id, JSON(response.body).dig(1, 'subject', 'id')
+        assert_equal c1.id, JSON(response.body).dig(2, 'subject', 'id')
+        assert_equal c2.id, JSON(response.body).dig(3, 'subject', 'id')
+        assert_equal c2.id, JSON(response.body).dig(4, 'subject', 'id')
+      end
     end
   end
 
