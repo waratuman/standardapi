@@ -7,7 +7,7 @@ module StandardAPI
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
 
-    def preloadables(record, includes, preload_polymorphic_associations = false)
+    def preloadables(record, includes)
       preloads = {}
       polymorphic_preloads = {}
 
