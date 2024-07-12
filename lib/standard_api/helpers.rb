@@ -9,7 +9,6 @@ module StandardAPI
 
     def preloadables(record, includes)
       preloads = {}
-      polymorphic_preloads = {}
 
       includes.each do |key, value|
         if reflection = record.klass.reflections[key]
