@@ -31,11 +31,21 @@ includes.each do |inc, subinc|
       end
     else
       can_cache = can_cache_relation?(record, inc, subinc)
-      if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
-        can_cache = can_cache && !record.send(association.foreign_key).nil?
+      cache_key = nil
+
+      if can_cache
+        if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
+          can_cache = can_cache && !record.send(association.foreign_key).nil?
+        end
+
+        if can_cache
+          cache_key = association_cache_key(record, inc, subinc)
+          can_cache = cache_key.present?
+        end
       end
+
       json.set! inc do
-        json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
+        json.cache_if!(can_cache, can_cache ? cache_key : nil) do
           value = record.send(inc)
           if value.nil?
             json.null!

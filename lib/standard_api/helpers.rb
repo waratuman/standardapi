@@ -1,9 +1,9 @@
 module StandardAPI
   module Helpers
-    
+
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
-      
+
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
 
@@ -17,31 +17,25 @@ module StandardAPI
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
             if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
+               preloads[key.to_sym] = preloadables_hash(value)
             end
           end
         end
       end
 
-      preloads.empty? ? record : record.preload(preloads)
+      preloads.present? ? record.preload(preloads) : record
     end
 
-    def preloadables_hash(klass, iclds)
+    def preloadables_hash(iclds)
       preloads = {}
 
       iclds.each do |key, value|
-        if reflection = klass.reflections[key]
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'order', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
+        case value
+        when true
+          preloads[key] = value
+        when Hash, ActiveSupport::HashWithIndifferentAccess
+          if !value.keys.any? { |x| [ 'when', 'where', 'limit', 'offset', 'order', 'distinct' ].include?(x) }
+            preloads[key] = preloadables_hash(value)
           end
         end
       end

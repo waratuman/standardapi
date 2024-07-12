@@ -53,6 +53,7 @@ Rails.application.routes.draw do
   end
 
   standard_resource :account
+  standard_resources :accounts, only: :index
   # standard_resources :photos, only: [ :index, :show ]
 
 end
