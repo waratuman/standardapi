@@ -23,11 +23,7 @@ module StandardAPI
         end
       end
 
-      if preloads.present?
-        record = record.preload(preloads)
-      end
-
-      record
+      preloads.present? ? record.preload(preloads) : record
     end
 
     def preloadables_hash(iclds)
