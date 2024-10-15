@@ -73,7 +73,7 @@ else
         json.set! 'readonly', (if controller.respond_to?("#{ model.model_name.singular }_attributes")
           !controller.send("#{ model.model_name.singular }_attributes").include?(column.name)
         else
-          true
+          model.readonly_attribute?(column.name)
         end)
         
         visitor = StandardAPI::Visitors::Validator.new
