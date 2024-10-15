@@ -161,6 +161,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
+    assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
+    assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
+
+    assert_equal [
+      { "presence" => true }
+    ], schema['models']['Property']['attributes']['name']['validations']
+    
+    assert_equal [
+      { "numericality" => {
+          "greater_than" => 1,
+          "greater_than_or_equal_to" => 2,
+          "equal_to" => 2,
+          "less_than_or_equal_to" => 2,
+          "less_than" => 3,
+          "other_than" => 0,
+          "even" => true,
+          "in" => "1..3"
+        }
+      }
+    ], schema['models']['Property']['attributes']['numericality']['validations']
+
     assert_equal 'test comment', schema['comment']
   end
 
@@ -755,5 +776,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       end
     end
   end
+
+
 
 end

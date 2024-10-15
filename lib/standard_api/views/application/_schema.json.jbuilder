@@ -69,7 +69,17 @@ else
         # TODO: it would be nice if rails responded with a true or false here
         # instead of the function itself
         json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
-      end
+
+        json.set! 'readonly', (if controller.respond_to?("#{ model.model_name.singular }_attributes")
+          !controller.send("#{ model.model_name.singular }_attributes").include?(column.name)
+        else
+          true
+        end)
+        
+        visitor = StandardAPI::Visitors::Validator.new
+        validations = model.validators.select { |v| v.attributes.include?(column.name.to_sym) }.map { |v| visitor.accept(v, {}) }
+        json.set! 'validations', validations
+       end
     end
   end
 

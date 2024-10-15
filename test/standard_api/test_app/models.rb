@@ -14,7 +14,7 @@ end
 
 class Document < ActiveRecord::Base
   attr_accessor :file
-  
+
   enum level:   { public: 0, secret: 1 }, _suffix: true
   enum rating:  { poor: 0, ok: 1, good: 2 }
 end
@@ -29,13 +29,25 @@ class Property < ActiveRecord::Base
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
 
-
   validates :name, presence: true
   accepts_nested_attributes_for :photos
 
   def english_name
     'A Name'
   end
+
+  # Numericality Validation
+  validates :numericality, numericality: {
+    greater_than: 1,
+    greater_than_or_equal_to: 2,
+    equal_to: 2,
+    less_than_or_equal_to: 2,
+    less_than: 3,
+    other_than: 0,
+    even: true,
+    in: 1..3
+  }
+  
 end
 
 class LSNType < ActiveRecord::Type::Value
@@ -129,6 +141,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.decimal  "size"
       t.datetime "created_at",                         null: false
       t.boolean  "active",             default: false
+      t.integer  "numericality",       default: 2
     end
 
     create_table "references", force: :cascade do |t|
@@ -167,12 +180,12 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  'record_id'
       t.integer  'document_id'
     end
-    
+
     create_table "uuid_models", id: :uuid, force: :cascade do |t|
       t.string 'title', default: 'recruit'
       t.string 'name', default: -> { 'round(random() * 1000)' }
     end
-    
+
   end
 
 end
