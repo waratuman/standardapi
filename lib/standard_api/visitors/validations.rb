@@ -47,12 +47,25 @@ module StandardAPI
         visit_validator(:with, o.options)
       end
 
+      def visit_ActiveModel_Validations_FormatValidator(o, col)
+        visit_validator(:format, o.options)
+      end
+
       private
 
       def visit_validator(name, options)
         { name => options.empty? ? true : options.as_json }
       end
 
+      def visit(object, collector = nil)
+        dispatch_method = dispatch[object.class]
+        if collector
+          send dispatch_method, object, collector
+        else
+          send dispatch_method, object
+        end
+      rescue NoMethodError => e
+      end
 
     end
 

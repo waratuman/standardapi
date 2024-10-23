@@ -165,6 +165,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
 
     assert_equal [
+      {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}
+    ], schema['models']['Account']['attributes']['email']['validations']
+    
+    assert_equal [
       { "presence" => true }
     ], schema['models']['Property']['attributes']['name']['validations']
     

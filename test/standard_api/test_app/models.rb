@@ -1,6 +1,7 @@
 # = Models
 
 class Account < ActiveRecord::Base
+  validates :email, format: /.+@.+/, allow_nil: true
   has_many :photos, -> { order(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
@@ -113,6 +114,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255
+      t.string   'email',                limit: 255
       t.integer  'property_id'
       t.integer  "subject_id"
       t.string   "subject_type"

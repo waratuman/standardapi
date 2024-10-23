@@ -87,7 +87,7 @@ else
               end)
               
               visitor = StandardAPI::Visitors::Validator.new
-              validations = model.validators.select { |v| v.attributes.include?(column.name.to_sym) }.map { |v| visitor.accept(v, {}) }
+              validations = model.validators.select { |v| v.attributes.include?(column.name.to_sym) }.map { |v| visitor.accept(v, {}) }.compact
               json.set! 'validations', validations
             end
           end
