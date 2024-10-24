@@ -76,8 +76,11 @@ else
           model.readonly_attribute?(column.name)
         end)
         
-        visitor = StandardAPI::Visitors::Validator.new
-        validations = model.validators.select { |v| v.attributes.include?(column.name.to_sym) }.map { |v| visitor.accept(v, {}) }.compact
+        validations = model.validators.
+          select { |v| v.attributes.include?(column.name.to_sym) }.
+          map { |v|
+            { v.kind => v.options.empty? ? true : v.options.as_json }
+          }.compact
         json.set! 'validations', validations
        end
     end
