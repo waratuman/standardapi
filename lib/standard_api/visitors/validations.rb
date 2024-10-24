@@ -50,6 +50,10 @@ module StandardAPI
       def visit_ActiveModel_Validations_FormatValidator(o, col)
         visit_validator(:format, o.options)
       end
+      
+      def visit_ActiveModel_Validations_InclusionValidator(o, col)
+        visit_validator(:inclusion, o.options)
+      end
 
       private
 
