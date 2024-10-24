@@ -81,7 +81,7 @@ else
               json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
               
               json.set! 'readonly', (if controller.respond_to?("#{ model.model_name.singular }_attributes")
-                !controller.send("#{ model.model_name.singular }_attributes").include?(column.name)
+                !controller.send("#{ model.model_name.singular }_attributes").map(&:to_s).include?(column.name)
               else
                 true
               end)
