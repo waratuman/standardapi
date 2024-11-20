@@ -31,7 +31,7 @@ module StandardAPI
         end
 
         if mod.instance_methods.include?(:filter)
-          mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
+          mod.send :alias_method, "sanitize_#{prefix}_params".to_sym, :filter
           mod.send :remove_method, :filter
         end
 
@@ -48,14 +48,14 @@ module StandardAPI
     end
 
     def model_params
-      if self.respond_to?("filter_#{model_name(model)}_params", true)
-        self.send("filter_#{model_name(model)}_params", params[model_name(model)], id: params[:id])
+      if self.respond_to?("sanitize_#{model_name(model)}_params", true)
+        self.send("sanitize_#{model_name(model)}_params", params[model_name(model)], id: params[:id])
       else
-        filter_model_params(params[model_name(model)], model.base_class)
+        sanitize_model_params(params[model_name(model)], model.base_class)
       end
     end
 
-    def filter_model_params(model_params, model, id: nil, allow_id: nil)
+    def sanitize_model_params(model_params, model, id: nil, allow_id: nil)
       permitted_params = if model_params && self.respond_to?("#{model_name(model)}_attributes", true)
         permits = self.send("#{model_name(model)}_attributes")
 
@@ -70,16 +70,16 @@ module StandardAPI
           attributes_key = "#{relation.name}"
 
           if model_params.has_key?(attributes_key)
-            filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
+            sanitize_method = "sanitize_#{relation.klass.base_class.model_name.singular}_params"
             if model_params[attributes_key].nil?
               permitted_params[attributes_key] = nil
             elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
               permitted_params["#{relation.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
-            elsif self.respond_to?(filter_method, true)
+            elsif self.respond_to?(sanitize_method, true)
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
                 models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
-                  i_params = self.send(filter_method, i, allow_id: true)
+                  i_params = self.send(sanitize_method, i, allow_id: true)
                   if i_params['id']
                     r = models.find { |r| r.id == i_params['id'] }
                     r.assign_attributes(i_params)
@@ -89,7 +89,7 @@ module StandardAPI
                   end
                 }
               else
-                i_params = self.send(filter_method, model_params[attributes_key], allow_id: true)
+                i_params = self.send(sanitize_method, model_params[attributes_key], allow_id: true)
                 if i_params['id']
                   r = relation.klass.find(i_params['id'])
                   r.assign_attributes(i_params)
@@ -102,7 +102,7 @@ module StandardAPI
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
                 models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
-                  i_params = filter_model_params(i, relation.klass.base_class, allow_id: true)
+                  i_params = sanitize_model_params(i, relation.klass.base_class, allow_id: true)
                   if i_params['id']
                     r = models.find { |r| r.id == i_params['id'] }
                     r.assign_attributes(i_params)
@@ -112,7 +112,7 @@ module StandardAPI
                   end
                 }
               else
-                i_params = filter_model_params(model_params[attributes_key], relation.klass.base_class, allow_id: true)
+                i_params = sanitize_model_params(model_params[attributes_key], relation.klass.base_class, allow_id: true)
                 if i_params['id']
                   r = relation.klass.find(i_params['id'])
                   r.assign_attributes(i_params)
