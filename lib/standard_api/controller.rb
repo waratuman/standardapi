@@ -109,6 +109,7 @@ module StandardAPI
       records = resources.find(params[:id].split(','))
       model.transaction { records.each(&:destroy!) }
 
+      headers['Affected-Rows'] = records.size
       head :no_content
     end
 
@@ -117,9 +118,9 @@ module StandardAPI
       association = resource.association(params[:relationship])
 
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.delete(association.klass.find(params[:resource_id]))
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         if resource.send(params[:relationship])&.id&.to_s == params[:resource_id]
           resource.update(params[:relationship] => nil)
         end
@@ -133,22 +134,22 @@ module StandardAPI
       subresource = association.klass.find(params[:resource_id])
 
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         resource.update(params[:relationship] => subresource)
       end
       head result ? :created : :bad_request
-    rescue ActiveRecord::RecordNotUnique
+    rescue ::ActiveRecord::RecordNotUnique
       render json: {errors: [
         "Relationship between #{resource.class.name} and #{subresource.class.name} violates unique constraints"
       ]}, status: :bad_request
     end
-    
+
     def create_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-    
+
       subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
         self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
@@ -158,13 +159,13 @@ module StandardAPI
       else
         ActionController::Parameters.new
       end
-    
+
       subresource = association.klass.new(subresource_params)
-    
+
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         resource.update(params[:relationship] => subresource)
       end
 
@@ -182,7 +183,7 @@ module StandardAPI
         hash[key] = mask_for(key)
       end
     end
-    
+
     # Override if you want to support masking
     def mask_for(table_name)
       # case table_name
@@ -282,14 +283,15 @@ module StandardAPI
 
       query
     end
-    
+
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
         if association = model.reflect_on_association(key)
-          includes[key] = nested_includes(association.klass, value)
+          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
         end
       end
+
       includes
     end
 
@@ -299,11 +301,11 @@ module StandardAPI
       else
         {}
       end
-      
+
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
-      
+
       @includes
     end
 

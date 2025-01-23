@@ -8,7 +8,7 @@ if model.nil? && controller_name == "application"
       array: ['index'].include?(route.requirements[:action]) }
   end
 
-  json.set! 'comment', ActiveRecord::Base.connection.database_comment
+  json.set! 'comment', ::ActiveRecord::Base.connection.database_comment
 
   json.set! 'routes' do
     json.array!(routes) do |route|
@@ -52,7 +52,7 @@ else
     model.columns.each do |column|
       default = column.default ? model.connection.lookup_cast_type_from_column(column).deserialize(column.default) : nil
       type = case model.type_for_attribute(column.name)
-      when ActiveRecord::Enum::EnumType
+      when ::ActiveRecord::Enum::EnumType
         default = model.defined_enums[column.name].key(default)
         "string"
       else
@@ -75,7 +75,7 @@ else
         else
           model.readonly_attribute?(column.name)
         end)
-        
+
         validations = model.validators.
           select { |v| v.attributes.include?(column.name.to_sym) }.
           map { |v|
@@ -90,4 +90,3 @@ else
   json.set! 'comment', model.connection.table_comment(model.table_name)
 
 end
-

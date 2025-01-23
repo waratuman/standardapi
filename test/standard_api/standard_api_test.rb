@@ -167,11 +167,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [
       {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}
     ], schema['models']['Account']['attributes']['email']['validations']
-    
+
     assert_equal [
       { "presence" => true }
     ], schema['models']['Property']['attributes']['name']['validations']
-    
+
     assert_equal [
       { "numericality" => {
           "greater_than" => 1,

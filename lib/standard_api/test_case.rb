@@ -126,7 +126,7 @@ module StandardAPI::TestCase
     value = normalize_attribute(record, attribute, value)
     return nil if value.nil?
 
-    if model.columns_hash[attribute].is_a?(ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
+    if model.columns_hash[attribute].is_a?(::ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Decimal)
       "#{value.to_f}"
     elsif value.is_a?(DateTime) #model.columns_hash[attribute].is_a?(ActiveRecord::AttributeMethods::TimeZoneConversion::TimeZoneConverter)
       value.in_time_zone.as_json

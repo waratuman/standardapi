@@ -11,7 +11,7 @@ json.object! do
     next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
 
     case association = record.class.reflect_on_association(inc)
-    when ActiveRecord::Reflection::AbstractReflection
+    when ::ActiveRecord::Reflection::AbstractReflection
       if association.collection?
         can_cache = can_cache_relation?(record, inc, subinc)
         json.cache_if!(can_cache, can_cache ? [inc, association_cache_key(record, inc, subinc)] : nil) do
@@ -32,7 +32,7 @@ json.object! do
         end
       else
         can_cache = can_cache_relation?(record, inc, subinc)
-        if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
+        if association.is_a?(::ActiveRecord::Reflection::BelongsToReflection)
           can_cache = can_cache && !record.send(association.foreign_key).nil?
         end
         json.cache_if!(can_cache, can_cache ? [inc, association_cache_key(record, inc, subinc)] : nil) do

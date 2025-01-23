@@ -26,7 +26,7 @@ module StandardAPI
         @controller.define_singleton_method(:mask_for) do |table_name|
           { id: m.id + 1 }
         end
-        assert_raises(ActiveRecord::RecordNotFound) do
+        assert_raises(::ActiveRecord::RecordNotFound) do
           delete resource_path(:destroy, id: m.id, format: :json)
         end
       end
