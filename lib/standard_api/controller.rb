@@ -62,6 +62,7 @@ module StandardAPI
       instance_variable_set("@#{model.model_name.singular}", record)
 
       if record.save
+        headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -73,6 +74,7 @@ module StandardAPI
           render :show, status: :created
         end
       else
+        headers['Affected-Rows'] = 0
         if request.format == :html
           render :new, status: :bad_request
         else
@@ -86,6 +88,7 @@ module StandardAPI
       instance_variable_set("@#{model.model_name.singular}", record)
 
       if record.update(model_params)
+        headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -97,6 +100,7 @@ module StandardAPI
           render :show, status: :ok
         end
       else
+        headers['Affected-Rows'] = 0
         if request.format == :html
           render :edit, status: :bad_request
         else
