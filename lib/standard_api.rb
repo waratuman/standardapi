@@ -6,6 +6,7 @@ require 'action_controller'
 require 'active_record/filter'
 require 'active_record/sort'
 require 'active_support/core_ext/hash/indifferent_access'
+require 'action_dispatch'
 
 require 'standard_api/version'
 require 'standard_api/errors'
@@ -15,6 +16,7 @@ require 'standard_api/controller'
 require 'standard_api/helpers'
 require 'standard_api/route_helpers'
 require 'standard_api/active_record/connection_adapters/postgresql/schema_statements'
+require 'standard_api/action_dispatch/routing/mapper'
 require 'standard_api/railtie'
 
 module StandardAPI

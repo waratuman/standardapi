@@ -46,7 +46,7 @@ module StandardAPI
         if actions.include?(:add_resource)
           post ':relationship/:resource_id' => :add_resource, on: :member
         end
-        
+
         if actions.include?(:create_resource)
           post ':relationship' => :create_resource, on: :member
         end
