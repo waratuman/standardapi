@@ -96,9 +96,9 @@ module StandardAPI
       timestamp = timestamp.max
 
       case association = record.class.reflect_on_association(relation)
-      when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection
+      when ::ActiveRecord::Reflection::HasManyReflection, ::ActiveRecord::Reflection::HasAndBelongsToManyReflection, ::ActiveRecord::Reflection::HasOneReflection, ::ActiveRecord::Reflection::ThroughReflection
         "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
-      when ActiveRecord::Reflection::BelongsToReflection
+      when ::ActiveRecord::Reflection::BelongsToReflection
         klass = association.options[:polymorphic] ? record.send(association.foreign_type).constantize : association.klass
         if subincludes.empty?
           "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_fs(klass.cache_timestamp_format)}"

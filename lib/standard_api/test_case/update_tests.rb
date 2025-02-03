@@ -144,7 +144,7 @@ module StandardAPI
         @controller.define_singleton_method(:mask_for) do |table_name|
           { id: m.id + 1 }
         end
-        assert_raises(ActiveRecord::RecordNotFound) do
+        assert_raises(::ActiveRecord::RecordNotFound) do
           put resource_path(:update, :id => m.id), as: :json
         end
       end

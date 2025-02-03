@@ -9,7 +9,7 @@ includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
 
   case association = record.class.reflect_on_association(inc)
-  when ActiveRecord::Reflection::AbstractReflection
+  when ::ActiveRecord::Reflection::AbstractReflection
     if association.collection?
       can_cache = can_cache_relation?(record, inc, subinc)
       json.set! inc do
@@ -34,7 +34,7 @@ includes.each do |inc, subinc|
       cache_key = nil
 
       if can_cache
-        if association.is_a?(ActiveRecord::Reflection::BelongsToReflection)
+        if association.is_a?(::ActiveRecord::Reflection::BelongsToReflection)
           can_cache = can_cache && !record.send(association.foreign_key).nil?
         end
 

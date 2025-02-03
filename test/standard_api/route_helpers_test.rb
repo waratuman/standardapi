@@ -39,6 +39,14 @@ class RouteHelpersTest < ActionDispatch::IntegrationTest
       assert_routing({ path: '/photos/1', method: :get }, { controller: 'photos', action: 'show', id: '1' })
       assert_equal 2, set.routes.size
     end
+    
+    with_routing do |set|
+      set.draw do
+        standard_resources :photos, only: [ :schema ]
+      end
+      assert_routing({ path: '/photos/schema', method: :get }, { controller: 'photos', action: 'schema' })
+      assert_equal 1, set.routes.size
+    end
   end
 
   test "standard_resources with except option" do

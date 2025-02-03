@@ -30,7 +30,7 @@ module StandardAPI
             end
           else
             m = @controller.instance_variable_get("@#{singular_name}").send(included).first.try(:reload)
-            
+
             m_json = if m && m.has_attribute?(:id)
               json[included.to_s].find { |x| x['id'] == normalize_to_json(m, :id, m.id) }
             elsif m
@@ -47,7 +47,7 @@ module StandardAPI
                 assert_equal m_json[key.to_s], normalize_to_json(m, key, value), message
               end
             end
-            
+
           end
         end
       end
@@ -65,7 +65,7 @@ module StandardAPI
         @controller.define_singleton_method(:mask_for) do |table_name|
           { id: m.id + 1 }
         end
-        assert_raises(ActiveRecord::RecordNotFound) do
+        assert_raises(::ActiveRecord::RecordNotFound) do
           get resource_path(:show, id: m.id, format: :json)
         end
       end

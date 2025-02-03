@@ -16,8 +16,8 @@ end
 class Document < ActiveRecord::Base
   attr_accessor :file
 
-  enum level:   { public: 0, secret: 1 }, _suffix: true
-  enum rating:  { poor: 0, ok: 1, good: 2 }
+  enum :level, { public: 0, secret: 1 }, suffix: true
+  enum :rating, { poor: 0, ok: 1, good: 2 }
 end
 
 class Pdf < Document
