@@ -18,8 +18,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib", "test"]
 
   spec.add_runtime_dependency 'rails', '>= 6.1.0'
-  spec.add_runtime_dependency 'activesupport', '>= 8.0.1'
-  spec.add_runtime_dependency 'actionpack', '>= 8.0.1'
+  spec.add_runtime_dependency 'activesupport', '>= 6.1.0'
+  spec.add_runtime_dependency 'actionpack', '>= 6.1.0'
   spec.add_runtime_dependency 'activerecord-sort', '>= 6.1.0'
   spec.add_runtime_dependency 'activerecord-filter', '>= 8.0.0'
 
