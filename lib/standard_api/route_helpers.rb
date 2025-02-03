@@ -24,21 +24,7 @@ module StandardAPI
       resources(*resources, options) do
         block.call if block # custom routes take precedence over standardapi routes
 
-        available_actions = if only = parent_resource.instance_variable_get(:@only)
-          Array(only).map(&:to_sym)
-        else
-          if parent_resource.instance_variable_get(:@api_only)
-            [:index, :create, :show, :update, :destroy]
-          else
-            [:index, :create, :new, :show, :update, :destroy, :edit]
-          end + [ :schema, :calculate, :add_resource, :remove_resource, :create_resource ]
-        end
-
-        actions = if except = parent_resource.instance_variable_get(:@except)
-          available_actions - Array(except).map(&:to_sym)
-        else
-          available_actions
-        end
+        actions = parent_resource.actions
 
         get :schema, on: :collection if actions.include?(:schema)
         get :calculate, on: :collection if actions.include?(:calculate)
