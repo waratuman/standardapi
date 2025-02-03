@@ -16,7 +16,6 @@ require 'standard_api/controller'
 require 'standard_api/helpers'
 require 'standard_api/route_helpers'
 require 'standard_api/active_record/connection_adapters/postgresql/schema_statements'
-require 'standard_api/action_dispatch/routing/mapper'
 require 'standard_api/railtie'
 
 module StandardAPI
