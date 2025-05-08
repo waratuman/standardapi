@@ -28,6 +28,10 @@ module StandardAPI
       def schema
         Rails.application.eager_load! if !Rails.application.config.eager_load
       end
+      
+      def json_schema
+        Rails.application.eager_load! if !Rails.application.config.eager_load
+      end
     end
 
     def index

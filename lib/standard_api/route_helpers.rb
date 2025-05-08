@@ -20,7 +20,7 @@ module StandardAPI
     #   end
     def standard_resources(*resources, &block)
       options = resources.extract_options!.dup
-      standard_resource_actions = [ :schema, :calculate, :create_resource, :add_resource, :remove_resource ]
+      standard_resource_actions = [ :schema, :json_schema, :calculate, :create_resource, :add_resource, :remove_resource ]
 
       resources_options = options.deep_dup
 
@@ -50,6 +50,7 @@ module StandardAPI
         end
 
         get :schema, on: :collection if actions.include?(:schema)
+        get :json_schema, on: :collection if actions.include?(:json_schema)
         get :calculate, on: :collection if actions.include?(:calculate)
 
         if actions.include?(:add_resource)
@@ -94,7 +95,7 @@ module StandardAPI
             [:index, :create, :show, :update, :destroy]
           else
             [:index, :create, :new, :show, :update, :destroy, :edit]
-          end + [ :schema, :calculate, :add_resource, :remove_resource ]
+          end + [ :schema, :json_schema, :calculate, :add_resource, :remove_resource ]
         end
 
         actions = if except = parent_resource.instance_variable_get(:@except)
@@ -104,6 +105,7 @@ module StandardAPI
         end
 
         get :schema, on: :collection if actions.include?(:schema)
+        get :json_schema, on: :collection if actions.include?(:json_schema)
         get :calculate, on: :collection if actions.include?(:calculate)
 
         if actions.include?(:add_resource)

@@ -192,6 +192,48 @@ module StandardAPI
         'ewkb'
       end
     end
+    
+    # For JSON Schema
+    def json_column_schema(sql_type)
+      case sql_type
+      when 'binary', 'bytea'
+        # TODO contentMediaType correct?
+        # contentEncoding?
+        # https://json-schema.org/understanding-json-schema/reference/non_json_data
+        {type: 'string', contentMediaType: 'application/octet-stream'}
+      when 'duration'
+        {type: 'string', format: 'duration'}
+      when 'text'
+        {type: 'string'}
+      when 'json', 'jsonb'
+        {type: 'object'}
+      when 'smallint', 'bigint', 'integer'
+        {type: 'integer'}
+      when 'hstore'
+        # TODO contentMediaType? or contentEncoding?
+        {type: 'object'}
+      when 'datetime', /timestamp(\(\d+\))? without time zone/, 'time without time zone'
+        {type: 'string', format: 'date-time'}
+      when 'date'
+        {type: 'string', format: 'date'}
+      when /numeric(\(\d+(,\d+)?\))?/, 'double precision'
+        {type: 'number'} 
+      when 'inet'
+        # TODO contentMediaType? or contentEncoding?
+        {type: 'string'} 
+      when 'ltree'
+        # TODO contentMediaType? or contentEncoding?
+        {type: 'string'} 
+      when 'boolean'
+        {type: 'boolean'}
+      when 'uuid'
+        {type: 'string', format: 'uuid'}
+      when /character varying(\(\d+\))?/
+        {type: 'string'}
+      when /^geometry/
+        {type: 'string', contentMediaType: 'application/octet-stream'}
+      end
+    end
 
   end
 end
