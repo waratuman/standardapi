@@ -25,7 +25,10 @@ module PropertyACL
       "size",
       "created_at",
       "active",
-      "numericality"
+      "numericality",
+      "build_type",
+      "phone_number",
+      "agree_to_terms"
     ]
   end
 

@@ -30,7 +30,6 @@ class Property < ActiveRecord::Base
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
 
-  validates :name, presence: true
   accepts_nested_attributes_for :photos
 
   def english_name
@@ -48,6 +47,11 @@ class Property < ActiveRecord::Base
     even: true,
     in: 1..3
   }
+
+  validates :name, presence: true
+  validates :build_type, inclusion: {in: ['concrete', 'metal', 'brick'], allow_nil: true}
+  validates :agree_to_terms, acceptance: true
+  validates :phone_number, format: /\d{3}-\d{3}-\d{4}/, length: {minimum: 9, maximum: 12, allow_blank: true}
   
 end
 
@@ -144,6 +148,9 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.datetime "created_at",                         null: false
       t.boolean  "active",             default: false
       t.integer  "numericality",       default: 2
+      t.string   "build_type"
+      t.boolean  "agree_to_terms", default: true
+      t.string  "phone_number", default: '999-999-9999'
     end
 
     create_table "references", force: :cascade do |t|
@@ -166,9 +173,9 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "property_id"
     end
 
-    create_table "documents", force: :cascade do |t|
+    create_table "documents", force: :cascade, comment: 'I <3 Documents' do |t|
       t.integer  'level', limit: 2, null: false, default: 0
-      t.integer  'rating', limit: 2
+      t.integer  'rating', limit: 2, comment: 'Ratings are 1-10, where 10 is great'
       t.string   'type'
     end
 
