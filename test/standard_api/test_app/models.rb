@@ -88,6 +88,7 @@ class Reference < ActiveRecord::Base
 end
 
 class Document < ActiveRecord::Base
+  self.inheritance_column = nil
   attr_accessor :file
 end
 

@@ -53,8 +53,7 @@ module StandardAPI
     end
 
     def show
-      record = preloadables(resources, includes).find(params[:id])
-      instance_variable_set("@#{model.model_name.singular}", record)
+      instance_variable_set("@#{model.model_name.singular}", resource)
     end
 
     def new
@@ -62,16 +61,16 @@ module StandardAPI
     end
 
     def create
-      record = model.new(model_params)
-      instance_variable_set("@#{model.model_name.singular}", record)
+      resource.assign_attributes(model_params)
+      instance_variable_set("@#{model.model_name.singular}", resource)
 
-      if record.save
+      if resource.save
         headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
-            controller: record.class.base_class.model_name.collection,
+            controller: resource.class.base_class.model_name.collection,
             action: 'show',
-            id: record.id,
+            id: resource.id,
             only_path: true
           )
         else
@@ -88,16 +87,15 @@ module StandardAPI
     end
 
     def update
-      record = resources.find(params[:id])
-      instance_variable_set("@#{model.model_name.singular}", record)
+      instance_variable_set("@#{model.model_name.singular}", resource)
 
-      if record.update(model_params)
+      if resource.update(model_params)
         headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
-            controller: record.class.base_class.model_name.collection,
+            controller: resource.class.base_class.model_name.collection,
             action: 'show',
-            id: record.id,
+            id: resource.id,
             only_path: true
           )
         else
@@ -163,7 +161,7 @@ module StandardAPI
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
         params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
       elsif self.respond_to?("filter_model_params", true)
-        filter_model_params(params[model_name(association.klass)], association.klass.base_class)
+        filter_model_params(resource, params[model_name(association.klass)])
       else
         ActionController::Parameters.new
       end
@@ -290,6 +288,15 @@ module StandardAPI
       end
 
       query
+    end
+    
+    def resource
+      return @resource if instance_variable_get('@resource')
+      @resource = if action_name == "create"
+        model.new
+      else
+        preloadables(resources, includes).find(params[:id])
+      end
     end
 
     def nested_includes(model, attributes)

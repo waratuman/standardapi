@@ -98,8 +98,9 @@ class ControllerSubresourceTest < ActionDispatch::IntegrationTest
   test 'Controller#create_resource with has_one' do
     account = build(:account)
     property = create(:property)
-    post "/properties/#{property.id}/landlord", params: { landlord: account.attributes }, as: :json
+    post "/properties/#{property.id}/landlord", params: { account: account.attributes }, as: :json
     assert_equal property.reload.landlord.id, JSON.parse(response.body)['id']
+    assert_equal property.reload.landlord.name, account.name
     assert_response :created
   end
 
