@@ -48,36 +48,44 @@ module StandardAPI
     end
 
     def model_params
-      if self.respond_to?("filter_#{model_name(model)}_params", true)
-        self.send("filter_#{model_name(model)}_params", params[model_name(model)], id: params[:id])
+      return @model_params if instance_variable_defined?(:@model_params)
+      @model_params = if self.respond_to?("filter_#{model_name(model)}_params", true)
+        self.send("filter_#{model_name(model)}_params", resource, params[model_name(model)], id: params[:id])
       else
-        filter_model_params(params[model_name(model)], model.base_class)
+        filter_model_params(resource, params[model_name(model)])
       end
     end
 
-    def filter_model_params(model_params, model, id: nil, allow_id: nil)
-      permitted_params = if model_params && self.respond_to?("#{model_name(model)}_attributes", true)
-        permits = self.send("#{model_name(model)}_attributes")
+    def filter_model_params(resource, model_params, id: nil, allow_id: nil)
+      permitted_params = if model_params && self.respond_to?("#{model_name(resource.class)}_attributes", true)
+        args = if self.method("#{model_name(resource.class)}_attributes").arity == 0
+          logger.warn <<~NOTE.strip_heredoc
+            DEPRECATION WARNING: #{ resource.class.name }ACL#attributes() has been deprecated, use #{ resource.class.name }ACL#attributes(record) instead"
+          NOTE
+          []
+        else
+          [ resource ]
+        end
+        permits = self.send("#{model_name(resource.class)}_attributes", *args)
 
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
       else
         ActionController::Parameters.new
       end
 
-      if self.respond_to?("nested_#{model_name(model)}_attributes", true)
-        self.send("nested_#{model_name(model)}_attributes").each do |relation|
-          relation = model.reflect_on_association(relation)
-          attributes_key = "#{relation.name}"
-
+      if self.respond_to?("nested_#{model_name(resource.class)}_attributes", true)
+        self.send("nested_#{model_name(resource.class)}_attributes").each do |relation|
+          association = resource.association(relation)
+          attributes_key = association.reflection.name.to_s
           if model_params.has_key?(attributes_key)
-            filter_method = "filter_#{relation.klass.base_class.model_name.singular}_params"
+            filter_method = "filter_#{association.klass.base_class.model_name.singular}_params"
             if model_params[attributes_key].nil?
               permitted_params[attributes_key] = nil
             elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
-              permitted_params["#{relation.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
+              permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
             elsif self.respond_to?(filter_method, true)
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
                   i_params = self.send(filter_method, i, allow_id: true)
                   if i_params['id']
@@ -85,48 +93,40 @@ module StandardAPI
                     r.assign_attributes(i_params)
                     r
                   else
-                    relation.klass.new(i_params)
+                    association.klass.new(i_params)
                   end
                 }
               else
                 i_params = self.send(filter_method, model_params[attributes_key], allow_id: true)
                 if i_params['id']
-                  r = relation.klass.find(i_params['id'])
+                  r = association.klass.find(i_params['id'])
                   r.assign_attributes(i_params)
                   r
                 else
-                  relation.klass.new(i_params)
+                  association.klass.new(i_params)
                 end
               end
             else
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                models = relation.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
-                  i_params = filter_model_params(i, relation.klass.base_class, allow_id: true)
-                  if i_params['id']
-                    r = models.find { |r| r.id == i_params['id'] }
-                    r.assign_attributes(i_params)
-                    r
-                  else
-                    relation.klass.new(i_params)
-                  end
+                  nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association.klass.new
+                  i_params = filter_model_params(nested_record, i, allow_id: true)
+                  nested_record.assign_attributes(i_params)
+                  nested_record
                 }
               else
-                i_params = filter_model_params(model_params[attributes_key], relation.klass.base_class, allow_id: true)
-                if i_params['id']
-                  r = relation.klass.find(i_params['id'])
-                  r.assign_attributes(i_params)
-                  r
-                else
-                  relation.klass.new(i_params)
-                end
+                nested_record = model_params[attributes_key]['id'] ? association.klass.find(model_params[attributes_key]['id']) : association.klass.new
+                i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true)
+                nested_record.assign_attributes(i_params)
+                nested_record
               end
             end
-          elsif relation.collection? && model_params.has_key?("#{relation.name.to_s.singularize}_ids")
-            permitted_params["#{relation.name.to_s.singularize}_ids"] = model_params["#{relation.name.to_s.singularize}_ids"]
-          elsif model_params.has_key?(relation.foreign_key)
-            permitted_params[relation.foreign_key] = model_params[relation.foreign_key]
-            permitted_params[relation.foreign_type] = model_params[relation.foreign_type] if relation.polymorphic?
+          elsif association.collection? && model_params.has_key?("#{association.reflection.name.to_s.singularize}_ids")
+            permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params["#{association.reflection.name.to_s.singularize}_ids"]
+          elsif model_params.has_key?(association.reflection.foreign_key)
+            permitted_params[association.reflection.foreign_key] = model_params[association.reflection.foreign_key]
+            permitted_params[association.reflection.foreign_type] = model_params[association.reflection.foreign_type] if association.reflection.polymorphic?
           end
 
           permitted_params.permit!

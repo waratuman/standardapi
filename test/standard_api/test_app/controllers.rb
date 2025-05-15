@@ -30,8 +30,12 @@ end
 
 class DocumentsController < ApplicationController
 
-  def document_attributes
-    [ :file, :type ]
+  def document_attributes(document=nil)
+    document&.type == "movie" ? [
+      :file, :type, :rating
+    ] : [
+      :file, :type
+    ]
   end
 
   def document_orders
