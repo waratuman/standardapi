@@ -58,7 +58,14 @@ module StandardAPI
 
     def filter_model_params(resource, model_params, id: nil, allow_id: nil)
       permitted_params = if model_params && self.respond_to?("#{model_name(resource.class)}_attributes", true)
-        args = self.method("#{model_name(resource.class)}_attributes").arity != 0 ? [resource] : []
+        args = if self.method("#{model_name(resource.class)}_attributes").arity == 0
+          logger.warn <<~NOTE.strip_heredoc
+            DEPRECATION WARNING: #{ resource.class.name }ACL#attributes() has been deprecated, use #{ resource.class.name }ACL#attributes(record) instead"
+          NOTE
+          []
+        else
+          [ resource ]
+        end
         permits = self.send("#{model_name(resource.class)}_attributes", *args)
 
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
