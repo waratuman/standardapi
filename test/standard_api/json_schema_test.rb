@@ -3,11 +3,11 @@ require 'standard_api/test_helper'
 class JSONSchemaTest < ActionDispatch::IntegrationTest
   
   test 'Controller#json_schema.json' do
-    get json_schema_references_path(format: 'json')
+    get json_schema_cameras_path(format: 'json')
 
     schema = JSON(response.body)
     assert_equal true, schema.has_key?('properties')
-    assert_equal true, schema['properties']['id']['required']
+    assert_equal true, schema['required'].include?('make')
   end
   
   test 'Controller#json_schema.json table description' do
@@ -28,8 +28,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)
-    assert_equal true, schema.dig('properties', 'name', 'required')
-    assert_equal nil, schema.dig('properties', 'description', 'required')
+    assert_equal true, schema['required'].include?('name')
+    assert_equal true, schema['required'].exclude?('description')
   end
   
   test 'Controller#json_schema.json readOnly' do
@@ -99,7 +99,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)
-    assert_equal true, schema.dig('properties', 'name', 'required')
+    assert_equal true, schema['required'].include?('name')
   end
 
 

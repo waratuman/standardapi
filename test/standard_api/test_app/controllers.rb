@@ -94,3 +94,6 @@ end
 
 class UuidModelController < ApplicationController
 end
+
+class CamerasController < ApplicationController
+end
