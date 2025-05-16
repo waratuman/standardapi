@@ -1,1 +1,1 @@
-json.partial!('json_schema', model: model, includes: includes)
+json.partial!('json_schema', model: model, includes: @includes)

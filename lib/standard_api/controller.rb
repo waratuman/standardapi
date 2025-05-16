@@ -7,7 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource]
+      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -28,10 +28,11 @@ module StandardAPI
       def schema
         Rails.application.eager_load! if !Rails.application.config.eager_load
       end
-      
-      def json_schema
-        Rails.application.eager_load! if !Rails.application.config.eager_load
-      end
+    end
+    
+    def json_schema
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+      @includes = StandardAPI::Includes.normalize(params[:include] || {})
     end
 
     def index

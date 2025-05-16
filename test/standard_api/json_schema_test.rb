@@ -121,5 +121,35 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_equal 'string', schema['properties']['rating']['type']
     assert_nil schema['properties']['rating']['default']
   end
+  
+  test 'Controller#json_schema.json include only' do
+    get json_schema_properties_path(format: 'json'), params: { include: {only: ['created_at']} }
+    
+    schema = JSON(response.body)
+    assert_equal ['created_at'], schema['properties'].keys
+  end
+  
+  test 'Controller#json_schema.json include except' do
+    get json_schema_properties_path(format: 'json'), params: { include: {except: ['created_at']} }
+    
+    schema = JSON(response.body)
+    assert schema['properties'].keys.exclude?('created_at')
+  end
+  
+  test 'Controller#json_schema.json include has_many' do
+    get json_schema_properties_path(format: 'json'), params: { include: 'accounts' }
+    
+    schema = JSON(response.body)
+    assert_equal 'array', schema.dig('properties', 'accounts', 'type')
+    assert_equal 'string', schema.dig('properties', 'accounts', 'items', 'properties', 'email', 'type')
+  end
+
+  test 'Controller#json_schema.json include belongs_to' do
+    get json_schema_photos_path(format: 'json'), params: { include: 'account' }
+
+    schema = JSON(response.body)
+    assert_equal 'object', schema.dig('properties', 'account', 'type')
+    assert_equal 'string', schema.dig('properties', 'account', 'properties', 'email', 'type')
+  end
 
 end

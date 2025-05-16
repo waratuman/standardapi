@@ -5,6 +5,8 @@ if comment = model.connection.table_comment(model.table_name)
 end
 json.set! 'properties' do
   model.columns.each do |column|
+    next if includes["only"]&.exclude?(column.name)
+    next if includes["except"]&.include?(column.name)
     column_schema = json_column_schema(column.sql_type)
     
     if controller.respond_to?("#{ model.model_name.singular }_attributes") && controller.send("#{ model.model_name.singular }_attributes").map(&:to_s).exclude?(column.name)
@@ -65,19 +67,21 @@ json.set! 'properties' do
       end
     end
   end
-end
-
-includes.each do |inc, subinc|
-  case association = model.reflect_on_association(inc)
-  when ::ActiveRecord::Reflection::AbstractReflection
-    json.set! inc do
-      if association.collection?
-        json.set! 'type', 'array'
-        json.set! 'items' do
+  includes.each do |inc, subinc|
+    next if %w(only except).include?(inc)
+    next if includes["only"]&.exclude?(inc)
+    next if includes["except"]&.include?(inc)
+    case association = model.reflect_on_association(inc)
+    when ::ActiveRecord::Reflection::AbstractReflection
+      json.set! inc do
+        if association.collection?
+          json.set! 'type', 'array'
+          json.set! 'items' do
+            json.partial!('json_schema', model: association.klass, includes: subinc)
+          end
+        else
           json.partial!('json_schema', model: association.klass, includes: subinc)
         end
-      else
-        json.partial!('json_schema', model: association.klass, includes: subinc)
       end
     end
   end
