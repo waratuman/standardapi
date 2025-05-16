@@ -87,24 +87,22 @@ module StandardAPI
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
                 models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
-                  i_params = self.send(filter_method, i, allow_id: true)
-                  if i_params['id']
-                    r = models.find { |r| r.id == i_params['id'] }
-                    r.assign_attributes(i_params)
-                    r
+                  r = if i_params['id']
+                    models.find { |r| r.id == i_params['id'] }
                   else
-                    association.klass.new(i_params)
+                    association.klass.new
                   end
+                  i_params = self.send(filter_method, r, i, allow_id: true)
+                  r.assign_attributes(i_params)
                 }
               else
-                i_params = self.send(filter_method, model_params[attributes_key], allow_id: true)
-                if i_params['id']
-                  r = association.klass.find(i_params['id'])
-                  r.assign_attributes(i_params)
-                  r
+                r = if i_params['id']
+                  association.klass.find(i_params['id'])
                 else
-                  association.klass.new(i_params)
+                  association.klass.new()
                 end
+                i_params = self.send(filter_method, r, model_params[attributes_key], allow_id: true)
+                r.assign_attributes(i_params)
               end
             else
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
