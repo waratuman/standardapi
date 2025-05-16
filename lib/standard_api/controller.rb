@@ -156,9 +156,9 @@ module StandardAPI
     def create_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-
+      subresource = association.klass.new
       subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
-        self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
+        self.send("filter_#{model_name(association.klass)}_params", subresource, params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
         params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
       elsif self.respond_to?("filter_model_params", true)
@@ -167,7 +167,7 @@ module StandardAPI
         ActionController::Parameters.new
       end
 
-      subresource = association.klass.new(subresource_params)
+      subresource.assign_attributes(subresource_params)
 
       result = case association
       when ::ActiveRecord::Associations::CollectionAssociation
