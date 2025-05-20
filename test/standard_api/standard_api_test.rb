@@ -304,7 +304,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "cameras", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do

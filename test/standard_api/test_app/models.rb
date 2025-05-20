@@ -182,7 +182,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
     create_table "cameras", force: :cascade do |t|
       t.integer  'photo_id'
-      t.string   'make'
+      t.string   'make', null: false
     end
 
     create_table "attachments", force: :cascade do |t|

@@ -1,3 +1,4 @@
+required = Set.new
 json.set! 'title', model.table_name.titleize.singularize
 json.set! 'type', 'object'
 if comment = model.connection.table_comment(model.table_name)
@@ -5,6 +6,8 @@ if comment = model.connection.table_comment(model.table_name)
 end
 json.set! 'properties' do
   model.columns.each do |column|
+    next if includes["only"]&.exclude?(column.name)
+    next if includes["except"]&.include?(column.name)
     column_schema = json_column_schema(column.sql_type)
     
     if controller.respond_to?("#{ model.model_name.singular }_attributes") && controller.send("#{ model.model_name.singular }_attributes").map(&:to_s).exclude?(column.name)
@@ -21,8 +24,8 @@ json.set! 'properties' do
       column_schema[:description] = column.comment
     end
     
-    if column.null == false
-      column_schema[:required] = true
+    if column.null == false && column_schema[:readOnly] != true
+      required.add(column.name)
     end
     
     if model.type_for_attribute(column.name).is_a?(::ActiveRecord::Enum::EnumType)
@@ -41,14 +44,14 @@ json.set! 'properties' do
         column_schema["enum"] = v.options[:in] if v.options[:in]
       when ::ActiveModel::Validations::AcceptanceValidator
         column_schema["const"] = true
-        column_schema["required"] = true if v.options[:allow_nil] != true
+        required.add(column.name) if v.options[:allow_nil] != true
       when ::ActiveModel::Validations::FormatValidator
         column_schema["pattern"] = v.options[:with] if v.options[:with]
       when ::ActiveModel::Validations::LengthValidator
         column_schema["minLength"] = v.options[:minimum] if v.options[:minimum]
         column_schema["maxLength"] = v.options[:maximum] if v.options[:maximum]
       when ::ActiveModel::Validations::PresenceValidator
-        column_schema["required"] = true
+        required.add(column.name)
       else
         puts "******* MISSING VALIDATOR **********"
         puts v.inspect
@@ -65,20 +68,23 @@ json.set! 'properties' do
       end
     end
   end
-end
-
-includes.each do |inc, subinc|
-  case association = model.reflect_on_association(inc)
-  when ::ActiveRecord::Reflection::AbstractReflection
-    json.set! inc do
-      if association.collection?
-        json.set! 'type', 'array'
-        json.set! 'items' do
+  includes.each do |inc, subinc|
+    next if %w(only except).include?(inc)
+    next if includes["only"]&.exclude?(inc)
+    next if includes["except"]&.include?(inc)
+    case association = model.reflect_on_association(inc)
+    when ::ActiveRecord::Reflection::AbstractReflection
+      json.set! inc do
+        if association.collection?
+          json.set! 'type', 'array'
+          json.set! 'items' do
+            json.partial!('json_schema', model: association.klass, includes: subinc)
+          end
+        else
           json.partial!('json_schema', model: association.klass, includes: subinc)
         end
-      else
-        json.partial!('json_schema', model: association.klass, includes: subinc)
       end
     end
   end
 end
+json.set! 'required', required.to_a

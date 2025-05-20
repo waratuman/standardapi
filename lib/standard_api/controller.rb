@@ -7,7 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource]
+      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -28,10 +28,11 @@ module StandardAPI
       def schema
         Rails.application.eager_load! if !Rails.application.config.eager_load
       end
-      
-      def json_schema
-        Rails.application.eager_load! if !Rails.application.config.eager_load
-      end
+    end
+    
+    def json_schema
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+      @includes = StandardAPI::Includes.normalize(params[:include] || {})
     end
 
     def index
@@ -155,9 +156,9 @@ module StandardAPI
     def create_resource
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
-
+      subresource = association.klass.new
       subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
-        self.send("filter_#{model_name(association.klass)}_params", params[model_name(association.klass)], id: params[:id])
+        self.send("filter_#{model_name(association.klass)}_params", subresource, params[model_name(association.klass)], id: params[:id])
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
         params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
       elsif self.respond_to?("filter_model_params", true)
@@ -166,7 +167,7 @@ module StandardAPI
         ActionController::Parameters.new
       end
 
-      subresource = association.klass.new(subresource_params)
+      subresource.assign_attributes(subresource_params)
 
       result = case association
       when ::ActiveRecord::Associations::CollectionAssociation
