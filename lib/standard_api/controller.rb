@@ -162,7 +162,7 @@ module StandardAPI
       elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
         params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
       elsif self.respond_to?("filter_model_params", true)
-        filter_model_params(resource, params[model_name(association.klass)])
+        filter_model_params(subresource, params[model_name(association.klass)])
       else
         ActionController::Parameters.new
       end
