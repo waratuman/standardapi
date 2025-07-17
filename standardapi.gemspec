@@ -17,9 +17,9 @@ Gem::Specification.new do |spec|
   spec.test_files    = `git ls-files -- {test}/*`.split("\n")
   spec.require_paths = ["lib", "test"]
 
-  spec.add_runtime_dependency 'rails', '>= 7.1.3'
-  spec.add_runtime_dependency 'activesupport', '>= 7.1.3'
-  spec.add_runtime_dependency 'actionpack', '>= 7.1.3'
+  spec.add_runtime_dependency 'rails', '>= 7.2.2'
+  spec.add_runtime_dependency 'activesupport', '>= 7.2.2'
+  spec.add_runtime_dependency 'actionpack', '>= 7.2.2'
   spec.add_runtime_dependency 'activerecord-sort', '>= 6.1.0'
   spec.add_runtime_dependency 'activerecord-filter', '>= 8.0.0'
 
