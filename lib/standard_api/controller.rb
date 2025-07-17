@@ -7,7 +7,18 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
+
+      # We don't need includes on certain actions that don't return includes
+      # or on html requests since they are redirects
+      klass.before_action :includes, if: -> (c) do
+        ![
+          :destroy,
+          :add_resource,
+          :remove_resource,
+          :json_schema
+        ].include?(c.action_name.to_sym) && c.request.format != :html
+      end
+
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -29,7 +40,7 @@ module StandardAPI
         Rails.application.eager_load! if !Rails.application.config.eager_load
       end
     end
-    
+
     def json_schema
       Rails.application.eager_load! if !Rails.application.config.eager_load
       @includes = StandardAPI::Includes.normalize(params[:include] || {})
@@ -290,7 +301,7 @@ module StandardAPI
 
       query
     end
-    
+
     def resource
       return @resource if instance_variable_get('@resource')
       @resource = if action_name == "create"
@@ -304,7 +315,13 @@ module StandardAPI
       includes = {}
       attributes&.each do |key, value|
         if association = model.reflect_on_association(key)
-          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
+          association_klass = if association.polymorphic?
+            attributes[key + "_type"]&.constantize || association.klass
+          else
+            association.klass
+          end
+
+          includes[key] = value.is_a?(Array) ? {} : nested_includes(association_klass, value)
         end
       end
 

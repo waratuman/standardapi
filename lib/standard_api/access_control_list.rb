@@ -52,7 +52,7 @@ module StandardAPI
       @model_params = if self.respond_to?("filter_#{model_name(model)}_params", true)
         self.send("filter_#{model_name(model)}_params", resource, params[model_name(model)], id: params[:id])
       else
-        filter_model_params(resource, params[model_name(model)])
+        filter_model_params(resource, params[model_name(model)] || ActionController::Parameters.new)
       end
     end
 
@@ -76,21 +76,26 @@ module StandardAPI
       if self.respond_to?("nested_#{model_name(resource.class)}_attributes", true)
         self.send("nested_#{model_name(resource.class)}_attributes").each do |relation|
           association = resource.association(relation)
+          association_klass = if association.reflection.polymorphic?
+            model_params&.[]("#{ relation }_type")&.constantize
+          else
+            association.klass.base_class
+          end
           attributes_key = association.reflection.name.to_s
           if model_params.has_key?(attributes_key)
-            filter_method = "filter_#{association.klass.base_class.model_name.singular}_params"
+            filter_method = "filter_#{ association_klass.model_name.singular }_params"
             if model_params[attributes_key].nil?
               permitted_params[attributes_key] = nil
             elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
               permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
             elsif self.respond_to?(filter_method, true)
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                models = association_klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
                   r = if i['id']
                     models.find { |r| r.id == i['id'] }
                   else
-                    association.klass.new
+                    association_klass.new
                   end
                   i_params = self.send(filter_method, r, i, allow_id: true)
                   r.assign_attributes(i_params)
@@ -98,9 +103,9 @@ module StandardAPI
                 }
               else
                 r = if id = model_params[attributes_key]['id']
-                  association.klass.find(id)
+                  association_klass.find(id)
                 else
-                  association.klass.new()
+                  association_klass.new()
                 end
                 i_params = self.send(filter_method, r, model_params[attributes_key], allow_id: true)
                 r.assign_attributes(i_params)
@@ -108,15 +113,15 @@ module StandardAPI
               end
             else
               permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
-                models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+                models = association_klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
                 model_params[attributes_key].map { |i|
-                  nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association.klass.new
+                  nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association_klass.new
                   i_params = filter_model_params(nested_record, i, allow_id: true)
                   nested_record.assign_attributes(i_params)
                   nested_record
                 }
               else
-                nested_record = model_params[attributes_key]['id'] ? association.klass.find(model_params[attributes_key]['id']) : association.klass.new
+                nested_record = model_params[attributes_key]['id'] ? association_klass.find(model_params[attributes_key]['id']) : association_klass.new
                 i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true)
                 nested_record.assign_attributes(i_params)
                 nested_record
