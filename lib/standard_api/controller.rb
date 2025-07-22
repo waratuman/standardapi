@@ -315,13 +315,7 @@ module StandardAPI
       includes = {}
       attributes&.each do |key, value|
         if association = model.reflect_on_association(key)
-          association_klass = if association.polymorphic?
-            attributes[key + "_type"]&.constantize || association.klass
-          else
-            association.klass
-          end
-
-          includes[key] = value.is_a?(Array) ? {} : nested_includes(association_klass, value)
+          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
         end
       end
 

@@ -67,27 +67,5 @@ module NestedAttributes
       assert_nil photo.account
     end
 
-    test 'polymorphic include' do
-      account = create(:account)
-
-      @controller = ReferencesController.new
-      post references_path, params: {
-        reference: {
-          subject: {
-            id: account.id,
-            name: 'Little Jimmie'
-          },
-          subject_type: 'Account'
-        }
-      }, as: :json
-
-      assert_response :created
-
-      reference = JSON(response.body)
-      assert_equal account.id, reference['subject_id']
-      assert_equal "Account", reference['subject_type']
-      assert_equal 'Little Jimmie', reference["subject"]["name"]
-    end
-
   end
 end

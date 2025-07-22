@@ -37,7 +37,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
 
     schema = JSON(response.body)
     assert_equal true, schema.dig('properties', 'created_at', 'readOnly')
-    assert_equal nil, schema.dig('properties', 'name', 'readOnly')
+    assert_nil schema.dig('properties', 'name', 'readOnly')
   end
   
   test 'Controller#json_schema.json type' do
