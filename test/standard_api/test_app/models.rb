@@ -30,6 +30,8 @@ class Property < ActiveRecord::Base
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
 
+  belongs_to :non_include_photo, class_name: 'Photo'
+  
   accepts_nested_attributes_for :photos
 
   def english_name
@@ -151,7 +153,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "numericality",       default: 2
       t.string   "build_type"
       t.boolean  "agree_to_terms", default: true
-      t.string  "phone_number", default: '999-999-9999'
+      t.string   "phone_number", default: '999-999-9999'
+      t.integer  "non_include_photo_id"
     end
 
     create_table "references", force: :cascade do |t|

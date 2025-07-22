@@ -41,7 +41,7 @@ module PropertyACL
   # allowed to ....
   # only add to and from the relation, can also create or update the subresource
   def nested
-    [ :photos, :accounts ]
+    [ :photos, :accounts, :non_include_photo ]
   end
 
 end

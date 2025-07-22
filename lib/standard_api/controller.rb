@@ -245,9 +245,9 @@ module StandardAPI
       @models.map!(&:model).compact!
     end
 
-    def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send("#{model.model_name.singular}_includes")
+    def model_includes(model_class=model)
+      if self.respond_to?("#{model_class.model_name.singular}_includes", true)
+        self.send("#{model_class.model_name.singular}_includes")
       else
         []
       end
@@ -325,7 +325,7 @@ module StandardAPI
         end
       end
 
-      includes
+      StandardAPI::Includes.sanitize(includes, model_includes(model), raise_on_unpermitted: false)
     end
 
     def includes
