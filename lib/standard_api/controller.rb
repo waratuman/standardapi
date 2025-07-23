@@ -316,8 +316,6 @@ module StandardAPI
     end
 
     def includes
-      return @includes if instance_variable_defined?(:@includes)
-
       @includes ||= if params[:include]
         StandardAPI::Includes.sanitize(params[:include], model_includes)
       else
