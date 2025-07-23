@@ -7,6 +7,10 @@ require 'faker'
 require 'standard_api/test_case'
 require 'byebug'
 require 'mocha/minitest'
+require 'minitest/reporters'
+
+
+Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
 # Setup the test db
 ActiveSupport.test_order = :random

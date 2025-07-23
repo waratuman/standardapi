@@ -69,7 +69,7 @@ module StandardAPI
     # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
     # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
     # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
-    def self.sanitize(includes, permit, normalized=false, raise_on_unpermitted: true)
+    def self.sanitize(includes, permit, normalized=false)
       includes = normalize(includes) if !normalized
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -79,14 +79,12 @@ module StandardAPI
 
       permit = normalize(permit.with_indifferent_access)
       includes.each do |k, v|
-        if permit.has_key?(k)
-          permitted[k] = sanitize(v, permit[k] || {}, true)
+        permitted[k] = if permit.has_key?(k)
+          sanitize(v, permit[k] || {}, true)
         elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
-          permitted[k] = v
+          v
         else
-          if raise_on_unpermitted
-            raise StandardAPI::UnpermittedParameters.new([k])
-          end
+          raise StandardAPI::UnpermittedParameters.new([k])
         end
       end
 

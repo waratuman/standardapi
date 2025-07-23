@@ -7,17 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-
-      # We don't need includes on certain actions that don't return includes
-      # or on html requests since they are redirects
-      klass.before_action :includes, if: -> (c) do
-        ![
-          :destroy,
-          :add_resource,
-          :remove_resource,
-          :json_schema
-        ].include?(c.action_name.to_sym) && c.request.format != :html
-      end
+      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
@@ -245,9 +235,9 @@ module StandardAPI
       @models.map!(&:model).compact!
     end
 
-    def model_includes(model_class=model)
-      if self.respond_to?("#{model_class.model_name.singular}_includes", true)
-        self.send("#{model_class.model_name.singular}_includes")
+    def model_includes
+      if self.respond_to?("#{model.model_name.singular}_includes", true)
+        self.send("#{model.model_name.singular}_includes")
       else
         []
       end
@@ -303,7 +293,8 @@ module StandardAPI
     end
 
     def resource
-      return @resource if instance_variable_get('@resource')
+      return @resource if instance_variable_defined?(:@resource)
+      
       @resource = if action_name == "create"
         model.new
       else
@@ -314,15 +305,19 @@ module StandardAPI
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
-        if association = model.reflect_on_association(key)
+        if association = model.reflect_on_association(key) &&
+           self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
+           self.send("nested_#{model_name(model)}_attributes").include?(model.model_name.singular)
           includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
         end
       end
 
-      StandardAPI::Includes.sanitize(includes, model_includes(model), raise_on_unpermitted: false)
+      includes
     end
 
     def includes
+      return @includes if instance_variable_defined?(:@includes)
+
       @includes ||= if params[:include]
         StandardAPI::Includes.sanitize(params[:include], model_includes)
       else
@@ -330,7 +325,7 @@ module StandardAPI
       end
 
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
-        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
 
       @includes
