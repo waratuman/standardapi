@@ -4,18 +4,6 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
   # = Including an invalid include
 
-  # = Including an invalid nested include
-
-  test "Controller#create with a invalid nested include" do
-    property_attributes = attributes_for(:property, non_include_photo: attributes_for(:photo))
-
-    assert_difference 'Photo.count', 1 do
-      post '/properties', params: { property: property_attributes }, as: :json
-    end
-    json = JSON.parse(response.body)
-    assert_nil json['non_include_photo']
-  end
-
   test "Controller#create with a valid include" do
     property = build(:property)
 

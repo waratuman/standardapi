@@ -68,5 +68,19 @@ module NestedAttributes
       assert_equal [], property.accounts
     end
 
+    test 'update record and include nested record in response' do
+      account = create(:account, name: 'A Co.')
+      property = create(:property, name: 'Empire State Building', accounts: [account])
+
+      @controller = PropertiesController.new
+      put property_path(property), params: { property: { name: 'John Hancock Center', accounts: [{id: account.id, name: "B Co."}]} }, as: :json
+
+      attributes = JSON.parse(response.body)
+      assert_response :ok
+      puts response.body
+      assert_equal account.id, attributes["accounts"][0]["id"]
+      assert_equal "B Co.", attributes["accounts"][0]["name"]
+    end
+
   end
 end
