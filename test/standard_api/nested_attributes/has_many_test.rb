@@ -77,6 +77,7 @@ module NestedAttributes
 
       attributes = JSON.parse(response.body)
       assert_response :ok
+      puts response.body
       assert_equal account.id, attributes["accounts"][0]["id"]
       assert_equal "B Co.", attributes["accounts"][0]["name"]
     end

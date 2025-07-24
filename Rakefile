@@ -10,7 +10,7 @@ namespace :test do
   ENCODERS.each do |encoder|
     Rake::TestTask.new(encoder => ["#{encoder}:env"]) do |t|
       t.libs << 'lib' << 'test'
-      t.test_files = FileList['test/**/*_test.rb']
+      t.test_files = FileList[ARGV[1] ? ARGV[1] : 'test/**/*_test.rb']
       t.warning = true
       t.verbose = false
     end
@@ -19,7 +19,7 @@ namespace :test do
       task(:env) { ENV["TSENCODER"] = encoder }
     end
   end
-  
+
   desc "Run test with all encoders"
   task all: ENCODERS.shuffle.map{ |e| "test:#{e}" }
 end

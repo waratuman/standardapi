@@ -105,7 +105,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     @controller.action_name = 'create'
     assert_equal @controller.send(:model_params), ActionController::Parameters.new
   end
-  
+
   test 'Controller#model_params is conditional based on existing resource' do
     document = create(:document, type: 'movie')
     @controller = DocumentsController.new
@@ -265,12 +265,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     patch document_path(pdf), params: { document: pdf.attributes }
     assert_redirected_to document_path(pdf)
   end
-  
+
   test 'Controller#create has Affected-Rows header' do
     attrs = attributes_for(:property)
     post properties_path, params: { property: attrs }, as: :json
     assert_equal response.headers['Affected-Rows'], 1
-    
+
     attrs = attributes_for(:property, :invalid)
     post properties_path, params: { property: attrs }, as: :json
     assert_equal response.headers['Affected-Rows'], 0
@@ -280,7 +280,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property = create(:property)
     patch property_path(property), params: { property: property.attributes }, as: :json
     assert_equal response.headers['Affected-Rows'], 1
-    
+
     attrs = attributes_for(:property, :invalid)
     patch property_path(property), params: { property: attrs }, as: :json
     assert_equal response.headers['Affected-Rows'], 0
@@ -290,13 +290,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     property = create(:property)
     delete property_path(property), as: :json
     assert_equal response.headers['Affected-Rows'], 1
-    
+
     assert_raises ActiveRecord::RecordNotFound do
       delete property_path(property), as: :json
       assert_equal response.headers['Affected-Rows'], 0
     end
   end
-  
+
   # = View Tests
 
   test 'rendering tables' do

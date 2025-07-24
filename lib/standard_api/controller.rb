@@ -8,6 +8,7 @@ module StandardAPI
         :default_limit
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
+
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
@@ -29,7 +30,7 @@ module StandardAPI
         Rails.application.eager_load! if !Rails.application.config.eager_load
       end
     end
-    
+
     def json_schema
       Rails.application.eager_load! if !Rails.application.config.eager_load
       @includes = StandardAPI::Includes.normalize(params[:include] || {})
@@ -290,9 +291,10 @@ module StandardAPI
 
       query
     end
-    
+
     def resource
-      return @resource if instance_variable_get('@resource')
+      return @resource if instance_variable_defined?(:@resource)
+      
       @resource = if action_name == "create"
         model.new
       else
@@ -303,7 +305,10 @@ module StandardAPI
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
-        if association = model.reflect_on_association(key)
+        association = model.reflect_on_association(key)
+        if association &&
+           self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
+           self.send("nested_#{model_name(model)}_attributes").include?(association.name)
           includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
         end
       end
@@ -319,7 +324,7 @@ module StandardAPI
       end
 
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
-        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
 
       @includes

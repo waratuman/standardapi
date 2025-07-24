@@ -16,10 +16,10 @@ module NestedAttributes
       photo = Photo.last
       assert_equal 'Big Ben', photo.account.name
     end
-  
+
     test 'create record and update nested record' do
       account = create(:account, name: 'Big Ben')
-    
+
       @controller = PhotosController.new
       post photos_path, params: { photo: { account: {id: account.id, name: 'Little Jimmie'}} }, as: :json
 
@@ -31,13 +31,13 @@ module NestedAttributes
     end
 
     # = Update Test
-  
+
     test 'update record and create nested record' do
       photo = create(:photo)
 
       @controller = PhotosController.new
       put photo_path(photo), params: { photo: { account: {name: 'Big Ben'}} }, as: :json
-    
+
       assert_response :ok
       photo.reload
       assert_equal 'Big Ben', photo.account.name
@@ -49,7 +49,7 @@ module NestedAttributes
 
       @controller = PhotosController.new
       put photo_path(photo), params: { photo: { account: {name: 'Little Jimmie'}} }, as: :json
-    
+
       assert_response :ok
       photo.reload
       assert_equal 'Little Jimmie', photo.account.name
@@ -61,7 +61,7 @@ module NestedAttributes
 
       @controller = PhotosController.new
       put photo_path(photo), params: { photo: { account: nil} }, as: :json
-    
+
       assert_response :ok
       photo.reload
       assert_nil photo.account
