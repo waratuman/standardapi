@@ -305,7 +305,8 @@ module StandardAPI
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
-        if association = model.reflect_on_association(key) &&
+        association = model.reflect_on_association(key)
+        if association &&
            self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
            self.send("nested_#{model_name(model)}_attributes").include?(association.name)
           includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
