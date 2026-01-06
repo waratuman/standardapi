@@ -34,7 +34,7 @@ module StandardAPI
         resources_options[:except].reject! { |a| standard_resource_actions.include?(a) }
       end
 
-      resources(*resources, resources_options) do
+      resources(*resources, **resources_options) do
         block.call if block # custom routes take precedence over standardapi routes
 
         actions = parent_resource.actions + standard_resource_actions

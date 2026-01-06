@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'activesupport', '>= 7.2.2'
   spec.add_runtime_dependency 'actionpack', '>= 7.2.2'
   spec.add_runtime_dependency 'activerecord-sort', '>= 6.1.0'
-  spec.add_runtime_dependency 'activerecord-filter', '>= 8.0.0'
+  spec.add_runtime_dependency 'activerecord-filter', '>= 8.1.0'
 
   spec.add_development_dependency 'pg'
   spec.add_development_dependency "bundler"
@@ -29,7 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'turbostreamer', '>= 1.11.0'
   spec.add_development_dependency 'jbuilder'
   spec.add_development_dependency "rake"
-  spec.add_development_dependency 'minitest'
+  spec.add_development_dependency 'minitest', '~> 5.0'
   spec.add_development_dependency 'minitest-reporters'
   spec.add_development_dependency "simplecov"
   spec.add_development_dependency "factory_bot_rails"

@@ -19,11 +19,11 @@ module StandardAPI
           assert_equal_or_nil column.array, actual_column['array']
           assert_equal_or_nil column.comment, actual_column['comment']
 
-          if column.default
-            default = model.connection.lookup_cast_type_from_column(column).deserialize(column.default)
+          if !column.default.nil?
+            default = column.fetch_cast_type(model.connection).deserialize(column.default)
             assert_equal default, actual_column['default']
           else
-            assert_nil column.default
+            assert_nil actual_column['default']
           end
         end
 

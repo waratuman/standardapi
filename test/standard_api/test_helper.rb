@@ -116,10 +116,9 @@ class ActiveSupport::TestCase
   end
 
   def assert_no_sql(*not_expected)
-    return_value = nil
     queries_ran = block_given? ? SQLLogger.log.size : 0
     return_value = yield if block_given?
-  ensure
+
     failed_patterns = []
     queries_ran = SQLLogger.log[queries_ran...]
     not_expected.each do |pattern|
