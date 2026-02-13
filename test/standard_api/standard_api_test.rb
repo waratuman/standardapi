@@ -67,6 +67,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
+  test 'include StandardAPI includes Controller and AccessControlList' do
+    klass = Class.new(ActionController::Base) do
+      include StandardAPI
+    end
+    assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
+    assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
+  end
+
   test 'StandardAPI-Version' do
     get schema_references_path(format: 'json')
     assert_equal StandardAPI::VERSION, response.headers['StandardAPI-Version']

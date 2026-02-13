@@ -1,7 +1,33 @@
 # StandardAPI
 
 StandardAPI makes it easy to expose a [REST](https://en.wikipedia.org/wiki/Representational_state_transfer)
-interface to your Rails models.
+interface to your Rails models. It provides filtering, ordering, pagination,
+includes (preloading), calculations, and access control out of the box with
+minimal configuration.
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Controllers](#controllers)
+  - [Including StandardAPI](#including-standardapi)
+  - [Whitelisting Attributes](#whitelisting-attributes)
+  - [Whitelisting Orders](#whitelisting-orders)
+  - [Whitelisting Includes](#whitelisting-includes)
+  - [Limits and Pagination](#limits-and-pagination)
+  - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
+  - [Excluding Attributes from Responses](#excluding-attributes-from-responses)
+- [Access Control List (ACL)](#access-control-list-acl)
+- [Routes](#routes)
+- [API Usage](#api-usage)
+  - [Filtering (where)](#filtering-where)
+  - [Ordering](#ordering)
+  - [Includes](#includes)
+  - [Pagination](#pagination)
+  - [Calculations](#calculations)
+  - [Relationship Management](#relationship-management)
+  - [Schema Discovery](#schema-discovery)
+- [Query Encoding Middleware](#query-encoding-middleware)
+- [Views and Customization](#views-and-customization)
+- [Testing](#testing)
 
 # Installation
 
@@ -11,12 +37,10 @@ In your `Gemfile`:
 
     gem 'standardapi', require: 'standard_api'
 
-Optionally in `config/application.rb`:
+# Quick Start
 
-    module MyApplication
-      class Application < Rails::Application
-        # Initialize configuration defaults for originally generated Rails version.
-        config.load_defaults 7.0
+Include `StandardAPI` in a controller and define the allowed attributes,
+orders, and includes:
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
@@ -159,10 +183,11 @@ params = {
 // should be
 'limit=5&offset=0&where%5Bregion_ids%5D%5Bcontains%5D=20106&include%5Bproperty%5D%5Baddresses%5D=true&include%5Bphotos%5D=true&order%5Bcreated_at%5D=desc'
 ```
-### Include Options
-Preload some relationships and have it delivered with each record in the resource.
 
-### Where Options
+## Pagination
+
+Use `limit` and `offset` for pagination:
+
 ```
 id: 5               WHERE properties.id = 5
 id: [5, 10, 15]     WHERE properties.id IN (5, 10, 15)
