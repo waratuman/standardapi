@@ -86,22 +86,33 @@ module StandardAPI
     #   end
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
+      standard_resource_actions = [ :schema, :json_schema, :calculate, :add_resource, :remove_resource ]
 
-      resource(*resource, options) do
-        available_actions = if only = parent_resource.instance_variable_get(:@only)
+      resource_options = options.deep_dup
+
+      if resource_options[:only]
+        resource_options[:only] = Array(resource_options[:only]).map(&:to_sym)
+        resource_options[:only].reject! { |a| standard_resource_actions.include?(a) }
+      end
+
+      if resource_options[:except]
+        resource_options[:except] = Array(resource_options[:except]).map(&:to_sym)
+        resource_options[:except].reject! { |a| standard_resource_actions.include?(a) }
+      end
+
+      resource(*resource, **resource_options) do
+        actions = if only = options[:only]
           Array(only).map(&:to_sym)
         else
-          if parent_resource.instance_variable_get(:@api_only)
+          if resource_options[:api_only] || (respond_to?(:api_only?) && api_only?)
             [:index, :create, :show, :update, :destroy]
           else
             [:index, :create, :new, :show, :update, :destroy, :edit]
-          end + [ :schema, :json_schema, :calculate, :add_resource, :remove_resource ]
+          end + standard_resource_actions
         end
 
-        actions = if except = parent_resource.instance_variable_get(:@except)
-          available_actions - Array(except).map(&:to_sym)
-        else
-          available_actions
+        if except = options[:except]
+          actions -= Array(except).map(&:to_sym)
         end
 
         get :schema, on: :collection if actions.include?(:schema)
