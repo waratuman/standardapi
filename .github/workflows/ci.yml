@@ -23,8 +23,8 @@ jobs:
           - 4.0
         rails-version:
           - 7.2.2.1
-          - 8.0.1
-          - 8.1.1
+          - 8.0.4
+          - 8.1.2
         postgres-version:
           - 15
 
