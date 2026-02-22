@@ -16,7 +16,7 @@ json.set! 'properties' do
       column_schema[:readOnly] = true
     end
     
-    if default = !column.default.nil? ? column.fetch_cast_type(model.connection).deserialize(column.default) : nil
+    if default = column_default_value(column, model)
       column_schema[:default] = default
     end
     

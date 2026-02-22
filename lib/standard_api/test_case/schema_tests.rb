@@ -20,7 +20,11 @@ module StandardAPI
           assert_equal_or_nil column.comment, actual_column['comment']
 
           if !column.default.nil?
-            default = column.fetch_cast_type(model.connection).deserialize(column.default)
+            default = if column.respond_to?(:fetch_cast_type)
+              column.fetch_cast_type(model.connection).deserialize(column.default)
+            else
+              column.cast_type.deserialize(column.default)
+            end
             assert_equal default, actual_column['default']
           else
             assert_nil actual_column['default']

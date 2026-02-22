@@ -16,7 +16,7 @@ if model.nil? && controller_name == "application"
         begin
           controller_param = controller_name.underscore
           const_name = "#{controller_param.camelize}Controller"
-          const = ActiveSupport::Dependencies.constantize(const_name)
+          const = const_name.constantize
           if const.ancestors.include?(StandardAPI::Controller)
             const
           else
@@ -50,7 +50,7 @@ else
 
   json.set! 'attributes' do
     model.columns.each do |column|
-      default = !column.default.nil? ? column.fetch_cast_type(model.connection).deserialize(column.default) : nil
+      default = column_default_value(column, model)
       type = case model.type_for_attribute(column.name)
       when ::ActiveRecord::Enum::EnumType
         default = model.defined_enums[column.name].key(default)

@@ -76,7 +76,7 @@ module StandardAPI
         record.cache_key(*timestamp_keys)
       else
         timestamp = timestamp_keys.map { |attr| record[attr]&.to_time }.compact.max
-        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
       end
     end
 
@@ -152,6 +152,16 @@ module StandardAPI
       end
 
       digest.hexdigest
+    end
+
+    def column_default_value(column, model)
+      return nil if column.default.nil?
+
+      if column.respond_to?(:fetch_cast_type)
+        column.fetch_cast_type(model.connection).deserialize(column.default)
+      else
+        column.cast_type.deserialize(column.default)
+      end
     end
 
     def json_column_type(sql_type)
