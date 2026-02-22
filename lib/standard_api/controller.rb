@@ -7,7 +7,7 @@ module StandardAPI
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
         :default_limit
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
+      klass.before_action :includes, only: [:create, :update, :create_resource]
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request

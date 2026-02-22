@@ -50,6 +50,11 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
   # end
 
   # = Including an invalid include
+  #
+  # These tests verify that invalid includes are rejected *before* the action
+  # persists any data. The `before_action :includes` on create, update, and
+  # create_resource validates includes early so that a bad request is returned
+  # without side effects.
 
   test "Controller#create with an invalid include" do
     property = build(:property)

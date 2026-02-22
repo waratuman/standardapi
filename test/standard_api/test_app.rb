@@ -15,7 +15,7 @@ class TestApplication < Rails::Application
   config.root = File.join(File.dirname(__FILE__), 'test_app')
   config.secret_key_base = 'test key base'
   config.eager_load = true
-  config.cache_classes = true
+  config.enable_reloading = false
   config.action_controller.perform_caching = true
   config.cache_store = :memory_store, { size: 8.megabytes }
   config.action_dispatch.show_exceptions = :none
