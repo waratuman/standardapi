@@ -161,9 +161,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
       model.columns.each do |column|
         assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
-        default = column.default
+        default = column_default_value(column, model)
         if !default.nil?
-          default = column.fetch_cast_type(model.connection).deserialize(default)
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'default')

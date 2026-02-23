@@ -4,7 +4,15 @@ module StandardAPI
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
 
-      json.set! name, type == :binary ? value&.unpack1('H*') : value
+      value = if type == :binary
+        value&.unpack1('H*')
+      elsif value.is_a?(BigDecimal)
+        value.to_s
+      else
+        value
+      end
+
+      json.set! name, value
     end
 
     def preloadables(record, includes)
@@ -76,7 +84,7 @@ module StandardAPI
         record.cache_key(*timestamp_keys)
       else
         timestamp = timestamp_keys.map { |attr| record[attr]&.to_time }.compact.max
-        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
       end
     end
 
@@ -152,6 +160,18 @@ module StandardAPI
       end
 
       digest.hexdigest
+    end
+
+    def column_default_value(column, model)
+      return nil if column.default.nil?
+
+      default = if column.respond_to?(:fetch_cast_type)
+        column.fetch_cast_type(model.connection).deserialize(column.default)
+      else
+        column.cast_type.deserialize(column.default)
+      end
+
+      default.is_a?(BigDecimal) ? default.to_s : default
     end
 
     def json_column_type(sql_type)

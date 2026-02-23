@@ -10,6 +10,7 @@ require File.expand_path(File.join(__FILE__, '../test_case/show_tests'))
 require File.expand_path(File.join(__FILE__, '../test_case/update_tests'))
 
 module StandardAPI::TestCase
+  include StandardAPI::Helpers
 
   def assert_equal_or_nil(expected, *args)
     if expected.nil?

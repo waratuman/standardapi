@@ -11,11 +11,11 @@ module StandardAPI
       end
 
       ActiveSupport.on_load(:before_configuration) do
-        ::ActionDispatch::Routing::Mapper.send :include, StandardAPI::RouteHelpers
+        ::ActionDispatch::Routing::Mapper.include StandardAPI::RouteHelpers
       end
 
       ActiveSupport.on_load(:action_view) do
-        ::ActionView::Base.send :include, StandardAPI::Helpers
+        ::ActionView::Base.include StandardAPI::Helpers
       end
     end
 
