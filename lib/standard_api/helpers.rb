@@ -4,7 +4,15 @@ module StandardAPI
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
 
-      json.set! name, type == :binary ? value&.unpack1('H*') : value
+      value = if type == :binary
+        value&.unpack1('H*')
+      elsif value.is_a?(BigDecimal)
+        value.to_s
+      else
+        value
+      end
+
+      json.set! name, value
     end
 
     def preloadables(record, includes)
