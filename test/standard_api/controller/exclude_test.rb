@@ -2,6 +2,50 @@ require 'standard_api/test_helper'
 
 class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
+  # = ApplicationHelper backward compatibility
+
+  test "Controller#index falls back to ApplicationHelper#excludes when no ACL excludes defined" do
+    ApplicationHelper.module_eval do
+      def excludes
+        { account: [:email] }
+      end
+    end
+
+    property = create(:property)
+    account = create(:account, name: "Test User", email: "test@example.com", property: property)
+
+    get "/accounts", params: { limit: 100 }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    account_json = json.find { |a| a['id'] == account.id }
+    assert account_json.key?('name'), "Expected 'name' to be present"
+    assert_not account_json.key?('email'), "Expected 'email' excluded via ApplicationHelper#excludes"
+  ensure
+    ApplicationHelper.module_eval { remove_method :excludes }
+  end
+
+  test "ACL excludes takes precedence over ApplicationHelper#excludes" do
+    ApplicationHelper.module_eval do
+      def excludes
+        { property: [:name] }
+      end
+    end
+
+    property = create(:property, name: "Visible Name", description: "Hidden", active: true)
+
+    get "/properties/#{property.id}", as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert json.key?('name'), "Expected ACL excludes to take precedence, 'name' should be present"
+    assert_not json.key?('description'), "Expected ACL excludes to still exclude 'description' for active property"
+  ensure
+    ApplicationHelper.module_eval { remove_method :excludes }
+  end
+
+  # = ACL excludes
+
   test "Controller#show excludes attributes returned by ACL excludes" do
     property = create(:property, name: "Active Place", description: "Secret details", active: true)
 
