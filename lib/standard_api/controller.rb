@@ -4,8 +4,8 @@ module StandardAPI
     delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :models, :resource_limit,
-        :default_limit
+      klass.helper_method :includes, :orders, :excludes_for, :model, :models,
+        :resource_limit, :default_limit
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
 
@@ -259,17 +259,16 @@ module StandardAPI
       end
     end
 
-    def excludes_for(klass)
-      if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
+    def excludes_for(record)
+      acl_method = "#{model_name(record.class)}_excludes"
+      if self.respond_to?(acl_method, true)
+        self.send(acl_method, record)
+      elsif defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
         excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        excludes.try(:[], klass.model_name.singular) || []
+        excludes.try(:[], record.class.model_name.singular) || []
       else
         []
       end
-    end
-
-    def model_excludes
-      excludes_for(model)
     end
 
     def resources
@@ -362,10 +361,6 @@ module StandardAPI
       end
 
       @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
-    end
-
-    def excludes
-      @excludes ||= model_excludes
     end
 
     # The maximum number of results returned by #index

@@ -1,6 +1,6 @@
+excluded = excludes_for(record)
 record.attribute_names.each do |name|
-  # Skip if attribute is included in excludes
-  next if defined?(excludes) && excludes[record.model_name.singular.to_sym].try(:find) { |x| x.to_s == name }
+  next if excluded.find { |x| x.to_s == name }
 
   serialize_attribute(json, record, name, record.type_for_attribute(name).type)
 end
