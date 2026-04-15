@@ -37,6 +37,11 @@ module PropertyACL
     [ :photos, :landlord, :english_name, :document ]
   end
 
+  # Attributes to exclude from the response, evaluated per-record
+  def excludes(record)
+    record.active? ? [:description] : []
+  end
+
   # Sub resourced allowed to be set during create / update / delete if a user is
   # allowed to ....
   # only add to and from the relation, can also create or update the subresource
