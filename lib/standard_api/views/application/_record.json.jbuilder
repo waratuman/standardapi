@@ -1,4 +1,4 @@
-excluded = excludes_for(record)
+excluded = excludes(record)
 record.attribute_names.each do |name|
   next if excluded.find { |x| x.to_s == name }
 

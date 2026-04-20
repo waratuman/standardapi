@@ -4,7 +4,7 @@ module StandardAPI
     delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :excludes_for, :model, :models,
+      klass.helper_method :includes, :excludes, :orders, :model, :models,
         :resource_limit, :default_limit
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
@@ -259,13 +259,13 @@ module StandardAPI
       end
     end
 
-    def excludes_for(record)
+    def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
       if self.respond_to?(acl_method, true)
         self.send(acl_method, record)
       elsif defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-        excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        excludes.try(:[], record.class.model_name.singular) || []
+        excluded = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+        excluded.try(:[], record.class.model_name.singular) || []
       else
         []
       end
@@ -293,7 +293,7 @@ module StandardAPI
 
     def resource
       return @resource if instance_variable_defined?(:@resource)
-      
+
       @resource = if action_name == "create"
         model.new
       else
