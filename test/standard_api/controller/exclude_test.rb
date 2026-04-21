@@ -139,4 +139,27 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_equal 'jpg', photo_json['format']
   end
 
+  test "ACL excludes with a terminal true on an association key drops the whole relationship" do
+    property = create(:property, name: "Active", description: "Hidden", active: true)
+    create(:account, name: "Manager", property: property)
+
+    get "/properties/#{property.id}", params: { include: [:accounts] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_not json.key?('accounts'), "Expected 'accounts' association dropped entirely by excludes"
+  end
+
+  test "Association dropped via excludes still renders when parent excludes permit it" do
+    property = create(:property, name: "Inactive", description: "Shown", active: false)
+    create(:account, name: "Manager", property: property)
+
+    get "/properties/#{property.id}", params: { include: [:accounts] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert json.key?('accounts'), "Expected 'accounts' included when excludes empty"
+    assert_equal 1, json['accounts'].length
+  end
+
 end

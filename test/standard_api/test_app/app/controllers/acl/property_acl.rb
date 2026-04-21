@@ -34,14 +34,15 @@ module PropertyACL
 
   # Sub resources allowed to be included in the response
   def includes
-    [ :photos, :landlord, :english_name, :document ]
+    [ :photos, :accounts, :landlord, :english_name, :document ]
   end
 
   # Attributes to exclude from the response, evaluated per-record. Supports
-  # deep keys — a nested hash applies excludes to an included association.
+  # deep keys — a nested hash applies excludes to an included association,
+  # and a terminal `true` on an association key drops it entirely.
   def excludes(record)
     if record.active?
-      { description: true, photos: [:format] }
+      { description: true, photos: [:format], accounts: true }
     else
       []
     end

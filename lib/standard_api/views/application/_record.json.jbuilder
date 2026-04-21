@@ -7,6 +7,7 @@ end
 
 includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
+  next if excluded[inc] == true
 
   sub_excluded = excluded[inc].is_a?(Hash) ? excluded[inc] : nil
 
