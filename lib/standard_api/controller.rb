@@ -261,14 +261,15 @@ module StandardAPI
 
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
-      if self.respond_to?(acl_method, true)
+      raw = if self.respond_to?(acl_method, true)
         self.send(acl_method, record)
       elsif defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-        excluded = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        excluded.try(:[], record.class.model_name.singular) || []
+        app_excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+        app_excludes[record.class.model_name.singular] || []
       else
         []
       end
+      StandardAPI::Excludes.normalize(raw)
     end
 
     def resources

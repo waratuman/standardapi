@@ -1,12 +1,14 @@
-excluded = excludes(record)
+excluded = StandardAPI::Excludes.deep_merge(excludes(record), local_assigns[:excludes])
 record.attribute_names.each do |name|
-  next if excluded.find { |x| x.to_s == name }
+  next if excluded[name] == true
 
   serialize_attribute(json, record, name, record.type_for_attribute(name).type)
 end
 
 includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
+
+  sub_excluded = excluded[inc].is_a?(Hash) ? excluded[inc] : nil
 
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection
@@ -26,7 +28,7 @@ includes.each do |inc, subinc|
           sub_records = sub_records.distinct if subinc['distinct']
           sub_records = sub_records.distinct_on(subinc['distinct_on']) if subinc['distinct_on']
 
-          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc }
+          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc, excludes: sub_excluded }
         end
       end
     else
@@ -51,7 +53,7 @@ includes.each do |inc, subinc|
             json.null!
           else
             partial = model_partial(value)
-            json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+            json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, excludes: sub_excluded
           end
         end
       end
@@ -64,7 +66,7 @@ includes.each do |inc, subinc|
       elsif value.is_a?(ActiveModel::Model)
         json.set! inc do
           partial = model_partial(value)
-          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
+          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, excludes: sub_excluded
         end
       else
         json.set! inc, value.as_json

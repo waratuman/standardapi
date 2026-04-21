@@ -37,9 +37,14 @@ module PropertyACL
     [ :photos, :landlord, :english_name, :document ]
   end
 
-  # Attributes to exclude from the response, evaluated per-record
+  # Attributes to exclude from the response, evaluated per-record. Supports
+  # deep keys — a nested hash applies excludes to an included association.
   def excludes(record)
-    record.active? ? [:description] : []
+    if record.active?
+      { description: true, photos: [:format] }
+    else
+      []
+    end
   end
 
   # Sub resourced allowed to be set during create / update / delete if a user is

@@ -109,4 +109,34 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('description'), "Expected 'description' excluded after updating to active"
   end
 
+  # = Deep excludes applied to included associations
+
+  test "ACL excludes with deep keys strips attributes from included associations" do
+    photo = create(:photo, format: 'jpg')
+    property = create(:property, name: "Active", description: "Hidden", active: true, photos: [photo])
+
+    get "/properties/#{property.id}", params: { include: [:photos] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_not json.key?('description'), "Expected 'description' excluded on the property"
+    assert json.key?('photos'), "Expected 'photos' to be included"
+    photo_json = json['photos'].first
+    assert_not photo_json.key?('format'), "Expected 'format' excluded on nested photos via deep excludes"
+    assert photo_json.key?('id'), "Expected other photo attributes still present"
+  end
+
+  test "Deep excludes do not apply when parent ACL returns no nested exclude" do
+    photo = create(:photo, format: 'jpg')
+    property = create(:property, name: "Inactive", description: "Shown", active: false, photos: [photo])
+
+    get "/properties/#{property.id}", params: { include: [:photos] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    photo_json = json['photos'].first
+    assert photo_json.key?('format'), "Expected 'format' present when parent excludes are empty"
+    assert_equal 'jpg', photo_json['format']
+  end
+
 end
