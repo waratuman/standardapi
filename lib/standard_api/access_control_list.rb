@@ -56,18 +56,28 @@ module StandardAPI
       end
     end
 
-    def filter_model_params(resource, model_params, id: nil, allow_id: nil)
-      permitted_params = if model_params && self.respond_to?("#{model_name(resource.class)}_attributes", true)
-        args = if self.method("#{model_name(resource.class)}_attributes").arity == 0
-          logger.warn <<~NOTE.strip_heredoc
-            DEPRECATION WARNING: #{ resource.class.name }ACL#attributes() has been deprecated, use #{ resource.class.name }ACL#attributes(record) instead"
-          NOTE
-          []
-        else
-          [ resource ]
-        end
-        permits = self.send("#{model_name(resource.class)}_attributes", *args)
+    # Resolve the ACL-permitted attribute list for +model+, optionally scoped to
+    # a specific +record+. ACL +attributes+ methods may accept a record so they
+    # can make per-record decisions; schema rendering has no record and passes
+    # +nil+. A zero-arity +attributes+ definition is still supported but
+    # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
+    def model_attributes(model, record = nil)
+      method_name = "#{model_name(model)}_attributes"
+      return nil if !self.respond_to?(method_name, true)
 
+      if self.method(method_name).arity == 0
+        logger.warn <<~NOTE.strip_heredoc
+          DEPRECATION WARNING: #{ model.name }ACL#attributes() has been deprecated, use #{ model.name }ACL#attributes(record = nil) instead
+        NOTE
+        self.send(method_name)
+      else
+        self.send(method_name, record)
+      end
+    end
+
+    def filter_model_params(resource, model_params, id: nil, allow_id: nil)
+      permits = model_attributes(resource.class, resource) if model_params
+      permitted_params = if permits
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
       else
         ActionController::Parameters.new
