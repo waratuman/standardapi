@@ -370,7 +370,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'rendering serialize_attribute' do
-    property = create(:property, description: 'This text will magically change')
+    property = create(:property, description: 'This text will magically change', active: false)
     get property_path(property, format: 'json'), params: { id: property.id, magic: true }
 
     body = JSON(response.body)
@@ -593,10 +593,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'unknown inlcude' do
-    property = create(:property, accounts: [ create(:account) ])
-    get property_path(property, include: [:accounts], format: 'json')
+    property = create(:property)
+    get property_path(property, include: [:document_attachments], format: 'json')
     assert_response :bad_request
-    assert_equal 'found unpermitted parameter: "accounts"', response.body
+    assert_equal 'found unpermitted parameter: "document_attachments"', response.body
   end
 
   test 'unknown order' do
