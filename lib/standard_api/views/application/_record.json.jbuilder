@@ -19,6 +19,13 @@ includes.each do |inc, subinc|
           # TODO limit causes preloaded assocations to reload
           sub_records = record.send(inc)
 
+          # Apply the controller's mask for the included association's table, so
+          # row-level scoping (e.g. hiding restricted rows) is enforced on
+          # includes the same as on the top-level resource.
+          if respond_to?(:mask)
+            sub_records = sub_records.filter(mask[association.klass.table_name.to_sym])
+          end
+
           sub_records = sub_records.limit(subinc['limit']) if subinc['limit']
           sub_records = sub_records.offset(subinc['offset']) if subinc['offset']
           sub_records = sub_records.reorder(subinc['order']) if subinc['order']

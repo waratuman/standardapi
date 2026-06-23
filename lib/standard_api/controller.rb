@@ -5,7 +5,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :orders, :model, :models, :resource_limit,
-        :default_limit
+        :default_limit, :mask
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
 
