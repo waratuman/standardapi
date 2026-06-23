@@ -452,6 +452,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
   end
 
+  test 'mask_for is applied to included associations' do
+    property = create(:property, photos: [create(:photo, format: 'jpg'), create(:photo, format: 'png')])
+
+    # Mask the included photos to jpg only; the include should respect it just
+    # like the top-level query would.
+    PropertiesController.send(:define_method, :mask_for) do |table_name|
+      table_name == :photos ? { format: 'jpg' } : nil
+    end
+
+    get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
+    photos = JSON(response.body).find { |x| x['id'] == property.id }['photos']
+    assert_equal ['jpg'], photos.map { |x| x['format'] }
+  ensure
+    PropertiesController.send(:remove_method, :mask_for)
+  end
+
   test 'belongs_to association' do
     account = create(:account)
     photo = create(:photo, account: account)
