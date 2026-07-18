@@ -1,5 +1,3 @@
-require 'active_record/connection_adapters/postgresql_adapter'
-
 module StandardAPI
   module ActiveRecord
     module ConnectionAdapters
@@ -25,4 +23,10 @@ module StandardAPI
   end
 end
 
-ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.include(StandardAPI::ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements)
+# Apply the patch only when the PostgreSQL adapter is actually loaded. Requiring
+# the adapter eagerly pulls in the `pg` gem, forcing it on applications that use
+# another database (e.g. SQLite). The :active_record_postgresqladapter load hook
+# fires from the adapter itself, so this runs only when pg is really in use.
+ActiveSupport.on_load(:active_record_postgresqladapter) do
+  include StandardAPI::ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements
+end
