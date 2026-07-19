@@ -15,6 +15,7 @@ require 'standard_api/includes'
 require 'standard_api/controller'
 require 'standard_api/helpers'
 require 'standard_api/route_helpers'
+require 'standard_api/active_record/connection_adapters/abstract/schema_statements'
 require 'standard_api/railtie'
 
 module StandardAPI
@@ -26,3 +27,5 @@ module StandardAPI
     base.include StandardAPI::AccessControlList
   end
 end
+
+::ActiveRecord::ConnectionAdapters::SchemaStatements.include StandardAPI::ActiveRecord::ConnectionAdapters::SchemaStatements
