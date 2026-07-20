@@ -66,6 +66,29 @@ class ActiveSupport::TestCase
     end
   end
 
+  def connection
+    ActiveRecord::Base.connection
+  end
+
+  def mysql?
+    %w(Mysql2 Trilogy).include?(connection.adapter_name) && !connection.mariadb?
+  end
+
+  def mariadb?
+    %w(Mysql2 Trilogy).include?(connection.adapter_name) && connection.mariadb?
+  end
+
+  def sqlite?
+    %w(SQLite).include?(connection.adapter_name)
+  end
+
+  def postgres?
+    %w(PostgreSQL).include?(connection.adapter_name)
+  end
+
+  def bind(n)
+    postgres? ? "$#{n}" : '?'
+  end
   # = Helper Methods
 
   def debug

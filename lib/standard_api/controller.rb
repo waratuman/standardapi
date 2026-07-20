@@ -427,9 +427,9 @@ module StandardAPI
             column = parts[1]
           end
 
-          column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
-            node = (defined?(@model) ? @model : model).arel_table[column].send(func)
+            attribute = column == '*' ? Arel.star : (defined?(@model) ? @model : model).arel_table[column.to_sym]
+            node = attribute.send(func)
             node.distinct = distinct
             @selects << node
           end

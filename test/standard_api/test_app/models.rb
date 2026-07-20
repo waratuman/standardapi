@@ -71,12 +71,20 @@ class LSNType < ActiveRecord::Type::Value
   end
 
   def serialize(value)
-    PG::TextEncoder::Bytea.new.encode(value)
+    if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
+      PG::TextEncoder::Bytea.new.encode(value)
+    else
+      value
+    end
   end
 
   def deserialize(value)
     return nil if value.nil?
-    PG::TextDecoder::Bytea.new.decode(value).unpack1('N')
+    if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
+      PG::TextDecoder::Bytea.new.decode(value).unpack1('N')
+    else
+      value.unpack1('N')
+    end
   end
 
 end
@@ -104,18 +112,22 @@ class UuidModel < ActiveRecord::Base
 end
 
 # = Create/recreate database and migration
-task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
-task.drop
-task.create
+if ActiveRecord::Base.connection.adapter_name != "SQlite"
+  task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
+  task.drop
+  task.create
+end
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
 
   def self.up
 
-    comment = "test comment"
-    exec_query(<<-SQL, "SQL")
-      COMMENT ON DATABASE #{quote_column_name(current_database)} IS #{quote(comment)};
-    SQL
+    if connection.adapter_name == "PostgreSQL" || (connection.adapter_name.respond_to?(:mariadb?) && connection.adapter_name.mariadb?)
+      comment = "test comment"
+      exec_query(<<-SQL, "SQL")
+        COMMENT ON DATABASE #{quote_column_name(current_database)} IS #{quote(comment)};
+      SQL
+    end
 
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255
@@ -142,7 +154,11 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
     create_table "properties", force: :cascade do |t|
       t.string   "name",                 limit: 255
-      t.string   "aliases",              default: [],   array: true
+      if connection.adapter_name == "PostgreSQL"
+        t.string "aliases",              default: [],   array: true
+      else
+        t.string "aliases"
+      end
       t.text     "description"
       t.integer  "constructed"
       t.decimal  "size"

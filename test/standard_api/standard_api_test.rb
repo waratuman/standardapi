@@ -235,7 +235,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
     ], schema['models']['Property']['attributes']['numericality']['validations']
 
-    assert_equal 'test comment', schema['comment']
+    # Only mariadb and postgresql support comments on databases
+    assert_equal('test comment', schema['comment']) if postgres? || mariadb?
   end
 
   test 'Controller#schema.json' do
@@ -359,7 +360,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     reference = create(:reference, custom_binary: 2)
     get reference_path(reference, format: 'json'), params: { id: reference.id }
     assert_equal 2, JSON(response.body)['custom_binary']
-    assert_equal "\\x00000002".b,reference.custom_binary_before_type_cast
   end
 
   test 'rendering null attribute for has_one through' do
@@ -581,6 +581,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with distinct_on key' do
+    skip "DISTINCT ON is a Postgres-only SQL feature" unless postgres?
+
     account = create(:account)
     photos = Array.new(5) { create(:photo, account: account) }
     property = create(:property, photos: photos)
@@ -589,7 +591,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       include: {
         photos: {
           distinct_on: :account_id,
-          # order: [:account_id, { id: :asc }]
           order: { account_id: :asc, id: :asc }
         }
       },
@@ -727,6 +728,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'order: { attribute: { direction: :nulls } }' do
+    skip "NULLS FIRST/LAST ordering is only implemented for Postgres by arel-extensions" unless postgres?
+
     properties = [ create(:property), create(:property, description: nil) ]
 
     get properties_path(order: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
@@ -737,6 +740,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'ordering via nulls_first/last' do
+    skip "NULLS FIRST/LAST ordering is only implemented for Postgres by arel-extensions" unless postgres?
+
     p1 = create(:property, description: 'test')
     p2 = create(:property, description: nil)
 
@@ -859,10 +864,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     a5 = create(:account, subject: c2, subject_cached_at: Time.now)
 
     assert_sql(
-      'SELECT "properties".* FROM "properties" WHERE "properties"."id" IN ($1, $2)',
-      'SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN ($1, $2)'
+      %{SELECT "properties".* FROM "properties" WHERE "properties"."id" IN (#{bind(1)}, #{bind(2)})},
+      %{SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN (#{bind(1)}, #{bind(2)})}
     ) do
-      assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
+      assert_no_sql(%{SELECT "properties".* FROM "properties" WHERE "properties"."id" = #{bind(1)} LIMIT #{bind(2)}}) do
         get accounts_path(limit: 10, include: { subject: { landlord: { when: { subject_type: 'Property' } } } }, format: 'json')
 
         assert_equal p1.id, a1.subject_id

@@ -166,17 +166,17 @@ module StandardAPI
 
     def json_column_type(sql_type)
       case sql_type
-      when 'binary', 'bytea'
+      when 'binary', 'bytea', 'blob'
         'binary'
-      when /timestamp(\(\d+\))? without time zone/
+      when /\Atimestamp(\(\d+\))? without time zone/
         'datetime'
-      when 'time without time zone'
+      when 'time', 'time without time zone'
         'datetime'
       when 'text'
         'string'
       when 'json'
         'hash'
-      when 'smallint', 'bigint', 'integer'
+      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
         'integer'
       when 'jsonb'
         'hash'
@@ -186,7 +186,9 @@ module StandardAPI
         'hash'
       when 'date'
         'datetime'
-      when /numeric(\(\d+(,\d+)?\))?/
+      when /\Adatetime(\(\d+\))?$/
+        'datetime'
+      when 'decimal', 'float', /\Anumeric(\(\d+(,\d+)?\))?/
         'decimal'
       when 'double precision'
         'decimal'
@@ -196,9 +198,9 @@ module StandardAPI
         'boolean'
       when 'uuid' # TODO: should be uuid
         'string'
-      when /character varying(\(\d+\))?/
+      when /\A(?:character varying|varchar)(\(\d+\))?$/
         'string'
-      when /^geometry/
+      when /\Ageometry/
         'ewkb'
       end
     end
@@ -206,7 +208,7 @@ module StandardAPI
     # For JSON Schema
     def json_column_schema(sql_type)
       case sql_type
-      when 'binary', 'bytea'
+      when 'binary', 'bytea', 'blob'
         # TODO contentMediaType correct?
         # contentEncoding?
         # https://json-schema.org/understanding-json-schema/reference/non_json_data
@@ -217,30 +219,30 @@ module StandardAPI
         {type: 'string'}
       when 'json', 'jsonb'
         {type: 'object'}
-      when 'smallint', 'bigint', 'integer'
+      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
         {type: 'integer'}
       when 'hstore'
         # TODO contentMediaType? or contentEncoding?
         {type: 'object'}
-      when 'datetime', /timestamp(\(\d+\))? without time zone/, 'time without time zone'
+      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
         {type: 'string', format: 'date-time'}
       when 'date'
         {type: 'string', format: 'date'}
-      when /numeric(\(\d+(,\d+)?\))?/, 'double precision'
-        {type: 'number'} 
+      when 'double precision', 'decimal', 'float', /\Anumeric(\(\d+(,\d+)?\))?/
+        {type: 'number'}
       when 'inet'
         # TODO contentMediaType? or contentEncoding?
-        {type: 'string'} 
+        {type: 'string'}
       when 'ltree'
         # TODO contentMediaType? or contentEncoding?
-        {type: 'string'} 
+        {type: 'string'}
       when 'boolean'
         {type: 'boolean'}
       when 'uuid'
         {type: 'string', format: 'uuid'}
-      when /character varying(\(\d+\))?/
+      when /\A(?:character varying|varchar)(\(\d+\))?$/
         {type: 'string'}
-      when /^geometry/
+      when /\Ageometry/
         {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end

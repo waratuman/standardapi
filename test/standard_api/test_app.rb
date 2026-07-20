@@ -20,6 +20,22 @@ class TestApplication < Rails::Application
   config.cache_store = :memory_store, { size: 8.megabytes }
   config.action_dispatch.show_exceptions = :none
 
+  def config.database_configuration
+    case ENV.fetch("DB_ADAPTER", "postgresql")
+    when 'sqlite', 'sqlite3'
+      { "test" => {
+        "adapter" => 'sqlite3',
+        "database" => ":memory:"
+      } }
+    when 'postgresql'
+      { "test" => {
+        "adapter" => "postgresql",
+        "database" => "standardapi-test",
+        "encoding" => "utf8"
+      } }
+    end
+  end
+
   # if defined?(FactoryBotRails)
   #   config.factory_bot.definition_file_paths += [ '../factories' ]
   # end

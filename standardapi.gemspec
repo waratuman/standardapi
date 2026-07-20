@@ -24,6 +24,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'activerecord-filter', '>= 8.1.0'
 
   spec.add_development_dependency 'pg'
+  spec.add_development_dependency 'sqlite3'
   spec.add_development_dependency "bundler"
   spec.add_development_dependency 'oj'
   spec.add_development_dependency 'turbostreamer', '>= 1.11.0'
