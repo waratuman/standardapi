@@ -1,7 +1,7 @@
 module StandardAPI
   class Railtie < ::Rails::Railtie
 
-    initializer 'standardapi', :before => :set_autoload_paths do |app|
+    initializer 'standardapi', before: :set_autoload_paths do |app|
       if app.root.join('app', 'controllers', 'acl').exist?
         ActiveSupport::Inflector.inflections(:en) do |inflect|
           inflect.acronym 'ACL'
@@ -16,6 +16,12 @@ module StandardAPI
 
       ActiveSupport.on_load(:action_view) do
         ::ActionView::Base.include StandardAPI::Helpers
+      end
+
+      # Deferred so apps without Postgres aren't forced to load the `pg` gem
+      ActiveSupport.on_load(:active_record_postgresqladapter) do
+        require 'standard_api/active_record/connection_adapters/postgresql/schema_statements'
+        include StandardAPI::ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements
       end
     end
 
