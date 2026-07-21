@@ -122,7 +122,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
   def self.up
 
-    if connection.adapter_name == "PostgreSQL" || (connection.adapter_name.respond_to?(:mariadb?) && connection.adapter_name.mariadb?)
+    if connection.adapter_name == "PostgreSQL" || (connection.respond_to?(:mariadb?) && connection.mariadb?)
       comment = "test comment"
       exec_query(<<-SQL, "SQL")
         COMMENT ON DATABASE #{quote_column_name(current_database)} IS #{quote(comment)};
