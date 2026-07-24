@@ -113,9 +113,9 @@ end
 
 # = Create/recreate database and migration
 if ActiveRecord::Base.connection.adapter_name != "SQlite"
-  task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
-  task.drop
-  task.create
+  db_config = ActiveRecord::Base.connection_db_config
+  ActiveRecord::Tasks::DatabaseTasks.drop(db_config)
+  ActiveRecord::Tasks::DatabaseTasks.create(db_config)
 end
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
