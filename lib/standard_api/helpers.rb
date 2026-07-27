@@ -165,7 +165,7 @@ module StandardAPI
     end
 
     def json_column_type(sql_type)
-      case sql_type
+      case sql_type.to_s.downcase
       when 'binary', 'bytea', 'blob'
         'binary'
       when /\Atimestamp(\(\d+\))? without time zone/
@@ -207,7 +207,7 @@ module StandardAPI
     
     # For JSON Schema
     def json_column_schema(sql_type)
-      case sql_type
+      case sql_type.to_s.downcase
       when 'binary', 'bytea', 'blob'
         # TODO contentMediaType correct?
         # contentEncoding?
