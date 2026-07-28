@@ -160,7 +160,7 @@ module StandardAPI
       if column.respond_to?(:fetch_cast_type)
         column.fetch_cast_type(model.connection).deserialize(column.default)
       else
-        column.cast_type.deserialize(column.default)
+        model.connection.lookup_cast_type_from_column(column).deserialize(column.default)
       end
     end
 

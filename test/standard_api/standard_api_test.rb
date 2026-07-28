@@ -189,7 +189,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
           default = if column.respond_to?(:fetch_cast_type)
             column.fetch_cast_type(model.connection).deserialize(default)
           else
-            column.cast_type.deserialize(default)
+            model.connection.lookup_cast_type_from_column(column).deserialize(default)
           end
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
