@@ -157,10 +157,21 @@ module StandardAPI
     def column_default_value(column, model)
       return nil if column.default.nil?
 
+      cast_type_for_column(column, model).deserialize(column.default)
+    end
+
+    # Resolves a column's database cast type across Rails versions. The public
+    # API for this has changed repeatedly:
+    #   * Rails 7.2 / 8.0 -> connection.lookup_cast_type_from_column(column)
+    #   * Rails 8.1       -> column.fetch_cast_type(connection)
+    #   * Rails main      -> column.cast_type (public reader again)
+    def cast_type_for_column(column, model)
       if column.respond_to?(:fetch_cast_type)
-        column.fetch_cast_type(model.connection).deserialize(column.default)
+        column.fetch_cast_type(model.connection)
+      elsif column.respond_to?(:cast_type)
+        column.cast_type
       else
-        model.connection.lookup_cast_type_from_column(column).deserialize(column.default)
+        model.connection.lookup_cast_type_from_column(column)
       end
     end
 
