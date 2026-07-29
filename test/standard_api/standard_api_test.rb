@@ -363,6 +363,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     reference = create(:reference, custom_binary: 2)
     get reference_path(reference, format: 'json'), params: { id: reference.id }
     assert_equal 2, JSON(response.body)['custom_binary']
+    assert_equal "\\x00000002".b, reference.custom_binary_before_type_cast if postgres?
   end
 
   test 'rendering null attribute for has_one through' do
