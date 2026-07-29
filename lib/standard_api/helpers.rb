@@ -199,7 +199,7 @@ module StandardAPI
         'datetime'
       when /\Adatetime(\(\d+\))?$/
         'datetime'
-      when 'decimal', 'float', /\Anumeric(\(\d+(,\d+)?\))?/
+      when 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
         'decimal'
       when 'double precision'
         'decimal'
@@ -239,7 +239,7 @@ module StandardAPI
         {type: 'string', format: 'date-time'}
       when 'date'
         {type: 'string', format: 'date'}
-      when 'double precision', 'decimal', 'float', /\Anumeric(\(\d+(,\d+)?\))?/
+      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
         {type: 'number'}
       when 'inet'
         # TODO contentMediaType? or contentEncoding?
