@@ -33,6 +33,8 @@ class TestApplication < Rails::Application
         "database" => "standardapi-test",
         "encoding" => "utf8"
       } }
+    else
+      raise "Unsupported DB_ADAPTER: #{ENV["DB_ADAPTER"]}"
     end
   end
 
