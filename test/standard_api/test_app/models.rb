@@ -112,11 +112,9 @@ class UuidModel < ActiveRecord::Base
 end
 
 # = Create/recreate database and migration
-if ActiveRecord::Base.connection.adapter_name != "SQlite"
-  db_config = ActiveRecord::Base.connection_db_config
-  ActiveRecord::Tasks::DatabaseTasks.drop(db_config)
-  ActiveRecord::Tasks::DatabaseTasks.create(db_config)
-end
+db_config = ActiveRecord::Base.connection_db_config
+ActiveRecord::Tasks::DatabaseTasks.drop(db_config)
+ActiveRecord::Tasks::DatabaseTasks.create(db_config)
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
 
