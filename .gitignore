@@ -6,3 +6,4 @@ test/standard_api/test_app/log
 *.log
 .DS_Store
 Gemfile.lock
+.bundle
