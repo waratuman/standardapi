@@ -8,7 +8,7 @@ on:
 
 jobs:
   standard_api_ci:
-    name: CI
+    name: ruby ${{ matrix.ruby-version }} / rails ${{ matrix.rails-version }} / ${{ matrix.adapter }} / ${{ matrix.encoder }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -16,15 +16,17 @@ jobs:
         encoder:
           - jbuilder
           - turbostreamer
+        adapter:
+          - postgresql
+          - sqlite3
         ruby-version:
           - 3.2
           - 3.3
           - 3.4
           - 4.0
         rails-version:
-          - 7.2.2.1
-          - 8.0.4
-          - 8.1.2
+          - 8.0.5
+          - 8.1.3
           - main
         postgres-version:
           - 15
@@ -34,6 +36,7 @@ jobs:
 
     steps:
       - name: Install Postgresql
+        if: matrix.adapter == 'postgresql'
         run: |
           sudo apt-get -y --purge remove $(sudo apt list --installed | grep postgresql | awk '{print $1}')
           sudo apt-get install curl ca-certificates gnupg
@@ -69,4 +72,4 @@ jobs:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
 
-      - run: bundle exec rake test:${{ matrix.encoder }}
+      - run: bundle exec rake test:${{ matrix.encoder }}_${{ matrix.adapter }}
