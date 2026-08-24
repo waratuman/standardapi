@@ -1,8 +1,10 @@
 json.object! do
+    excluded = StandardAPI::Excludes.deep_merge(excludes(photo), local_assigns[:excludes])
+
     json.set! :id,          photo.id
     json.set! :account_id,  photo.account_id
     json.set! :property_id, photo.property_id
-    json.set! :format,      photo.format
+    json.set! :format,      photo.format unless excluded[:format] == true
     json.set! :created_at,  photo.created_at
     json.set! :template,    'photos/_photo'
 

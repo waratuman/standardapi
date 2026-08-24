@@ -36,7 +36,7 @@ FactoryBot.define do
     description     { Faker::Lorem.paragraphs.join("\n\n") }
     constructed     { Kernel.rand(1800..(Time.now.year - 2)) }
     size            { Kernel.rand(1000..10000000).to_f / 100 }
-    active          { [true, false].sample }
+    active          { false }
     photos          { [create(:photo)] }
 
     trait(:nested)  do
