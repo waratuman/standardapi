@@ -126,6 +126,29 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_params).to_h, {}
   end
 
+  # Regression for #97: an ACL `attributes(record)` with a *required* argument
+  # must not raise `ArgumentError` when resolved in a schema context (no record).
+  # `model_attributes` forwards the record when present and `nil` otherwise, so
+  # both the filter path and the schema path share one arity contract.
+  test 'Controller#model_attributes forwards the record to a record-aware ACL' do
+    @controller = DocumentsController.new
+    @controller.define_singleton_method(:document_attributes) do |record|
+      record&.type == 'movie' ? [:file, :type, :rating] : [:file, :type]
+    end
+
+    # Schema context: no record, ACL is invoked with nil rather than zero args.
+    assert_equal [:file, :type], @controller.model_attributes(Document)
+
+    # Filter context: the record is forwarded so per-record decisions still work.
+    movie = create(:document, type: 'movie')
+    assert_equal [:file, :type, :rating], @controller.model_attributes(Document, movie)
+  end
+
+  test 'Controller#model_attributes returns nil without an ACL attributes method' do
+    @controller = ReferencesController.new
+    assert_nil @controller.model_attributes(Reference)
+  end
+
   test 'Controller#mask' do
     @controller = ReferencesController.new
     @controller.define_singleton_method(:mask_for) do |table_name|
@@ -163,7 +186,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
         default = column.default
         if !default.nil?
-          default = column.fetch_cast_type(model.connection).deserialize(default)
+          cast_type = if column.respond_to?(:fetch_cast_type)
+            column.fetch_cast_type(model.connection)
+          elsif column.respond_to?(:cast_type)
+            column.cast_type
+          else
+            model.connection.lookup_cast_type_from_column(column)
+          end
+          default = cast_type.deserialize(default)
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'default')
@@ -208,7 +238,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       }
     ], schema['models']['Property']['attributes']['numericality']['validations']
 
-    assert_equal 'test comment', schema['comment']
+    # Only mariadb and postgresql support comments on databases
+    assert_equal('test comment', schema['comment']) if postgres? || mariadb?
   end
 
   test 'Controller#schema.json' do
@@ -332,7 +363,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     reference = create(:reference, custom_binary: 2)
     get reference_path(reference, format: 'json'), params: { id: reference.id }
     assert_equal 2, JSON(response.body)['custom_binary']
-    assert_equal "\\x00000002".b,reference.custom_binary_before_type_cast
+    assert_equal "\\x00000002".b, reference.custom_binary_before_type_cast if postgres?
   end
 
   test 'rendering null attribute for has_one through' do
@@ -423,6 +454,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     p = create(:property, photos: [create(:photo)])
     get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
     assert_equal p.photos.first.id, JSON(response.body)[0]['photos'][0]['id']
+  end
+
+  test 'mask_for is applied to included associations' do
+    property = create(:property, photos: [create(:photo, format: 'jpg'), create(:photo, format: 'png')])
+
+    # Mask the included photos to jpg only; the include should respect it just
+    # like the top-level query would.
+    PropertiesController.send(:define_method, :mask_for) do |table_name|
+      table_name == :photos ? { format: 'jpg' } : nil
+    end
+
+    get properties_path(format: 'json'), params: { limit: 100, include: [:photos] }
+    photos = JSON(response.body).find { |x| x['id'] == property.id }['photos']
+    assert_equal ['jpg'], photos.map { |x| x['format'] }
+  ensure
+    PropertiesController.send(:remove_method, :mask_for)
   end
 
   test 'belongs_to association' do
@@ -538,6 +585,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with distinct_on key' do
+    skip "DISTINCT ON is a Postgres-only SQL feature" unless postgres?
+
     account = create(:account)
     photos = Array.new(5) { create(:photo, account: account) }
     property = create(:property, photos: photos)
@@ -546,7 +595,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       include: {
         photos: {
           distinct_on: :account_id,
-          # order: [:account_id, { id: :asc }]
           order: { account_id: :asc, id: :asc }
         }
       },
@@ -684,6 +732,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'order: { attribute: { direction: :nulls } }' do
+    skip "NULLS FIRST/LAST ordering is only implemented for Postgres by arel-extensions" unless postgres?
+
     properties = [ create(:property), create(:property, description: nil) ]
 
     get properties_path(order: { description: { asc: :nulls_last } }, limit: 100, format: 'json')
@@ -694,6 +744,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'ordering via nulls_first/last' do
+    skip "NULLS FIRST/LAST ordering is only implemented for Postgres by arel-extensions" unless postgres?
+
     p1 = create(:property, description: 'test')
     p2 = create(:property, description: nil)
 
@@ -816,10 +868,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     a5 = create(:account, subject: c2, subject_cached_at: Time.now)
 
     assert_sql(
-      'SELECT "properties".* FROM "properties" WHERE "properties"."id" IN ($1, $2)',
-      'SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN ($1, $2)'
+      %{SELECT "properties".* FROM "properties" WHERE "properties"."id" IN (#{bind(1)}, #{bind(2)})},
+      %{SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN (#{bind(1)}, #{bind(2)})}
     ) do
-      assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
+      assert_no_sql(%{SELECT "properties".* FROM "properties" WHERE "properties"."id" = #{bind(1)} LIMIT #{bind(2)}}) do
         get accounts_path(limit: 10, include: { subject: { landlord: { when: { subject_type: 'Property' } } } }, format: 'json')
 
         assert_equal p1.id, a1.subject_id

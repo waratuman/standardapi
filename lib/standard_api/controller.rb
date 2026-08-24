@@ -5,9 +5,9 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :excludes, :orders, :model, :models,
-        :resource_limit, :default_limit
+        :resource_limit, :default_limit, :mask
       klass.before_action :set_standardapi_headers
-      klass.before_action :includes, except: [:destroy, :add_resource, :remove_resource, :json_schema]
+      klass.before_action :includes, only: [:create, :update, :create_resource]
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
@@ -423,9 +423,9 @@ module StandardAPI
             column = parts[1]
           end
 
-          column = column == '*' ? Arel.star : column.to_sym
           if functions.include?(func.to_s.downcase)
-            node = (defined?(@model) ? @model : model).arel_table[column].send(func)
+            attribute = column == '*' ? Arel.star : (defined?(@model) ? @model : model).arel_table[column.to_sym]
+            node = attribute.send(func)
             node.distinct = distinct
             @selects << node
           end

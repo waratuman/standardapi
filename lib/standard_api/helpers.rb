@@ -76,7 +76,7 @@ module StandardAPI
         record.cache_key(*timestamp_keys)
       else
         timestamp = timestamp_keys.map { |attr| record[attr]&.to_time }.compact.max
-        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
       end
     end
 
@@ -154,19 +154,40 @@ module StandardAPI
       digest.hexdigest
     end
 
+    def column_default_value(column, model)
+      return nil if column.default.nil?
+
+      cast_type_for_column(column, model).deserialize(column.default)
+    end
+
+    # Resolves a column's database cast type across Rails versions. The public
+    # API for this has changed repeatedly:
+    #   * Rails 7.2 / 8.0 -> connection.lookup_cast_type_from_column(column)
+    #   * Rails 8.1       -> column.fetch_cast_type(connection)
+    #   * Rails main      -> column.cast_type (public reader again)
+    def cast_type_for_column(column, model)
+      if column.respond_to?(:fetch_cast_type)
+        column.fetch_cast_type(model.connection)
+      elsif column.respond_to?(:cast_type)
+        column.cast_type
+      else
+        model.connection.lookup_cast_type_from_column(column)
+      end
+    end
+
     def json_column_type(sql_type)
-      case sql_type
-      when 'binary', 'bytea'
+      case sql_type.to_s.downcase
+      when 'binary', 'bytea', 'blob'
         'binary'
-      when /timestamp(\(\d+\))? without time zone/
+      when /\Atimestamp(\(\d+\))? without time zone/
         'datetime'
-      when 'time without time zone'
+      when 'time', 'time without time zone'
         'datetime'
       when 'text'
         'string'
       when 'json'
         'hash'
-      when 'smallint', 'bigint', 'integer'
+      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
         'integer'
       when 'jsonb'
         'hash'
@@ -176,7 +197,9 @@ module StandardAPI
         'hash'
       when 'date'
         'datetime'
-      when /numeric(\(\d+(,\d+)?\))?/
+      when /\Adatetime(\(\d+\))?$/
+        'datetime'
+      when 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
         'decimal'
       when 'double precision'
         'decimal'
@@ -186,17 +209,17 @@ module StandardAPI
         'boolean'
       when 'uuid' # TODO: should be uuid
         'string'
-      when /character varying(\(\d+\))?/
+      when /\A(?:character varying|varchar)(\(\d+\))?$/
         'string'
-      when /^geometry/
+      when /\Ageometry/
         'ewkb'
       end
     end
     
     # For JSON Schema
     def json_column_schema(sql_type)
-      case sql_type
-      when 'binary', 'bytea'
+      case sql_type.to_s.downcase
+      when 'binary', 'bytea', 'blob'
         # TODO contentMediaType correct?
         # contentEncoding?
         # https://json-schema.org/understanding-json-schema/reference/non_json_data
@@ -207,30 +230,30 @@ module StandardAPI
         {type: 'string'}
       when 'json', 'jsonb'
         {type: 'object'}
-      when 'smallint', 'bigint', 'integer'
+      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
         {type: 'integer'}
       when 'hstore'
         # TODO contentMediaType? or contentEncoding?
         {type: 'object'}
-      when 'datetime', /timestamp(\(\d+\))? without time zone/, 'time without time zone'
+      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
         {type: 'string', format: 'date-time'}
       when 'date'
         {type: 'string', format: 'date'}
-      when /numeric(\(\d+(,\d+)?\))?/, 'double precision'
-        {type: 'number'} 
+      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
+        {type: 'number'}
       when 'inet'
         # TODO contentMediaType? or contentEncoding?
-        {type: 'string'} 
+        {type: 'string'}
       when 'ltree'
         # TODO contentMediaType? or contentEncoding?
-        {type: 'string'} 
+        {type: 'string'}
       when 'boolean'
         {type: 'boolean'}
       when 'uuid'
         {type: 'string', format: 'uuid'}
-      when /character varying(\(\d+\))?/
+      when /\A(?:character varying|varchar)(\(\d+\))?$/
         {type: 'string'}
-      when /^geometry/
+      when /\Ageometry/
         {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end

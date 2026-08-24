@@ -107,7 +107,12 @@ following files:
 
     module PhotoACL
       # Allowed attributes
-      def attributes
+      #
+      # Accepts an optional record so the permitted list can vary per record
+      # (e.g. based on ownership or state). The record is `nil` when there is no
+      # record in context — most notably when rendering `schema.json` /
+      # `json_schema.json` — so always guard against `nil` (or default it).
+      def attributes(record = nil)
         [ :caption ]
       end
       

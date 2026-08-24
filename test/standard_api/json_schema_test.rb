@@ -11,6 +11,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   end
   
   test 'Controller#json_schema.json table description' do
+    skip "Adapter does not support comments on databases" if !mariadb? && !postgres?
+
     get json_schema_documents_path(format: 'json')
 
     schema = JSON(response.body)
@@ -49,6 +51,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   end
   
   test 'Controller#json_schema.json array' do
+    skip "array columns are a Postgres-only feature" if !postgres?
+
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)

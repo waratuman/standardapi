@@ -1,5 +1,3 @@
-require 'active_record/connection_adapters/postgresql_adapter'
-
 module StandardAPI
   module ActiveRecord
     module ConnectionAdapters
@@ -24,5 +22,3 @@ module StandardAPI
     end
   end
 end
-
-ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.include(StandardAPI::ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements)

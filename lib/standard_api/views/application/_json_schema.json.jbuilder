@@ -10,13 +10,13 @@ json.set! 'properties' do
     next if includes["except"]&.include?(column.name)
     column_schema = json_column_schema(column.sql_type)
     
-    if controller.respond_to?("#{ model.model_name.singular }_attributes") && controller.send("#{ model.model_name.singular }_attributes").map(&:to_s).exclude?(column.name)
+    if (attributes = controller.model_attributes(model)) && attributes.map(&:to_s).exclude?(column.name)
       column_schema[:readOnly] = true
     elsif column.respond_to?(:auto_populated?) && !!column.auto_populated?
       column_schema[:readOnly] = true
     end
     
-    if default = !column.default.nil? ? column.fetch_cast_type(model.connection).deserialize(column.default) : nil
+    if default = column_default_value(column, model)
       column_schema[:default] = default
     end
     

@@ -15,10 +15,28 @@ class TestApplication < Rails::Application
   config.root = File.join(File.dirname(__FILE__), 'test_app')
   config.secret_key_base = 'test key base'
   config.eager_load = true
-  config.cache_classes = true
+  config.enable_reloading = false
   config.action_controller.perform_caching = true
   config.cache_store = :memory_store, { size: 8.megabytes }
   config.action_dispatch.show_exceptions = :none
+
+  def config.database_configuration
+    case ENV.fetch("DB_ADAPTER", "postgresql")
+    when 'sqlite', 'sqlite3'
+      { "test" => {
+        "adapter" => 'sqlite3',
+        "database" => ":memory:"
+      } }
+    when 'postgresql'
+      { "test" => {
+        "adapter" => "postgresql",
+        "database" => "standardapi-test",
+        "encoding" => "utf8"
+      } }
+    else
+      raise "Unsupported DB_ADAPTER: #{ENV["DB_ADAPTER"]}"
+    end
+  end
 
   # if defined?(FactoryBotRails)
   #   config.factory_bot.definition_file_paths += [ '../factories' ]
