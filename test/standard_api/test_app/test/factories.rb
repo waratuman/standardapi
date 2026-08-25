@@ -36,7 +36,7 @@ FactoryBot.define do
     description     { Faker::Lorem.paragraphs.join("\n\n") }
     constructed     { Kernel.rand(1800..(Time.now.year - 2)) }
     size            { Kernel.rand(1000..10000000).to_f / 100 }
-    active          { false }
+    active          { [true, false].sample }
     photos          { [create(:photo)] }
 
     trait(:nested)  do
@@ -49,6 +49,8 @@ FactoryBot.define do
   end
 
   factory :camera do
-    make  { ['Sony', 'Nokia', 'Canon', 'Leica'].sample }
+    make    { ['Sony', 'Nokia', 'Canon', 'Leica'].sample }
+    hidden  { false }
+    retired { false }
   end
 end

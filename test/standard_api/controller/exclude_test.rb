@@ -28,138 +28,139 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
   test "ACL excludes takes precedence over ApplicationHelper#excludes" do
     ApplicationHelper.module_eval do
       def excludes
-        { property: [:name] }
+        { camera: [:retired] }
       end
     end
 
-    property = create(:property, name: "Visible Name", description: "Hidden", active: true)
+    camera = create(:camera, make: "Leica", hidden: true)
 
-    get "/properties/#{property.id}", as: :json
+    get "/cameras/#{camera.id}", as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert json.key?('name'), "Expected ACL excludes to take precedence, 'name' should be present"
-    assert_not json.key?('description'), "Expected ACL excludes to still exclude 'description' for active property"
+    assert json.key?('retired'), "Expected ACL excludes to take precedence, 'retired' should be present"
+    assert_not json.key?('make'), "Expected ACL excludes to still exclude 'make' for a hidden camera"
   ensure
     ApplicationHelper.module_eval { remove_method :excludes }
   end
 
   # = ACL excludes
+  #
+  # These use the Camera resource, which isn't exercised by the generic
+  # StandardAPI::TestCase suite (unlike Property/Account), so per-record ACL
+  # excludes can be demonstrated here without affecting that much larger,
+  # resource-agnostic test suite.
 
   test "Controller#show excludes attributes returned by ACL excludes" do
-    property = create(:property, name: "Active Place", description: "Secret details", active: true)
+    camera = create(:camera, make: "Leica", hidden: true)
 
-    get "/properties/#{property.id}", as: :json
+    get "/cameras/#{camera.id}", as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert_equal "Active Place", json['name']
-    assert_nil json['description'], "Expected 'description' to be excluded for active properties"
-    assert_not json.key?('description'), "Expected 'description' key to not be present for active properties"
+    assert_nil json['make'], "Expected 'make' to be excluded for a hidden camera"
+    assert_not json.key?('make'), "Expected 'make' key to not be present for a hidden camera"
   end
 
   test "Controller#show includes attributes when ACL excludes returns empty" do
-    property = create(:property, name: "Inactive Place", description: "Visible details", active: false)
+    camera = create(:camera, make: "Leica", hidden: false)
 
-    get "/properties/#{property.id}", as: :json
+    get "/cameras/#{camera.id}", as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert_equal "Inactive Place", json['name']
-    assert json.key?('description'), "Expected 'description' key to be present for inactive properties"
-    assert_equal "Visible details", json['description']
+    assert json.key?('make'), "Expected 'make' key to be present for a visible camera"
+    assert_equal "Leica", json['make']
   end
 
   test "Controller#index excludes attributes per-record" do
-    active_property = create(:property, name: "Active", description: "Hidden", active: true)
-    inactive_property = create(:property, name: "Inactive", description: "Shown", active: false)
+    hidden_camera = create(:camera, make: "Hidden Make", hidden: true)
+    visible_camera = create(:camera, make: "Visible Make", hidden: false)
 
-    get "/properties", params: { limit: 100, order: :id }, as: :json
+    get "/cameras", params: { limit: 100 }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
 
-    active_json = json.find { |p| p['id'] == active_property.id }
-    inactive_json = json.find { |p| p['id'] == inactive_property.id }
+    hidden_json = json.find { |c| c['id'] == hidden_camera.id }
+    visible_json = json.find { |c| c['id'] == visible_camera.id }
 
-    assert_not active_json.key?('description'), "Expected 'description' excluded for active property"
-    assert inactive_json.key?('description'), "Expected 'description' present for inactive property"
-    assert_equal "Shown", inactive_json['description']
+    assert_not hidden_json.key?('make'), "Expected 'make' excluded for hidden camera"
+    assert visible_json.key?('make'), "Expected 'make' present for visible camera"
+    assert_equal "Visible Make", visible_json['make']
   end
 
   test "Controller#create excludes attributes in response" do
-    post "/properties", params: {
-      property: { name: "New Place", description: "Post-create", active: true }
+    post "/cameras", params: {
+      camera: { make: "New Camera", hidden: true }
     }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :created
-    assert_not json.key?('description'), "Expected 'description' excluded in create response for active property"
+    assert_not json.key?('make'), "Expected 'make' excluded in create response for a hidden camera"
   end
 
   test "Controller#update excludes attributes in response" do
-    property = create(:property, name: "Old Name", description: "Details", active: false)
+    camera = create(:camera, make: "Old Camera", hidden: false)
 
-    patch "/properties/#{property.id}", params: {
-      property: { active: true }
+    patch "/cameras/#{camera.id}", params: {
+      camera: { hidden: true }
     }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert_not json.key?('description'), "Expected 'description' excluded after updating to active"
+    assert_not json.key?('make'), "Expected 'make' excluded after updating to hidden"
   end
 
   # = Deep excludes applied to included associations
 
   test "ACL excludes with deep keys strips attributes from included associations" do
     photo = create(:photo, format: 'jpg')
-    property = create(:property, name: "Active", description: "Hidden", active: true, photos: [photo])
+    camera = create(:camera, make: "Leica", hidden: true, photo: photo)
 
-    get "/properties/#{property.id}", params: { include: [:photos] }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert_not json.key?('description'), "Expected 'description' excluded on the property"
-    assert json.key?('photos'), "Expected 'photos' to be included"
-    photo_json = json['photos'].first
-    assert_not photo_json.key?('format'), "Expected 'format' excluded on nested photos via deep excludes"
-    assert photo_json.key?('id'), "Expected other photo attributes still present"
+    assert_not json.key?('make'), "Expected 'make' excluded on the camera"
+    assert json.key?('photo'), "Expected 'photo' to be included"
+    assert_not json['photo'].key?('format'), "Expected 'format' excluded on the nested photo via deep excludes"
+    assert json['photo'].key?('id'), "Expected other photo attributes still present"
   end
 
   test "Deep excludes do not apply when parent ACL returns no nested exclude" do
     photo = create(:photo, format: 'jpg')
-    property = create(:property, name: "Inactive", description: "Shown", active: false, photos: [photo])
+    camera = create(:camera, make: "Leica", hidden: false, photo: photo)
 
-    get "/properties/#{property.id}", params: { include: [:photos] }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    photo_json = json['photos'].first
-    assert photo_json.key?('format'), "Expected 'format' present when parent excludes are empty"
-    assert_equal 'jpg', photo_json['format']
+    assert json['photo'].key?('format'), "Expected 'format' present when parent excludes are empty"
+    assert_equal 'jpg', json['photo']['format']
   end
 
   test "ACL excludes with a terminal true on an association key drops the whole relationship" do
-    property = create(:property, name: "Active", description: "Hidden", active: true)
-    create(:account, name: "Manager", property: property)
+    photo = create(:photo, format: 'jpg')
+    camera = create(:camera, make: "Leica", retired: true, photo: photo)
 
-    get "/properties/#{property.id}", params: { include: [:accounts] }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert_not json.key?('accounts'), "Expected 'accounts' association dropped entirely by excludes"
+    assert_not json.key?('photo'), "Expected 'photo' association dropped entirely by excludes"
   end
 
   test "Association dropped via excludes still renders when parent excludes permit it" do
-    property = create(:property, name: "Inactive", description: "Shown", active: false)
-    create(:account, name: "Manager", property: property)
+    photo = create(:photo, format: 'jpg')
+    camera = create(:camera, make: "Leica", retired: false, photo: photo)
 
-    get "/properties/#{property.id}", params: { include: [:accounts] }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
-    assert json.key?('accounts'), "Expected 'accounts' included when excludes empty"
-    assert_equal 1, json['accounts'].length
+    assert json.key?('photo'), "Expected 'photo' included when excludes empty"
+    assert_equal photo.id, json['photo']['id']
   end
 
 end

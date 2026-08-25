@@ -106,6 +106,7 @@ class Attachment < ActiveRecord::Base
 end
 
 class Camera < ActiveRecord::Base
+  belongs_to :photo, optional: true
 end
 
 class UuidModel < ActiveRecord::Base
@@ -197,6 +198,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "cameras", force: :cascade do |t|
       t.integer  'photo_id'
       t.string   'make', null: false
+      t.boolean  'hidden', null: false, default: false
+      t.boolean  'retired', null: false, default: false
     end
 
     create_table "attachments", force: :cascade do |t|

@@ -60,7 +60,7 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     property = build(:property)
 
     assert_no_difference 'Property.count' do
-      post "/properties", params: { property: property.attributes, include: [:document_attachments] }, as: :json
+      post "/properties", params: { property: property.attributes, include: [:accounts] }, as: :json
     end
 
     assert_response :bad_request
@@ -68,7 +68,7 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
   test "Controller#update with an invalid include" do
     property = create(:property, {name: "A"})
-    patch "/properties/#{property.id}", params: { property: {name: "B"}, include: [:document_attachments] }, as: :json
+    patch "/properties/#{property.id}", params: { property: {name: "B"}, include: [:accounts] }, as: :json
 
     assert_response :bad_request
     assert_equal 'A', property.reload.name
