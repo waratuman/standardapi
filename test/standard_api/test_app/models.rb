@@ -107,6 +107,8 @@ end
 
 class Camera < ActiveRecord::Base
   belongs_to :photo, optional: true
+
+  validates :make, presence: true
 end
 
 class UuidModel < ActiveRecord::Base

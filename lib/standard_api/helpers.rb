@@ -89,6 +89,17 @@ module StandardAPI
       value.is_a?(Hash) ? value : nil
     end
 
+    # Drop validation errors belonging to an excluded attribute. An error key
+    # names the attribute it came from, and its message usually quotes the
+    # value, so serializing the errors untouched hands back exactly what the
+    # exclude was hiding. Nested keys like `photos.caption` are matched on
+    # their leading segment.
+    def reject_excluded_errors(errors, excluded)
+      return errors if excluded.blank?
+
+      errors.reject { |attribute, _| excluded[attribute.to_s.split('.').first] == true }
+    end
+
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?

@@ -87,5 +87,6 @@ end
 if !record.errors.blank?
   errs = record.errors.to_hash
   errs.default_proc = nil
+  errs = reject_excluded_errors(errs, excluded)
   json.set! 'errors', errs
 end

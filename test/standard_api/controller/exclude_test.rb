@@ -159,6 +159,26 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('make'), "Expected 'make' excluded after updating to hidden"
   end
 
+  # = Validation errors
+
+  test "validation errors for an excluded attribute are withheld" do
+    post "/cameras", params: { camera: { make: nil, hidden: true } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :bad_request
+    assert_not json.key?('make'), "Expected 'make' excluded for a hidden camera"
+    assert_not json['errors'].key?('make'),
+      "Expected the error for the excluded 'make' to be withheld, got #{json['errors'].inspect}"
+  end
+
+  test "validation errors are reported when the attribute is not excluded" do
+    post "/cameras", params: { camera: { make: nil, hidden: false } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :bad_request
+    assert json['errors'].key?('make'), "Expected the 'make' error reported for a visible camera"
+  end
+
   # = Deep excludes applied to included associations
 
   test "ACL excludes with deep keys strips attributes from included associations" do
