@@ -6,7 +6,7 @@ module CameraACL
 
   # Sub resources allowed to be included in the response
   def includes
-    { photo: [ :account ] }
+    { photo: [ :account ], specs: true }
   end
 
   # Attributes to exclude from the response, evaluated per-record. Dedicated
@@ -26,6 +26,7 @@ module CameraACL
     # defend against, since the cache keys are built from record timestamps
     # alone and cannot tell two requesters apart.
     result[:photo] = [:format] if result[:photo].nil? && request.headers['X-Hide-Photo-Format'] == '1'
+    result[:specs] = [:serial] if record.hidden?
 
     result
   end

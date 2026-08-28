@@ -159,6 +159,31 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('make'), "Expected 'make' excluded after updating to hidden"
   end
 
+  # = Includes that resolve to something other than a record
+
+  test "excludes apply to an include that resolves to a plain hash" do
+    camera = create(:camera, make: "Leica", hidden: true)
+
+    get "/cameras/#{camera.id}", params: { include: [:specs] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert json.key?('specs'), "Expected 'specs' to be included"
+    assert_equal 'CMOS', json['specs']['sensor'], "Expected other keys still present"
+    assert_not json['specs'].key?('serial'),
+      "Expected 'serial' excluded from a non-record include, got #{json['specs'].inspect}"
+  end
+
+  test "an include that resolves to a plain hash is untouched when excludes permit" do
+    camera = create(:camera, make: "Leica", hidden: false)
+
+    get "/cameras/#{camera.id}", params: { include: [:specs] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal 'SN-123', json['specs']['serial']
+  end
+
   # = Validation errors
 
   test "validation errors for an excluded attribute are withheld" do

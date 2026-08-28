@@ -109,6 +109,12 @@ class Camera < ActiveRecord::Base
   belongs_to :photo, optional: true
 
   validates :make, presence: true
+
+  # An include that resolves to a plain Hash rather than a record, so there is
+  # no partial to apply excludes for it.
+  def specs
+    { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
+  end
 end
 
 class UuidModel < ActiveRecord::Base

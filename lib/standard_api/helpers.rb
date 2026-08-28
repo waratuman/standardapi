@@ -89,6 +89,30 @@ module StandardAPI
       value.is_a?(Hash) ? value : nil
     end
 
+    # Apply an exclude sub-tree to a plain JSON value.
+    #
+    # An include can resolve to something that isn't a record — a method
+    # returning a Hash or an Array of Hashes — in which case there is no
+    # partial to enforce the excludes and the value would otherwise be
+    # serialized whole.
+    def apply_excludes(value, excluded)
+      return value if excluded.blank?
+
+      case value
+      when Array
+        value.map { |v| apply_excludes(v, excluded) }
+      when Hash
+        value.each_with_object({}) do |(key, v), result|
+          sub = excluded[key]
+          next if sub == true
+
+          result[key] = sub.is_a?(Hash) ? apply_excludes(v, sub) : v
+        end
+      else
+        value
+      end
+    end
+
     # Drop validation errors belonging to an excluded attribute. An error key
     # names the attribute it came from, and its message usually quotes the
     # value, so serializing the errors untouched hands back exactly what the

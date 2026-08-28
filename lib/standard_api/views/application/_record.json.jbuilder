@@ -77,7 +77,7 @@ includes.each do |inc, subinc|
           json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, excludes: sub_excluded
         end
       else
-        json.set! inc, value.as_json
+        json.set! inc, apply_excludes(value.as_json, sub_excluded)
       end
     end
   end
