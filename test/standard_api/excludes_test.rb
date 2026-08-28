@@ -54,6 +54,35 @@ class ExcludesTest < Minitest::Test
     assert_equal(once.to_h, twice.to_h)
   end
 
+  def test_normalize_array_does_not_drop_sibling_exclusions
+    assert_equal(
+      { 'photo' => { 'a' => true, 'b' => true } },
+      StandardAPI::Excludes.normalize([{ photo: [:a] }, { photo: [:b] }]).to_h
+    )
+  end
+
+  def test_normalize_array_keeps_a_terminal_true_regardless_of_order
+    assert_equal(
+      { 'photo' => true },
+      StandardAPI::Excludes.normalize([{ photo: true }, { photo: [:format] }]).to_h
+    )
+    assert_equal(
+      { 'photo' => true },
+      StandardAPI::Excludes.normalize([{ photo: [:format] }, { photo: true }]).to_h
+    )
+  end
+
+  def test_normalize_merges_symbol_and_string_key_collisions
+    assert_equal(
+      { 'photo' => true },
+      StandardAPI::Excludes.normalize({ :photo => true, 'photo' => [:format] }).to_h
+    )
+    assert_equal(
+      { 'photo' => { 'a' => true, 'b' => true } },
+      StandardAPI::Excludes.normalize({ :photo => [:a], 'photo' => [:b] }).to_h
+    )
+  end
+
   # = deep_merge
 
   def test_deep_merge_empty_sides

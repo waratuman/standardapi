@@ -14,15 +14,20 @@ module StandardAPI
       when nil
         # empty
       when Array
-        excludes.flatten.compact.each { |v| normalized.merge!(normalize(v)) }
+        excludes.flatten.compact.each { |v| normalized = deep_merge(normalized, v) }
       when Hash, ActionController::Parameters
         excludes.each_pair do |k, v|
-          normalized[k] = case v
+          value = case v
           when true, 'true' then true
           else
             sub = normalize(v)
             sub.empty? ? true : sub
           end
+
+          # Keys can collide even within one hash, since `:x` and `'x'` are the
+          # same key once normalized. Merge rather than overwrite so an earlier
+          # exclusion is never silently dropped.
+          normalized[k] = normalized.key?(k) ? merge_values(normalized[k], value) : value
         end
       when Symbol, String
         normalized[excludes] = true
@@ -43,19 +48,24 @@ module StandardAPI
       result = a.dup
 
       b.each do |k, v|
-        result[k] = if !result.key?(k)
-          v
-        elsif result[k] == true || v == true
-          true
-        elsif result[k].is_a?(Hash) && v.is_a?(Hash)
-          deep_merge(result[k], v)
-        else
-          v
-        end
+        result[k] = result.key?(k) ? merge_values(result[k], v) : v
       end
 
       result
     end
+
+    # Combine two values held under the same exclude key. A terminal `true`
+    # wins over a sub-hash, so neither side can un-hide what the other hid.
+    def self.merge_values(a, b)
+      if a == true || b == true
+        true
+      elsif a.is_a?(Hash) && b.is_a?(Hash)
+        deep_merge(a, b)
+      else
+        b
+      end
+    end
+    private_class_method :merge_values
 
   end
 end
