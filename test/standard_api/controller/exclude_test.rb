@@ -67,6 +67,30 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     ApplicationHelper.module_eval { remove_method :excludes }
   end
 
+  test "a zero-arity ACL excludes is still honoured, with a deprecation warning" do
+    ApplicationController.class_eval do
+      private def photo_excludes
+        { format: true }
+      end
+    end
+
+    photo = create(:photo, format: 'jpg')
+
+    logger = ActiveSupport::LogSubscriber.logger
+    warnings = []
+    logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
+
+    get "/photos/#{photo.id}", as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_not json.key?('format'), "Expected a zero-arity ACL excludes to still apply"
+    assert warnings.any? { |w| w.include?('PhotoACL#excludes() has been deprecated') },
+      "Expected a deprecation warning, got: #{warnings.inspect}"
+  ensure
+    ApplicationController.send(:remove_method, :photo_excludes)
+  end
+
   # = ACL excludes
   #
   # These use the Camera resource, which isn't exercised by the generic
