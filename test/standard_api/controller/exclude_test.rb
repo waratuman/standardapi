@@ -151,6 +151,53 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('photo'), "Expected 'photo' association dropped entirely by excludes"
   end
 
+  # = Custom partials
+  #
+  # StandardAPI only enforces excludes in application/_record. A custom model
+  # partial has to resolve and apply them itself, which is what
+  # `photos/_photo` demonstrates.
+
+  test "a custom partial applies every attribute in the exclude sub-tree" do
+    photo = create(:photo, format: 'jpg')
+    camera = create(:camera, make: "Leica", hidden: true, photo: photo)
+
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_not json['photo'].key?('format'), "Expected 'format' excluded on the nested photo"
+    assert_not json['photo'].key?('created_at'), "Expected 'created_at' excluded on the nested photo"
+    assert json['photo'].key?('id'), "Expected other photo attributes still present"
+  end
+
+  test "a custom partial forwards the exclude sub-tree to records it nests" do
+    account = create(:account, name: "Ansel", email: "ansel@example.com")
+    photo = create(:photo, format: 'jpg', account: account)
+    camera = create(:camera, make: "Leica", hidden: true, photo: photo)
+
+    get "/cameras/#{camera.id}", params: { include: { photo: [:account] } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert json['photo'].key?('account'), "Expected the nested account to be included"
+    assert json['photo']['account'].key?('name'), "Expected other account attributes present"
+    assert_not json['photo']['account'].key?('email'),
+      "Expected 'email' excluded two levels down, via the custom partial"
+  end
+
+  test "a custom partial renders nested records normally when excludes permit" do
+    account = create(:account, name: "Ansel", email: "ansel@example.com")
+    photo = create(:photo, format: 'jpg', account: account)
+    camera = create(:camera, make: "Leica", hidden: false, photo: photo)
+
+    get "/cameras/#{camera.id}", params: { include: { photo: [:account] } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal "ansel@example.com", json['photo']['account']['email']
+    assert_equal 'jpg', json['photo']['format']
+  end
+
   # = Fragment caching
   #
   # Cache keys are built from record timestamps only (see

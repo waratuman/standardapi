@@ -152,6 +152,50 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
+##### Excludes and custom partials
+
+An ACL may also define `excludes(record)`, returning the attributes and
+relations to strip from the response for that record:
+
+    module PhotoACL
+      def excludes(record)
+        {
+          # hide an attribute
+          caption: !record.public?,
+          # drop a whole relation
+          camera: record.anonymous?,
+          # or reach into one
+          account: [ :email ]
+        }
+      end
+    end
+
+Only `true` excludes a key. `false`, `nil` and empty collections exclude
+nothing, so predicates can be assigned directly as above.
+
+**Excludes are enforced in `application/_record` only.** If you have written a
+custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
+StandardAPI cannot filter attributes that partial serializes itself — your
+partial has to apply the excludes. Two helpers are provided:
+
+    excluded = resolve_excludes(photo, local_assigns[:excludes])
+
+    json.set! :caption, photo.caption unless excluded[:caption] == true
+
+    # forward the sub-tree when nesting another record
+    if includes[:account] && excluded[:account] != true
+      json.partial! 'application/record', record: photo.account,
+        includes: includes[:account], excludes: sub_excludes(excluded, :account)
+    end
+
+`resolve_excludes` merges the record's own ACL excludes with whatever the
+parent partial passed down; `sub_excludes` returns the sub-tree to forward for
+a given key. `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is
+a complete worked example.
+
+Fragment caching is disabled automatically for any response an exclude rule
+could affect, since cache keys cannot distinguish one requester from another.
+
 # API Usage
 Resources can be queried via REST style end points
 ```

@@ -6,7 +6,7 @@ module CameraACL
 
   # Sub resources allowed to be included in the response
   def includes
-    [ :photo ]
+    { photo: [ :account ] }
   end
 
   # Attributes to exclude from the response, evaluated per-record. Dedicated
@@ -16,7 +16,10 @@ module CameraACL
     result = {}
     # `false` and `nil` exclude nothing, so predicates can be assigned directly.
     result[:make] = record.hidden?
-    result[:photo] = record.retired? ? true : ([:format] if record.hidden?)
+    # `photos/_photo` is a custom partial, so this whole sub-tree is only
+    # honoured because that partial resolves and applies it. The `account`
+    # branch goes one level deeper, into application/_record.
+    result[:photo] = record.retired? ? true : ({ format: true, created_at: true, account: [:email] } if record.hidden?)
 
     # Stands in for an ACL that varies by *requester* (current_user, role,
     # token) rather than by record. That is the case fragment caching has to

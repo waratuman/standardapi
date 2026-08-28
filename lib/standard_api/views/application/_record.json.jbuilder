@@ -1,4 +1,4 @@
-excluded = StandardAPI::Excludes.deep_merge(excludes(record), local_assigns[:excludes])
+excluded = resolve_excludes(record, local_assigns[:excludes])
 record.attribute_names.each do |name|
   next if excluded[name] == true
 
@@ -9,7 +9,7 @@ includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
   next if excluded[inc] == true
 
-  sub_excluded = excluded[inc].is_a?(Hash) ? excluded[inc] : nil
+  sub_excluded = sub_excludes(excluded, inc)
 
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection

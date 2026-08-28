@@ -61,6 +61,34 @@ module StandardAPI
       end
     end
 
+    # The excludes that apply to +record+ inside a partial: the record's own
+    # ACL excludes deep-merged with whatever the parent partial passed down as
+    # the `excludes` local.
+    #
+    # Custom model partials MUST call this and honour the result. StandardAPI
+    # enforces excludes in application/_record only; it cannot filter
+    # attributes a hand-written partial serializes itself.
+    #
+    #   excluded = resolve_excludes(photo, local_assigns[:excludes])
+    #
+    #   json.set! :format, photo.format unless excluded[:format] == true
+    #
+    #   # forward the sub-tree when rendering a nested record
+    #   json.partial! 'application/record', record: photo.account,
+    #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
+    def resolve_excludes(record, inherited = nil)
+      own = respond_to?(:excludes) ? excludes(record) : nil
+      StandardAPI::Excludes.deep_merge(own, inherited)
+    end
+
+    # The exclude sub-tree to forward for +key+, or nil when there is nothing
+    # to forward. Returns nil for a terminal `true` — that case means the key
+    # is dropped entirely and should never be rendered.
+    def sub_excludes(excluded, key)
+      value = excluded[key]
+      value.is_a?(Hash) ? value : nil
+    end
+
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       if (cache_columns - klass.column_names).empty?
