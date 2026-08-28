@@ -268,13 +268,25 @@ module StandardAPI
       acl_method = "#{model_name(record.class)}_excludes"
       raw = if self.respond_to?(acl_method, true)
         self.send(acl_method, record)
-      elsif defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-        app_excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        app_excludes[record.class.model_name.singular] || []
       else
-        []
+        application_helper_excludes[record.class.model_name.singular] || []
       end
       StandardAPI::Excludes.normalize(raw)
+    end
+
+    # ApplicationHelper#excludes is keyed by model and takes no record, so it
+    # is the same for every record in a response. Build it once per request:
+    # #excludes runs per rendered record, and the anonymous class this needs
+    # is not free to make — each one invalidates Ruby's global method cache.
+    def application_helper_excludes
+      return @application_helper_excludes if defined?(@application_helper_excludes)
+
+      @application_helper_excludes =
+        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
+          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+        else
+          ActiveSupport::HashWithIndifferentAccess.new
+        end
     end
 
     # True when an exclude rule could apply to +klass+, either from an ACL

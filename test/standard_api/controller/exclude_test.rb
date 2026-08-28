@@ -25,6 +25,29 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     ApplicationHelper.module_eval { remove_method :excludes }
   end
 
+  test "ApplicationHelper#excludes is resolved once per request, not once per record" do
+    calls = 0
+    ApplicationHelper.module_eval do
+      define_method(:excludes) do
+        calls += 1
+        { account: [:email] }
+      end
+    end
+
+    property = create(:property)
+    10.times { |i| create(:account, name: "A#{i}", email: "a#{i}@example.com", property: property) }
+
+    get "/accounts", params: { limit: 100 }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert json.size >= 10, "Expected the index to render every account"
+    assert json.none? { |a| a.key?('email') }, "Expected 'email' excluded on every account"
+    assert_equal 1, calls, "Expected ApplicationHelper#excludes to be resolved once per request"
+  ensure
+    ApplicationHelper.module_eval { remove_method :excludes }
+  end
+
   test "ACL excludes takes precedence over ApplicationHelper#excludes" do
     ApplicationHelper.module_eval do
       def excludes
