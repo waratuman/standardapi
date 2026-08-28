@@ -14,7 +14,8 @@ module CameraACL
   # exercised by the much larger StandardAPI::TestCase generic suite.
   def excludes(record)
     result = {}
-    result[:make] = true if record.hidden?
+    # `false` and `nil` exclude nothing, so predicates can be assigned directly.
+    result[:make] = record.hidden?
     result[:photo] = record.retired? ? true : ([:format] if record.hidden?)
 
     # Stands in for an ACL that varies by *requester* (current_user, role,
@@ -23,7 +24,7 @@ module CameraACL
     # alone and cannot tell two requesters apart.
     result[:photo] = [:format] if result[:photo].nil? && request.headers['X-Hide-Photo-Format'] == '1'
 
-    result.compact
+    result
   end
 
 end

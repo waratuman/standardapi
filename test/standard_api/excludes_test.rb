@@ -54,6 +54,22 @@ class ExcludesTest < Minitest::Test
     assert_equal(once.to_h, twice.to_h)
   end
 
+  def test_normalize_treats_false_as_no_exclusion
+    assert_equal({}, StandardAPI::Excludes.normalize({ make: false }).to_h)
+    assert_equal({}, StandardAPI::Excludes.normalize({ make: 'false' }).to_h)
+    assert_equal(
+      { 'hidden' => true },
+      StandardAPI::Excludes.normalize({ make: false, hidden: true }).to_h
+    )
+  end
+
+  def test_normalize_treats_nil_and_empty_collections_as_no_exclusion
+    assert_equal({}, StandardAPI::Excludes.normalize({ make: nil }).to_h)
+    assert_equal({}, StandardAPI::Excludes.normalize({ photo: [] }).to_h)
+    assert_equal({}, StandardAPI::Excludes.normalize({ photo: {} }).to_h)
+    assert_equal({}, StandardAPI::Excludes.normalize({ photo: { format: false } }).to_h)
+  end
+
   def test_normalize_array_does_not_drop_sibling_exclusions
     assert_equal(
       { 'photo' => { 'a' => true, 'b' => true } },

@@ -7,6 +7,9 @@ module StandardAPI
     # [:x, { y: [:z] }]             => { x: true, y: { z: true } }
     # { y: [:z] }                   => { y: { z: true } }
     # { y: { z: true } }            => { y: { z: true } }
+    # { x: false, y: nil, z: [] }   => {}
+    #
+    # Only `true` excludes a whole key; falsy and empty values exclude nothing.
     def self.normalize(excludes)
       normalized = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -19,10 +22,15 @@ module StandardAPI
         excludes.each_pair do |k, v|
           value = case v
           when true, 'true' then true
+          # A falsy or empty value means "nothing to exclude here". Without
+          # this an ACL written as `result[:make] = record.hidden?` would hide
+          # `make` on exactly the records it meant to show.
+          when false, 'false', nil then nil
           else
             sub = normalize(v)
-            sub.empty? ? true : sub
+            sub.empty? ? nil : sub
           end
+          next if value.nil?
 
           # Keys can collide even within one hash, since `:x` and `'x'` are the
           # same key once normalized. Merge rather than overwrite so an earlier
