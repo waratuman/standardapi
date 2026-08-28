@@ -14,8 +14,7 @@ includes.each do |inc, subinc|
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection
     if association.collection?
-      can_cache = can_cache_relation?(record, inc, subinc) &&
-        sub_excluded.nil? && !excludes_affect?(association.klass, subinc)
+      can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
       json.set! inc do
         json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
           partial = model_partial(association.klass)
@@ -41,17 +40,12 @@ includes.each do |inc, subinc|
         end
       end
     else
-      can_cache = can_cache_relation?(record, inc, subinc) && sub_excluded.nil?
+      can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
       cache_key = nil
 
       if can_cache
         if association.is_a?(::ActiveRecord::Reflection::BelongsToReflection)
           can_cache = can_cache && !record.send(association.foreign_key).nil?
-        end
-
-        if can_cache
-          association_klass = association.polymorphic? ? record.send(association.foreign_type)&.constantize : association.klass
-          can_cache = association_klass.nil? ? false : !excludes_affect?(association_klass, subinc)
         end
 
         if can_cache

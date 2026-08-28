@@ -193,8 +193,9 @@ parent partial passed down; `sub_excludes` returns the sub-tree to forward for
 a given key. `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is
 a complete worked example.
 
-Fragment caching is disabled automatically for any response an exclude rule
-could affect, since cache keys cannot distinguish one requester from another.
+Fragment caching is disabled automatically for any response an exclude rule or
+a `mask_for` row mask could affect, since cache keys are built from record
+timestamps and cannot distinguish one requester from another.
 
 # API Usage
 Resources can be queried via REST style end points

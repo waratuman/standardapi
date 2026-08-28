@@ -91,11 +91,9 @@ module StandardAPI
 
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
-      if (cache_columns - klass.column_names).empty?
-        true
-      else
-        false
-      end
+      return false if !(cache_columns - klass.column_names).empty?
+
+      requester_independent?(klass, includes)
     end
 
     def cache_key(record, includes)
@@ -108,14 +106,40 @@ module StandardAPI
       end
     end
 
-    def can_cache_relation?(record, relation, subincludes)
+    # +excludes+ is the exclude sub-tree the parent partial is forwarding for
+    # this relation, if any. Its presence alone makes the fragment specific to
+    # this requester.
+    def can_cache_relation?(record, relation, subincludes, excludes: nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
-      if (cache_columns - record.class.column_names).empty?
-        true
-      else
-        false
-      end
+      return false if !(cache_columns - record.class.column_names).empty?
+      return false if excludes.present?
+
+      association = record.class.reflect_on_association(relation)
+      return true if association.nil?
+
+      klass = association.polymorphic? ? record.send(association.foreign_type)&.constantize : association.klass
+      return false if klass.nil?
+
+      # Included collections are row filtered through #mask, so which rows land
+      # in the fragment depends on who asked for it.
+      return false if association.collection? && respond_to?(:masked?) && masked?(klass)
+
+      requester_independent?(klass, subincludes)
+    end
+
+    # False when rendering +klass+ with +includes+ could vary by requester,
+    # through an ACL exclude rule or a row mask. Cache keys are built from
+    # record timestamps and the include digest alone, so a fragment this
+    # returns false for must never be cached: it would be handed to the next
+    # requester unchanged.
+    #
+    # Returns true outside a StandardAPI controller, where neither mechanism
+    # exists.
+    def requester_independent?(klass, includes)
+      return true if !respond_to?(:excludes_affect?)
+
+      !excludes_affect?(klass, includes) && !mask_affect?(klass, includes)
     end
 
     def association_cache_key(record, relation, subincludes)

@@ -5,7 +5,7 @@ end
 partial = model_partial(model)
 partial_record_name = partial.split('/').last.to_sym
 
-if !includes.empty? && can_cache?(model, includes) && !excludes_affect?(model, includes)
+if !includes.empty? && can_cache?(model, includes)
   json.cache_collection! records, key: proc { |record| cache_key(record, includes) } do |record|
     json.partial!(partial, includes: includes, partial_record_name => record)
   end

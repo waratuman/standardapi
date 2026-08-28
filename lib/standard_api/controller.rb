@@ -9,7 +9,8 @@ module StandardAPI
 
     def self.included(klass)
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
-        :orders, :model, :models, :resource_limit, :default_limit, :mask
+        :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
+        :default_limit, :mask
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
 
@@ -312,6 +313,32 @@ module StandardAPI
         next true if association.polymorphic?
 
         excludes_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
+      end
+    end
+
+    # True when #mask hides rows of +klass+ for this request.
+    def masked?(klass)
+      mask[klass.table_name.to_sym].present?
+    end
+
+    # True when rendering +klass+ with +includes+ depends on the current mask.
+    #
+    # _record filters every included collection through #mask, so which rows
+    # appear inside a fragment varies by requester while the cache key does
+    # not. Same problem as #excludes_affect?, same fix: don't cache it. The
+    # top level is masked in #resources rather than in the view, so a record
+    # the mask hides is simply absent from the collection and needs no guard
+    # here.
+    def mask_affect?(klass, includes)
+      includes.any? do |inc, subinc|
+        next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
+
+        association = klass.reflect_on_association(inc)
+        next false if association.nil?
+        next true if association.polymorphic?
+        next true if association.collection? && masked?(association.klass)
+
+        mask_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
       end
     end
 

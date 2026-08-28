@@ -26,6 +26,14 @@ class AccountsController < ApplicationController
     @account = Account.last
   end
 
+  # A row mask that varies by *requester* rather than by record, which is what
+  # the view caching guards have to defend against.
+  def mask_for(table_name)
+    if table_name.to_s == 'photos' && request.headers['X-Hide-Photos'] == '1'
+      { id: -1 }
+    end
+  end
+
 end
 
 class DocumentsController < ApplicationController
