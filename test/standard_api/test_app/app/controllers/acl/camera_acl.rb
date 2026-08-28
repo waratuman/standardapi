@@ -16,6 +16,13 @@ module CameraACL
     result = {}
     result[:make] = true if record.hidden?
     result[:photo] = record.retired? ? true : ([:format] if record.hidden?)
+
+    # Stands in for an ACL that varies by *requester* (current_user, role,
+    # token) rather than by record. That is the case fragment caching has to
+    # defend against, since the cache keys are built from record timestamps
+    # alone and cannot tell two requesters apart.
+    result[:photo] = [:format] if result[:photo].nil? && request.headers['X-Hide-Photo-Format'] == '1'
+
     result.compact
   end
 

@@ -151,6 +151,46 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('photo'), "Expected 'photo' association dropped entirely by excludes"
   end
 
+  # = Fragment caching
+  #
+  # Cache keys are built from record timestamps only (see
+  # StandardAPI::Helpers#association_cache_key), so a fragment rendered for one
+  # requester must never be reused for a requester whose excludes differ.
+
+  test "excluded attributes are not served from a fragment cache warmed by another requester" do
+    photo = create(:photo, format: 'jpg')
+    camera = create(:camera, make: "Leica", hidden: false, retired: false, photo: photo)
+
+    # Warm the cache as a requester with no excludes on photo.
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
+    assert_response :ok
+    assert_equal 'jpg', JSON.parse(response.body)['photo']['format']
+
+    # Same record, a requester whose ACL hides photo.format.
+    get "/cameras/#{camera.id}", params: { include: [:photo] },
+      headers: { 'X-Hide-Photo-Format' => '1' }, as: :json
+    assert_response :ok
+    assert_not JSON.parse(response.body)['photo'].key?('format'),
+      "excluded attribute leaked from a fragment cached for a different requester"
+  end
+
+  test "a requester with excludes does not poison the fragment cache for others" do
+    photo = create(:photo, format: 'png')
+    camera = create(:camera, make: "Nikon", hidden: false, retired: false, photo: photo)
+
+    # Render first as the restricted requester.
+    get "/cameras/#{camera.id}", params: { include: [:photo] },
+      headers: { 'X-Hide-Photo-Format' => '1' }, as: :json
+    assert_response :ok
+    assert_not JSON.parse(response.body)['photo'].key?('format')
+
+    # An unrestricted requester must still see the attribute.
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
+    assert_response :ok
+    assert_equal 'png', JSON.parse(response.body)['photo']['format'],
+      "permitted attribute was hidden by a fragment cached for a restricted requester"
+  end
+
   test "Association dropped via excludes still renders when parent excludes permit it" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", retired: false, photo: photo)

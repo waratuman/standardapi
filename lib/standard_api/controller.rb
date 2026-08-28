@@ -1,11 +1,15 @@
 module StandardAPI
   module Controller
 
+    # Keys that may appear alongside association names in an `include` and that
+    # scope the query rather than name a relation.
+    RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
+
     delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :excludes, :orders, :model, :models,
-        :resource_limit, :default_limit, :mask
+      klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
+        :orders, :model, :models, :resource_limit, :default_limit, :mask
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
 
@@ -270,6 +274,45 @@ module StandardAPI
         []
       end
       StandardAPI::Excludes.normalize(raw)
+    end
+
+    # True when an exclude rule could apply to +klass+, either from an ACL
+    # +excludes+ method or from ApplicationHelper#excludes.
+    #
+    # This is deliberately a "could apply" test rather than "does apply": it
+    # answers the question without a record in hand, which is what the view
+    # caching guards need.
+    def excludes?(klass)
+      @excludes_defined ||= {}
+      return @excludes_defined[klass] if @excludes_defined.key?(klass)
+
+      @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
+        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
+    end
+
+    # True when rendering +klass+ with +includes+ could be affected by an
+    # exclude rule, anywhere in the rendered tree.
+    #
+    # #excludes is resolved per record and may depend on the current user, but
+    # the fragment cache keys in the views are built from record timestamps
+    # only. Caching a fragment whose contents depend on the requester would let
+    # one requester's response be served to another, so the views use this to
+    # skip caching entirely whenever excludes are in play. Apps that define no
+    # excludes are unaffected and keep caching.
+    def excludes_affect?(klass, includes)
+      return true if excludes?(klass)
+
+      includes.any? do |inc, subinc|
+        next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
+
+        association = klass.reflect_on_association(inc)
+        next false if association.nil?
+        # A polymorphic association's class isn't known until a record is
+        # loaded, so assume it could be excluded.
+        next true if association.polymorphic?
+
+        excludes_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
+      end
     end
 
     def resources

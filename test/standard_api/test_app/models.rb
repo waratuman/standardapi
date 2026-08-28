@@ -200,6 +200,9 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.string   'make', null: false
       t.boolean  'hidden', null: false, default: false
       t.boolean  'retired', null: false, default: false
+      # Enables the `photo` association fragment cache, so the exclude tests
+      # exercise the cached render path and not just the uncached one.
+      t.datetime 'photo_cached_at'
     end
 
     create_table "attachments", force: :cascade do |t|

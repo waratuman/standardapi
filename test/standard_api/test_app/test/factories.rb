@@ -52,5 +52,6 @@ FactoryBot.define do
     make    { ['Sony', 'Nokia', 'Canon', 'Leica'].sample }
     hidden  { false }
     retired { false }
+    photo_cached_at { Time.now }
   end
 end
