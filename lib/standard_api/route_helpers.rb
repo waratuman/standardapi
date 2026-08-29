@@ -24,6 +24,8 @@ module StandardAPI
 
       resources_options = options.deep_dup
 
+      resources_options[:format] = true if standardapi_format_constraint? && !resources_options.key?(:format)
+
       if resources_options[:only]
         resources_options[:only] = Array(resources_options[:only]).map(&:to_sym)
         resources_options[:only].reject! { |a| standard_resource_actions.include?(a) }
@@ -90,6 +92,8 @@ module StandardAPI
 
       resource_options = options.deep_dup
 
+      resource_options[:format] = true if standardapi_format_constraint? && !resource_options.key?(:format)
+
       if resource_options[:only]
         resource_options[:only] = Array(resource_options[:only]).map(&:to_sym)
         resource_options[:only].reject! { |a| standard_resource_actions.include?(a) }
@@ -129,6 +133,16 @@ module StandardAPI
 
         block.call if block
       end
+    end
+
+    private
+
+    # Rails keeps the optional format segment optional when it is constrained.
+    # StandardAPI routes under a format constraint must require that segment so a
+    # bare path can fall through to a non-API route.
+    def standardapi_format_constraint?
+      constraints = @scope[:constraints]
+      constraints.is_a?(Hash) && constraints[:format]
     end
 
   end
