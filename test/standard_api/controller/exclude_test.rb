@@ -248,6 +248,30 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_equal 'jpg', json['photo']['format']
   end
 
+  test "ACL excludes are forwarded to every record in a has_many association" do
+    ApplicationController.class_eval do
+      private def account_excludes(_record)
+        { photos: [:format] }
+      end
+    end
+
+    account = create(:account, name: "Ansel", email: "ansel@example.com")
+    photos = [
+      create(:photo, account: account, format: 'jpg'),
+      create(:photo, account: account, format: 'png')
+    ]
+
+    get "/accounts", params: { include: [:photos], limit: 100 }, as: :json
+    json = JSON.parse(response.body).find { |item| item['id'] == account.id }
+
+    assert_response :ok
+    assert_equal photos.map(&:id).sort, json['photos'].map { |photo| photo['id'] }.sort
+    assert json['photos'].none? { |photo| photo.key?('format') },
+      "Expected the exclude sub-tree forwarded to every has_many record"
+  ensure
+    ApplicationController.send(:remove_method, :account_excludes)
+  end
+
   test "ACL excludes with a terminal true on an association key drops the whole relationship" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", retired: true, photo: photo)
