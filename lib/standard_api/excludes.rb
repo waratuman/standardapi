@@ -48,6 +48,7 @@ module StandardAPI
     # over a sub-hash, so a child ACL cannot un-hide an attribute that a parent
     # decided to hide, and vice versa.
     def self.deep_merge(a, b)
+      return true if a == true || b == true
       return normalize(b) if a.nil? || (a.respond_to?(:empty?) && a.empty?)
       return normalize(a) if b.nil? || (b.respond_to?(:empty?) && b.empty?)
 

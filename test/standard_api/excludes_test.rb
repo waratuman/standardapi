@@ -126,6 +126,13 @@ class ExcludesTest < Minitest::Test
     assert_equal({ 'photos' => true }, StandardAPI::Excludes.deep_merge(b, a).to_h)
   end
 
+  def test_deep_merge_top_level_true_wins_over_a_hash
+    hash = StandardAPI::Excludes.normalize(photos: [:format])
+
+    assert_equal true, StandardAPI::Excludes.deep_merge(true, hash)
+    assert_equal true, StandardAPI::Excludes.deep_merge(hash, true)
+  end
+
   def test_deep_merge_nested_hashes_recurse
     a = { photos: { format: true } }
     b = { photos: { caption: true } }
