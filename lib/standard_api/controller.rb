@@ -279,7 +279,7 @@ module StandardAPI
           self.send(acl_method, record)
         end
       else
-        application_helper_excludes[record.class.model_name.singular] || []
+        application_helper_excludes[model_name(record.class)] || []
       end
       StandardAPI::Excludes.normalize(raw)
     end

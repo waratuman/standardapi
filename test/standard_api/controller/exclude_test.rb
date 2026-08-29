@@ -67,6 +67,22 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     ApplicationHelper.module_eval { remove_method :excludes }
   end
 
+  test "ApplicationHelper#excludes uses the ACL model name for HABTM join records" do
+    ApplicationHelper.module_eval do
+      def excludes
+        { photo_property: [:property_id] }
+      end
+    end
+
+    join_model = Photo.const_get(:HABTM_Properties)
+    excluded = CamerasController.new.send(:excludes, join_model.new)
+
+    assert_equal true, excluded['property_id'],
+      "Expected the HABTM-aware ApplicationHelper key to be used"
+  ensure
+    ApplicationHelper.module_eval { remove_method :excludes }
+  end
+
   test "a zero-arity ACL excludes is still honoured, with a deprecation warning" do
     ApplicationController.class_eval do
       private def photo_excludes
