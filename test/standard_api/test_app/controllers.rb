@@ -36,6 +36,24 @@ class AccountsController < ApplicationController
 
 end
 
+class CacheableAccountsController < ActionController::Base
+  include StandardAPI
+
+  def self.model
+    CacheableAccount
+  end
+
+  def index
+    super
+    render template: 'application/index'
+  end
+
+  def cacheable_account_includes
+    [:photos]
+  end
+
+end
+
 class DocumentsController < ApplicationController
 
   def document_attributes(document=nil)

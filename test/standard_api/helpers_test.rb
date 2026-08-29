@@ -45,6 +45,35 @@ class HelpersTest < ActionView::TestCase
     assert can_cache?(Account, {photos: {account: {}}})
   end
 
+  test '::cache_key changes when any cache timestamp changes' do
+    timestamp_values = {
+      'cached_at' => Time.utc(2025, 1, 2),
+      'photos_cached_at' => Time.utc(2025, 1, 2),
+      'accounts_cached_at' => nil
+    }
+
+    record_class = Class.new do
+      define_singleton_method(:column_names) do
+        ['cached_at', 'photos_cached_at', 'accounts_cached_at']
+      end
+
+      define_method(:initialize) { |values| @values = values }
+      define_method(:[]) { |attribute| @values[attribute] }
+      define_method(:id) { 1 }
+      define_method(:model_name) { Account.model_name }
+      define_method(:cache_timestamp_format) { ActiveRecord::Base.cache_timestamp_format }
+    end
+
+    record = record_class.new(timestamp_values)
+    includes = { photos: {} }
+    original_key = cache_key(record, includes)
+
+    # This timestamp now has a value, but the maximum timestamp is unchanged.
+    timestamp_values['accounts_cached_at'] = timestamp_values['cached_at']
+
+    refute_equal original_key, cache_key(record, includes)
+  end
+
   test '::can_cache_relation? with non-persisted record' do
     account = build(:account)
     assert !can_cache_relation?(account, :photos, {})
