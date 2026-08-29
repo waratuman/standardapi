@@ -16,7 +16,7 @@ json.object! do
     case association = record.class.reflect_on_association(inc)
     when ::ActiveRecord::Reflection::AbstractReflection
       if association.collection?
-        can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
+        can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
         json.cache_if!(can_cache, can_cache ? [inc, association_cache_key(record, inc, subinc)] : nil) do
           json.set! inc do
             partial = model_partial(association.klass)
@@ -41,7 +41,7 @@ json.object! do
           end
         end
       else
-        can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
+        can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
         if can_cache && association.is_a?(::ActiveRecord::Reflection::BelongsToReflection)
           can_cache = !record.send(association.foreign_key).nil?
         end

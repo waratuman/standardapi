@@ -144,7 +144,7 @@ module StandardAPI
     # +excludes+ is the exclude sub-tree the parent partial is forwarding for
     # this relation, if any. Its presence alone makes the fragment specific to
     # this requester.
-    def can_cache_relation?(record, relation, subincludes, excludes: nil)
+    def can_cache_relation?(record, relation, subincludes, excludes = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?

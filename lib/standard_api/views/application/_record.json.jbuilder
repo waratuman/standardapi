@@ -14,7 +14,7 @@ includes.each do |inc, subinc|
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection
     if association.collection?
-      can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
+      can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
       json.set! inc do
         json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
           partial = model_partial(association.klass)
@@ -40,7 +40,7 @@ includes.each do |inc, subinc|
         end
       end
     else
-      can_cache = can_cache_relation?(record, inc, subinc, excludes: sub_excluded)
+      can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
       cache_key = nil
 
       if can_cache
