@@ -92,7 +92,6 @@ class CacheableAccountsControllerTest < ActionDispatch::IntegrationTest
 
     get cacheable_accounts_path(format: :json), params: { include: :photos, limit: 100 }
     records = JSON(response.body)
-    records = records['cache_collection!'] if records.is_a?(Hash)
     assert_nil records.first['property_cached_at']
 
     # The changed value equals the existing maximum cache timestamp. A key
@@ -101,7 +100,6 @@ class CacheableAccountsControllerTest < ActionDispatch::IntegrationTest
 
     get cacheable_accounts_path(format: :json), params: { include: :photos, limit: 100 }
     records = JSON(response.body)
-    records = records['cache_collection!'] if records.is_a?(Hash)
     assert_equal account.property_cached_at.as_json,
       records.first['property_cached_at']
   ensure
