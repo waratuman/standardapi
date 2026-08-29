@@ -106,6 +106,15 @@ class Attachment < ActiveRecord::Base
 end
 
 class Camera < ActiveRecord::Base
+  belongs_to :photo, optional: true
+
+  validates :make, presence: true
+
+  # An include that resolves to a plain Hash rather than a record, so there is
+  # no partial to apply excludes for it.
+  def specs
+    { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
+  end
 end
 
 class UuidModel < ActiveRecord::Base
@@ -197,6 +206,11 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
     create_table "cameras", force: :cascade do |t|
       t.integer  'photo_id'
       t.string   'make', null: false
+      t.boolean  'hidden', null: false, default: false
+      t.boolean  'retired', null: false, default: false
+      # Enables the `photo` association fragment cache, so the exclude tests
+      # exercise the cached render path and not just the uncached one.
+      t.datetime 'photo_cached_at'
     end
 
     create_table "attachments", force: :cascade do |t|

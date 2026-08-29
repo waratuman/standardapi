@@ -40,4 +40,45 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert json.has_key?('subject')
   end
 
+  # Included collections are filtered through #mask, but the cache key is built
+  # from record timestamps only, so a masked association must not be cached.
+
+  test 'masked rows are not served from a fragment cached for another requester' do
+    account = create(:account, photos: [])
+    photo = create(:photo, account_id: account.id)
+
+    columns = Account.column_names + ['photos_cached_at']
+    Account.stubs(:column_names).returns(columns)
+    Account.any_instance.stubs(:photos_cached_at).returns(1.day.from_now)
+
+    # An unmasked requester warms the fragment.
+    get account_path(account, include: :photos, format: :json)
+    assert_equal [photo.id], JSON(response.body)['photos'].map { |x| x['id'] }
+
+    # A requester the mask hides those rows from must not receive them.
+    get account_path(account, include: :photos, format: :json),
+      headers: { 'X-Hide-Photos' => '1' }
+    assert_equal [], JSON(response.body)['photos'].map { |x| x['id'] },
+      'masked rows leaked from a fragment cached for a different requester'
+  end
+
+  test 'a masked requester does not poison the fragment cache for others' do
+    account = create(:account, photos: [])
+    photo = create(:photo, account_id: account.id)
+
+    columns = Account.column_names + ['photos_cached_at']
+    Account.stubs(:column_names).returns(columns)
+    Account.any_instance.stubs(:photos_cached_at).returns(2.days.from_now)
+
+    # The masked requester renders first.
+    get account_path(account, include: :photos, format: :json),
+      headers: { 'X-Hide-Photos' => '1' }
+    assert_equal [], JSON(response.body)['photos'].map { |x| x['id'] }
+
+    # An unmasked requester must still see the rows.
+    get account_path(account, include: :photos, format: :json)
+    assert_equal [photo.id], JSON(response.body)['photos'].map { |x| x['id'] },
+      'permitted rows were hidden by a fragment cached for a masked requester'
+  end
+
 end

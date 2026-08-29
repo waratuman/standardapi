@@ -1,10 +1,15 @@
 module StandardAPI
   module Controller
 
+    # Keys that may appear alongside association names in an `include` and that
+    # scope the query rather than name a relation.
+    RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
+
     delegate :preloadables, :model_partial, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :orders, :model, :models, :resource_limit,
+      klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
+        :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
@@ -259,17 +264,104 @@ module StandardAPI
       end
     end
 
-    def excludes_for(klass)
-      if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-        excludes = Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        excludes.try(:[], klass.model_name.singular) || []
+    # Resolve the excludes that apply to +record+. An ACL +excludes+ method
+    # takes the record so it can decide per record; a zero-arity definition is
+    # still supported but deprecated, matching #model_attributes.
+    def excludes(record)
+      acl_method = "#{model_name(record.class)}_excludes"
+      raw = if self.respond_to?(acl_method, true)
+        if self.method(acl_method).arity == 0
+          logger.warn <<~NOTE.strip_heredoc
+            DEPRECATION WARNING: #{ record.class.name }ACL#excludes() has been deprecated, use #{ record.class.name }ACL#excludes(record) instead
+          NOTE
+          self.send(acl_method)
+        else
+          self.send(acl_method, record)
+        end
       else
-        []
+        application_helper_excludes[model_name(record.class)] || []
+      end
+      StandardAPI::Excludes.normalize(raw)
+    end
+
+    # ApplicationHelper#excludes is keyed by model and takes no record, so it
+    # is the same for every record in a response. Build it once per request:
+    # #excludes runs per rendered record, and the anonymous class this needs
+    # is not free to make — each one invalidates Ruby's global method cache.
+    def application_helper_excludes
+      return @application_helper_excludes if defined?(@application_helper_excludes)
+
+      @application_helper_excludes =
+        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
+          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
+        else
+          ActiveSupport::HashWithIndifferentAccess.new
+        end
+    end
+
+    # True when an exclude rule could apply to +klass+, either from an ACL
+    # +excludes+ method or from ApplicationHelper#excludes.
+    #
+    # This is deliberately a "could apply" test rather than "does apply": it
+    # answers the question without a record in hand, which is what the view
+    # caching guards need.
+    def excludes?(klass)
+      @excludes_defined ||= {}
+      return @excludes_defined[klass] if @excludes_defined.key?(klass)
+
+      @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
+        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
+    end
+
+    # True when rendering +klass+ with +includes+ could be affected by an
+    # exclude rule, anywhere in the rendered tree.
+    #
+    # #excludes is resolved per record and may depend on the current user, but
+    # the fragment cache keys in the views are built from record timestamps
+    # only. Caching a fragment whose contents depend on the requester would let
+    # one requester's response be served to another, so the views use this to
+    # skip caching entirely whenever excludes are in play. Apps that define no
+    # excludes are unaffected and keep caching.
+    def excludes_affect?(klass, includes)
+      return true if excludes?(klass)
+
+      includes.any? do |inc, subinc|
+        next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
+
+        association = klass.reflect_on_association(inc)
+        next false if association.nil?
+        # A polymorphic association's class isn't known until a record is
+        # loaded, so assume it could be excluded.
+        next true if association.polymorphic?
+
+        excludes_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
       end
     end
 
-    def model_excludes
-      excludes_for(model)
+    # True when #mask hides rows of +klass+ for this request.
+    def masked?(klass)
+      mask[klass.table_name.to_sym].present?
+    end
+
+    # True when rendering +klass+ with +includes+ depends on the current mask.
+    #
+    # _record filters every included collection through #mask, so which rows
+    # appear inside a fragment varies by requester while the cache key does
+    # not. Same problem as #excludes_affect?, same fix: don't cache it. The
+    # top level is masked in #resources rather than in the view, so a record
+    # the mask hides is simply absent from the collection and needs no guard
+    # here.
+    def mask_affect?(klass, includes)
+      includes.any? do |inc, subinc|
+        next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
+
+        association = klass.reflect_on_association(inc)
+        next false if association.nil?
+        next true if association.polymorphic?
+        next true if association.collection? && masked?(association.klass)
+
+        mask_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
+      end
     end
 
     def resources
@@ -294,7 +386,7 @@ module StandardAPI
 
     def resource
       return @resource if instance_variable_defined?(:@resource)
-      
+
       @resource = if action_name == "create"
         model.new
       else
@@ -362,10 +454,6 @@ module StandardAPI
       end
 
       @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
-    end
-
-    def excludes
-      @excludes ||= model_excludes
     end
 
     # The maximum number of results returned by #index
