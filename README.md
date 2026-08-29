@@ -197,6 +197,23 @@ Fragment caching is disabled automatically for any response an exclude rule or
 a `mask_for` row mask could affect, since cache keys are built from record
 timestamps and cannot distinguish one requester from another.
 
+##### Upgrading from 8.x
+
+`Controller#excludes_for(klass)` has been replaced by `excludes(record)`, so
+that ACL rules can vary by record. Move exclusion logic into the model's ACL
+and accept the record:
+
+    # Before
+    excludes_for(Photo)
+
+    # After, in PhotoACL
+    def excludes(photo)
+      { caption: !photo.public? }
+    end
+
+Zero-arity ACL `excludes` methods still work temporarily, but emit a
+deprecation warning and should be updated to accept the record.
+
 # API Usage
 Resources can be queried via REST style end points
 ```
@@ -325,6 +342,5 @@ StandardAPI Resource Interface
 | `/models?order[id][asc]=nulls_last` | `{ "order": { "id": { "asc": "nulls_last" } } }` | `SELECT * FROM models ORDER BY models.id ASC NULLS FIRST` | `[{ id: 1 }, { id: null }]` |
 | `/models?where[id]=1` | `{ where: { id: 1 } }` | `SELECT * FROM models WHERE id = 1` | `[{ id: 1 }]` |
 | `/models?where[id][]=1&where[id][]=2` | `{ where: { id: [1,2] } }` | `SELECT * FROM models WHERE id IN (1, 2)` | `[{ id: 1 }, { id: 2 }]` |
-
 
 
