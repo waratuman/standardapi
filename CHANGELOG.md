@@ -9,6 +9,7 @@
 
 ### Added
 
+- ACL `nested` declarations may use a Hash as well as an Array.
 - ACL excludes can remove attributes and nested associations from serialized
   responses.
 - Exclude-aware serialization helpers for custom model partials.

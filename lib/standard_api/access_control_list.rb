@@ -75,6 +75,14 @@ module StandardAPI
       end
     end
 
+    def model_nested_attributes(model)
+      method_name = "nested_#{model_name(model)}_attributes"
+      return [] if !self.respond_to?(method_name, true)
+
+      nested = self.send(method_name)
+      nested.is_a?(Hash) ? nested.keys : nested
+    end
+
     def filter_model_params(resource, model_params, id: nil, allow_id: nil)
       permits = model_attributes(resource.class, resource) if model_params
       permitted_params = if permits
@@ -84,7 +92,7 @@ module StandardAPI
       end
 
       if self.respond_to?("nested_#{model_name(resource.class)}_attributes", true)
-        self.send("nested_#{model_name(resource.class)}_attributes").each do |relation|
+        model_nested_attributes(resource.class).each do |relation|
           association = resource.association(relation)
           attributes_key = association.reflection.name.to_s
           if model_params.has_key?(attributes_key)
