@@ -99,14 +99,6 @@ module StandardAPI
       end
     end
 
-    def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
-      else
-        []
-      end
-    end
-
     def model_params
       return @model_params if instance_variable_defined?(:@model_params)
       @model_params = if self.respond_to?("filter_#{model_name(model)}_params", true)

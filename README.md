@@ -165,6 +165,17 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
       end
     end
 
+`orders` and `includes` may accept the scope being queried, so the permitted
+list can depend on the records in play. The scope is the relation the request
+resolves to after `where` and `mask_for`, before ordering and limits; in the
+subresource actions it is the parent record's association:
+
+    def orders(scope)
+      [ :id ] + Schema.where(property_type: scope.select(:type)).map(&:name)
+    end
+
+Zero-argument `orders` and `includes` are still called without one.
+
 It is renamed and included the same way, so `PhotosController::ACL` and
 `app/controllers/acl/photo_acl.rb` are interchangeable; defining both raises.
 Because its methods are renamed, its `includes`, `orders` and `excludes` don't

@@ -60,7 +60,8 @@ module StandardAPI::TestCase
   end
 
   def orders
-    controller_class.new.send(model.model_name.singular + "_orders")
+    acl = controller_class.new.method(model.model_name.singular + "_orders")
+    acl.arity == 0 ? acl.call : acl.call(model.all)
   end
   
   def default_orders

@@ -241,18 +241,36 @@ module StandardAPI
     end
 
     def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send("#{model.model_name.singular}_includes")
-      else
-        []
-      end
+      scoped_acl("#{model.model_name.singular}_includes") || []
     end
 
     def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
+      scoped_acl("#{model.model_name.singular}_orders") || []
+    end
+
+    # Call the ACL +orders+ or +includes+ method +name+. One that accepts an
+    # argument is given #acl_scope, so the permitted list can depend on the
+    # records being queried; a zero-arity one is called as is. Returns +nil+
+    # when no such method is defined.
+    def scoped_acl(name)
+      return nil if !self.respond_to?(name, true)
+
+      if self.method(name).arity == 0
+        self.send(name)
       else
-        []
+        self.send(name, acl_scope)
+      end
+    end
+
+    # The relation an ACL +orders+ or +includes+ method is given: the records
+    # the request resolves to after +where+ and #mask, before ordering and
+    # limits. In the subresource actions, where #model is the associated
+    # class, it is the parent record's association.
+    def acl_scope
+      if action_name&.end_with?('_resource')
+        resources.find(params[:id]).association(params[:relationship]).scope
+      else
+        resources
       end
     end
 
