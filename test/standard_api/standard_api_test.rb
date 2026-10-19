@@ -654,6 +654,29 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  test 'orders permitting columns of an association are still honoured, with a deprecation warning' do
+    ApplicationController.class_eval do
+      private def account_orders
+        [ "id", { property: [:name] } ]
+      end
+    end
+
+    b = create(:account, property: create(:property, name: 'b'))
+    a = create(:account, property: create(:property, name: 'a'))
+
+    warnings = []
+    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
+
+    get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
+
+    assert warnings.any? { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') },
+      "Expected a deprecation warning, got: #{warnings.inspect}"
+  ensure
+    ApplicationController.send(:remove_method, :account_orders)
+  end
+
   test 'Orders::sanitize checks an association permitted by name against its ACL' do
     acl = { Account => [:name] }
     assert_equal({ landlord: { name: :asc } }, StandardAPI::Orders.sanitize({ landlord: { name: :asc } }, [:landlord], Property) { |m| acl[m] })

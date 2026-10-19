@@ -257,11 +257,23 @@ module StandardAPI
 
     # The orders permitted on +klass+ by its ACL, or [] if it has none
     def orders_for(klass)
-      if self.respond_to?("#{klass.model_name.singular}_orders", true)
-        self.send("#{klass.model_name.singular}_orders")
-      else
-        []
+      return [] if !self.respond_to?("#{klass.model_name.singular}_orders", true)
+
+      orders = self.send("#{klass.model_name.singular}_orders")
+      Array(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
+        association = klass.reflect_on_association(name)
+        nested_acl = if association && !association.polymorphic?
+          "#{association.klass.name}ACL#orders"
+        else
+          "the #{name} ACL's orders"
+        end
+
+        logger.warn <<~NOTE.strip_heredoc
+          DEPRECATION WARNING: #{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead
+        NOTE
       end
+
+      orders
     end
 
     def model_params
