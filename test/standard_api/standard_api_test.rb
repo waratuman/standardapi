@@ -735,6 +735,54 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'include through an association uses the associated ACL' do
+    property = create(:property)
+    account = create(:account, property: property)
+    photo = create(:photo, account: account)
+
+    get property_path(property, include: { landlord: :photos }, format: 'json')
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['landlord']['id']
+    assert_equal [photo.id], JSON(response.body)['landlord']['photos'].map { |x| x['id'] }
+  end
+
+  test 'include through an association rejects includes the associated ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    get property_path(property, include: { photos: :camera }, format: 'json')
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "camera"', response.body
+  end
+
+  test 'includes permitting includes of an association are still honoured, with a deprecation warning' do
+    account = create(:account)
+    camera = create(:camera, photo: create(:photo, account: account))
+
+    warnings = []
+    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
+
+    get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['photo']['account']['id']
+
+    assert warnings.any? { |w| w.include?('CameraACL#includes permitting includes of photo has been deprecated, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead') },
+      "Expected a deprecation warning, got: #{warnings.inspect}"
+  end
+
+  test 'Includes::sanitize checks an association permitted by name against its ACL' do
+    acl = { Account => [:photos] }
+    assert_equal({ 'landlord' => { 'photos' => {} } }, StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord], model: Property) { |m| acl[m] })
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      StandardAPI::Includes.sanitize({ landlord: :property }, [:landlord], model: Property) { |m| acl[m] }
+    end
+
+    # An explicit nested permit, or a call without an ACL lookup, is unchanged
+    assert_equal({ 'landlord' => { 'property' => {} } }, StandardAPI::Includes.sanitize({ landlord: :property }, { landlord: [:property] }, model: Property) { |m| acl[m] })
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord])
+    end
+  end
+
   test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
     sanitize = Class.new do
       include StandardAPI::Orders

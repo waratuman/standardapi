@@ -246,11 +246,25 @@ module StandardAPI
     end
 
     def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send("#{model.model_name.singular}_includes")
-      else
-        []
+      includes_for(model)
+    end
+
+    # The includes permitted on +klass+ by its ACL, or [] if it has none
+    def includes_for(klass)
+      return [] if !self.respond_to?("#{klass.model_name.singular}_includes", true)
+
+      permitted = self.send("#{klass.model_name.singular}_includes")
+      StandardAPI::Includes.normalize(permitted).each do |name, subincludes|
+        next if subincludes.blank? || RESERVED_INCLUDE_KEYS.include?(name)
+        association = klass.reflect_on_association(name)
+        next if !association || association.polymorphic?
+
+        logger.warn <<~NOTE.strip_heredoc
+          DEPRECATION WARNING: #{ klass.name }ACL#includes permitting includes of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#includes and its includes in #{ association.klass.name }ACL#includes instead
+        NOTE
       end
+
+      permitted
     end
 
     def model_params
@@ -407,7 +421,9 @@ module StandardAPI
 
     def includes
       @includes ||= if params[:include]
-        StandardAPI::Includes.sanitize(params[:include], model_includes)
+        StandardAPI::Includes.sanitize(params[:include], model_includes, model: model) do |klass|
+          includes_for(klass)
+        end
       else
         {}
       end
