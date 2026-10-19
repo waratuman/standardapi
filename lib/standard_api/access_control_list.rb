@@ -23,7 +23,7 @@ module StandardAPI
     }.freeze
 
     def self.included(application_controller)
-      base_controllers[application_controller.name || application_controller] = application_controller
+      base_controllers[application_controller.name] = application_controller
 
       acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
       return if !acl_dir.exist?
