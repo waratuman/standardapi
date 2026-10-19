@@ -72,11 +72,7 @@ module StandardAPI
     end
 
     def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
-      else
-        []
-      end
+      orders_for(model)
     end
 
     def model_params

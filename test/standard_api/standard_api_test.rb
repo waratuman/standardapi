@@ -627,6 +627,46 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
   end
 
+  test 'order through an association uses the associated ACL' do
+    b = create(:account, property: create(:property, name: 'b'))
+    a = create(:account, property: create(:property, name: 'a'))
+
+    get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
+
+    get accounts_path(order: { property: { name: :desc } }, limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [b.id, a.id], JSON(response.body).map { |x| x['id'] }
+
+    get accounts_path(order: 'property.name', limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order through an association rejects orders the associated ACL does not permit' do
+    create(:account, property: create(:property))
+
+    get accounts_path(order: { property: { updated_at: :asc } }, limit: 10, format: 'json')
+    assert_response :bad_request
+
+    get accounts_path(order: 'property.updated_at', limit: 10, format: 'json')
+    assert_response :bad_request
+  end
+
+  test 'Orders::sanitize checks an association permitted by name against its ACL' do
+    acl = { Account => [:name] }
+    assert_equal({ landlord: { name: :asc } }, StandardAPI::Orders.sanitize({ landlord: { name: :asc } }, [:landlord], Property) { |m| acl[m] })
+    assert_equal({ landlord: :name }, StandardAPI::Orders.sanitize('landlord.name', [:landlord], Property) { |m| acl[m] })
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord], Property) { |m| acl[m] }
+    end
+
+    # A column, or a call without an ACL lookup, is unchanged
+    assert_equal({ name: :desc }, StandardAPI::Orders.sanitize({ name: :desc }, [:name], Property) { |m| acl[m] })
+    assert_equal({ landlord: { id: :asc } }, StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord]))
+  end
+
   # Includes Test
 
   test 'Includes::normailze' do

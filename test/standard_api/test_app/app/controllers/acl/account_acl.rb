@@ -5,7 +5,7 @@ module AccountACL
   end
 
   def orders
-    [ "id" ]
+    [ "id", "property" ]
   end
 
   def includes

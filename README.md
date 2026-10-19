@@ -73,6 +73,11 @@ inherited controllers an exposed API.
       # ensure indexes have been created on these columns. In this example the
       # response can be ordered by any permutation of `id`, `created_at`, and
       # `updated_at`.
+      #
+      # An association can be listed by name, ie. `:account`, to allow
+      # ordering by the columns the associated model's orders permit
+      # (`account_orders`). Use `{ account: [:name] }` to permit specific
+      # columns instead.
       def photo_orders
         [:id, :created_at, :updated_at]
       end

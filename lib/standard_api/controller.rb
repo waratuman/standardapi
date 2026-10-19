@@ -252,8 +252,13 @@ module StandardAPI
     end
 
     def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
+      orders_for(model)
+    end
+
+    # The orders permitted on +klass+ by its ACL, or [] if it has none
+    def orders_for(klass)
+      if self.respond_to?("#{klass.model_name.singular}_orders", true)
+        self.send("#{klass.model_name.singular}_orders")
       else
         []
       end
@@ -456,7 +461,9 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
+      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders, model) do |klass|
+        orders_for(klass)
+      end
     end
 
     # The maximum number of results returned by #index

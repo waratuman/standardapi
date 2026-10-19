@@ -1,7 +1,14 @@
 module StandardAPI
   module Orders
 
-    def self.sanitize(orders, permit)
+    # Sanitize +orders+ against +permit+. When +model+ and a block are given,
+    # ordering through an association permitted by name alone (ie. +:owner+)
+    # is checked against the associated model's permitted orders, which the
+    # block returns for a given model:
+    #
+    #   sanitize({ owner: { name: :asc } }, [:owner], Property) { |m| [:name] }
+    #   # => { owner: { name: :asc } }
+    def self.sanitize(orders, permit, model = nil, &acl)
       return nil if orders.nil?
 
       permit = [permit] if !permit.is_a?(Array)
@@ -13,15 +20,20 @@ module StandardAPI
         orders.each do |key, value|
           if key.to_s.count('.') == 1
             key2, key3 = *key.to_s.split('.')
-            permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit)
+            permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit, model, &acl)
           elsif permit.include?(key.to_s)
-            value = case value
-            when Hash
-              value
-            when ActionController::Parameters
-              value.permit([:asc, :desc]).to_h
+            association = model.reflect_on_association(key) if acl && model
+            value = if association && !association.polymorphic?
+              sanitize(value, acl.call(association.klass), association.klass, &acl)
             else
-              value
+              case value
+              when Hash
+                value
+              when ActionController::Parameters
+                value.permit([:asc, :desc]).to_h
+              else
+                value
+              end
             end
             permitted << { key.to_sym => value }
           elsif permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }
@@ -34,7 +46,7 @@ module StandardAPI
         end
       when Array
         orders.each do |order|
-          order = sanitize(order, permit)
+          order = sanitize(order, permit, model, &acl)
           if order.is_a?(Array)
             permitted += order
           else
@@ -44,7 +56,7 @@ module StandardAPI
       else
         if orders.to_s.count('.') == 1
           key, value = *orders.to_s.split('.')
-          permitted = sanitize({key.to_sym => value.to_sym}, permit)
+          permitted = sanitize({key.to_sym => value.to_sym}, permit, model, &acl)
         elsif permit.include?(orders.to_s)
           permitted = orders
         else
