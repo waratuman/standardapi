@@ -59,42 +59,32 @@ module StandardAPI
 
     # Rename the ACL methods of +acl+ in place under +prefix+, make every
     # method in it private so none are routable, and include +acl+ into +base+.
-    # Other methods are kept as helpers under their own names. A module already
-    # renamed or included is skipped, so this is safe to repeat. Any name
-    # +base+ already gets from somewhere else, such as another ACL's helper of
-    # the same name, is rejected. When the ACL is nested in +controller+, a
-    # method the controller defines under the same name would shadow it, so
-    # that is rejected too.
+    # Other methods are kept as helpers under their own names. A module +base+
+    # already includes is skipped, so this is safe to repeat; one already
+    # renamed for another base keeps its names. Any name +base+ already gets
+    # from somewhere else, such as another ACL's helper of the same name, is
+    # rejected. When the ACL is nested in +controller+, a method the controller
+    # defines under the same name would shadow it, so that is rejected too.
     def self.include_acl(base, acl, prefix, controller: nil)
+      return if base.include?(acl)
+
       (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |m|
-        name = m
-        if METHODS.key?(m)
-          name = (METHODS[m] % prefix).to_sym
+        name = METHODS.key?(m) ? (METHODS[m] % prefix).to_sym : m
+
+        [base, controller].compact.uniq.each do |klass|
+          next if !klass.method_defined?(name) && !klass.private_method_defined?(name)
+
+          raise ArgumentError, "#{name} is defined by both #{klass.instance_method(name).owner} and #{acl}"
+        end
+
+        if name != m
           acl.send(:alias_method, name, m)
           acl.send(:remove_method, m)
         end
         acl.send(:private, name)
       end
 
-      return if base.include?(acl)
-
-      (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |name|
-        [base, controller].compact.uniq.each do |klass|
-          next if !klass.method_defined?(name) && !klass.private_method_defined?(name)
-
-          raise ArgumentError, "#{name} is defined by both #{klass.instance_method(name).owner} and #{acl}"
-        end
-      end
-
       base.include(acl)
-    end
-
-    def self.model_name(model)
-      if model.model_name.singular.starts_with?('habtm_')
-        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
-      else
-        model.model_name.singular
-      end
     end
 
     def model_orders
@@ -205,8 +195,14 @@ module StandardAPI
     end
 
     def model_name(model)
-      StandardAPI::AccessControlList.model_name(model)
+      if model.model_name.singular.starts_with?('habtm_')
+        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
+      else
+        model.model_name.singular
+      end
     end
+    # Also callable as AccessControlList.model_name, for .load!
+    module_function :model_name
 
   end
 end
