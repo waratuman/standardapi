@@ -93,21 +93,59 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert @acl_base.private_method_defined?(:filter_attachment_params)
   end
 
-  test "helpers in a nested ACL are rejected" do
+  test "helpers in a nested ACL keep their name and are made private" do
     acl_controller(Attachment) do
       def attributes(record = nil)
         allowed
       end
 
-      private
-
       def allowed
         [ :record_id ]
       end
     end
+    StandardAPI::AccessControlList.load!
+
+    assert_equal [:allowed, :attachment_attributes], @acl_controller::ACL.private_instance_methods(false).sort
+    assert_empty @acl_controller::ACL.instance_methods(false)
+    assert_equal [:record_id], @acl_base.new.send(:attachment_attributes)
+    assert_not_includes @acl_controller.action_methods, 'allowed'
+  end
+
+  test "a helper with the same name in two ACLs is rejected" do
+    acl_controller(Attachment) do
+      def includes
+        [ :record ]
+      end
+
+      def allowed
+        [ :record ]
+      end
+    end
+    StandardAPI::AccessControlList.load!
+
+    acl_controller(Account) do
+      def allowed
+        [ :name ]
+      end
+    end
 
     error = assert_raises(ArgumentError) { StandardAPI::AccessControlList.load! }
-    assert_match(/#allowed is not an ACL method/, error.message)
+    assert_match(/\Aallowed is defined by both .*::ACL and .*::ACL\z/, error.message)
+  end
+
+  test "a helper that would override a controller method is rejected" do
+    acl_controller(Attachment) do
+      def includes
+        [ :record ]
+      end
+
+      def resource_limit
+        10
+      end
+    end
+
+    error = assert_raises(ArgumentError) { StandardAPI::AccessControlList.load! }
+    assert_match(/resource_limit is defined by both StandardAPI::Controller and/, error.message)
   end
 
   test "a nested ACL that duplicates one in app/controllers/acl is rejected" do

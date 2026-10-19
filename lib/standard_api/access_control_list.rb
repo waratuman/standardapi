@@ -57,25 +57,23 @@ module StandardAPI
       end
     end
 
-    # Rename the methods of +acl+ in place under +prefix+, make them private so
-    # they aren't routable, and include +acl+ into +base+. A module already
-    # renamed or included is skipped, so this is safe to repeat. Methods
-    # outside METHODS are rejected rather than silently dropped, as is a name
-    # +base+ already gets from somewhere else. When the ACL is nested in
-    # +controller+, a method the controller defines under the renamed name
-    # would shadow it, so that is rejected too.
+    # Rename the ACL methods of +acl+ in place under +prefix+, make every
+    # method in it private so none are routable, and include +acl+ into +base+.
+    # Other methods are kept as helpers under their own names. A module already
+    # renamed or included is skipped, so this is safe to repeat. Any name
+    # +base+ already gets from somewhere else, such as another ACL's helper of
+    # the same name, is rejected. When the ACL is nested in +controller+, a
+    # method the controller defines under the same name would shadow it, so
+    # that is rejected too.
     def self.include_acl(base, acl, prefix, controller: nil)
-      renames = METHODS.to_h { |m, format| [m, (format % prefix).to_sym] }
-
       (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |m|
-        next if renames.value?(m)
-        if !renames.key?(m)
-          raise ArgumentError, "#{acl}##{m} is not an ACL method (allowed: #{METHODS.keys.join(', ')})"
+        name = m
+        if METHODS.key?(m)
+          name = (METHODS[m] % prefix).to_sym
+          acl.send(:alias_method, name, m)
+          acl.send(:remove_method, m)
         end
-
-        acl.send(:alias_method, renames[m], m)
-        acl.send(:remove_method, m)
-        acl.send(:private, renames[m])
+        acl.send(:private, name)
       end
 
       return if base.include?(acl)

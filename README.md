@@ -144,8 +144,10 @@ All of these methods are optional. StandardAPI renames each under the model's
 name (`photo_attributes`, `nested_photo_attributes`, `photo_orders`,
 `photo_includes`, `photo_excludes`, `filter_photo_params`), makes it private
 and includes the module in ApplicationController to determine allowed
-attributes, nested attributes, orders and includes. An ACL may only define
-these methods; anything else, such as a helper, raises at boot.
+attributes, nested attributes, orders and includes. Any other method in the
+module is a helper: it keeps its name and is made private too. Since every ACL
+is included into the same controller, a name it already has, such as a helper
+of the same name in another ACL, raises at boot.
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
