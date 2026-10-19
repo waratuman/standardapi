@@ -169,6 +169,17 @@ It is included in ApplicationController the same way as an
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
 
+`orders` and `includes` may accept the scope being queried, so the permitted
+list can depend on the records in play. The scope is the relation the request
+resolves to after `where` and `mask_for`, before ordering and limits; in the
+subresource actions it is the parent record's association:
+
+    def orders(scope)
+      [ :id ] + Schema.where(property_type: scope.select(:type)).map(&:name)
+    end
+
+Zero-argument `orders` and `includes` are still called without one.
+
 `includes` now returns a shallow Array, StandardAPI can how determine including
 an `author` and the author's `photos` is allowed by looking at what includes are
 allowed on photo and author.

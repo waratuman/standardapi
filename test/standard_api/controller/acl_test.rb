@@ -21,7 +21,17 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     @acl_controller
   end
 
+  # Override the ACL method +name+ for one test. ApplicationController's own
+  # method takes precedence over the ACL modules it includes, and teardown
+  # removes it again.
+  def stub_acl(name, &body)
+    (@stubbed_acls ||= []) << name
+    ApplicationController.send(:define_method, name, &body)
+    ApplicationController.send(:private, name)
+  end
+
   teardown do
+    @stubbed_acls&.each { |name| ApplicationController.send(:remove_method, name) }
     @acl_controllers&.each { |c| c.send(:remove_const, :ACL) }
   end
 
@@ -98,6 +108,77 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     StandardAPI::AccessControlList.load!
 
     assert_not_includes @acl_base.ancestors, controller::ACL
+  end
+
+  # = Scoped orders and includes
+
+  test "ACL orders is given the request's scope" do
+    create(:document, type: 'movie')
+    create(:document, type: 'book')
+    stub_acl(:document_orders) do |scope|
+      scope.distinct.pluck(:type) == ['movie'] ? [:id, :rating] : [:id]
+    end
+
+    get documents_path, params: { limit: 10, where: { type: 'movie' }, order: :rating }, as: :json
+    assert_response :ok
+
+    get documents_path, params: { limit: 10, order: :rating }, as: :json
+    assert_response :bad_request
+  end
+
+  test "ACL includes is given the request's scope on index" do
+    property = create(:property)
+    scopes = []
+    stub_acl(:property_includes) do |scope|
+      scopes << scope
+      scope.exists? ? [:photos] : []
+    end
+
+    get properties_path, params: { limit: 10, where: { id: property.id }, include: :photos }, as: :json
+    assert_response :ok
+
+    get properties_path, params: { limit: 10, where: { id: -1 }, include: :photos }, as: :json
+    assert_response :bad_request
+
+    assert_equal [Property], scopes.map(&:model).uniq
+    assert_equal [[property.id], []], scopes.map { |s| s.pluck(:id) }
+  end
+
+  test "ACL includes is given the request's scope on show" do
+    property = create(:property)
+    scopes = []
+    stub_acl(:property_includes) do |scope|
+      scopes << scope
+      [:photos]
+    end
+
+    get property_path(property), params: { include: :photos }, as: :json
+    assert_response :ok
+    assert_equal [Property], scopes.map(&:model)
+  end
+
+  test "ACL includes is given the parent's association on create_resource" do
+    other = create(:photo)
+    property = create(:property, photos: [create(:photo)])
+    create(:property, photos: [other])
+    scopes = []
+    stub_acl(:photo_includes) do |scope|
+      scopes << scope
+      [:account]
+    end
+
+    post "/properties/#{property.id}/photos", params: { photo: build(:photo).attributes, include: { account: true } }, as: :json
+    assert_response :created
+
+    assert_equal [Photo], scopes.map(&:model)
+    assert_not_includes scopes.first.pluck(:id), other.id
+  end
+
+  test "zero-arity ACL orders are called without a scope" do
+    stub_acl(:document_orders) { [:id] }
+
+    get documents_path, params: { limit: 10, order: :id }, as: :json
+    assert_response :ok
   end
 
   test "load! can be repeated" do
