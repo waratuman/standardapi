@@ -6,10 +6,9 @@
 
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
-- ACL methods are copied onto `StandardAPI::Controller` as private methods
-  instead of including the ACL modules into `ApplicationController`. Calling
-  them publicly (e.g. `controller.photo_attributes`) no longer works, and they
-  are no longer routable actions.
+- Renamed ACL methods are private. Calling them publicly (e.g.
+  `controller.photo_attributes`) no longer works, and they are no longer
+  routable actions.
 - An ACL module may only define `attributes`, `orders`, `includes`,
   `excludes`, `nested` and `filter`. Any other method raises at boot.
 

@@ -21,19 +21,18 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   teardown do
     StandardAPI::AccessControlList.base_controllers.delete(@acl_base) if @acl_base
-    StandardAPI::AccessControlList.load!
   end
 
-  test "a nested ACL is copied onto StandardAPI::Controller under the model's prefix" do
-    assert_equal StandardAPI::Controller, StandardAPI::Controller.instance_method(:document_attributes).owner
-    assert_includes StandardAPI::Controller.private_instance_methods, :document_attributes
-    assert_includes StandardAPI::Controller.private_instance_methods, :document_orders
+  test "a nested ACL is renamed under the model's prefix and included into the base controller" do
+    assert_includes ApplicationController.ancestors, DocumentsController::ACL
+    assert_equal [:document_attributes, :document_orders], DocumentsController::ACL.private_instance_methods(false).sort
+    assert_empty DocumentsController::ACL.instance_methods(false)
+    assert_equal DocumentsController::ACL, PropertiesController.instance_method(:document_attributes).owner
   end
 
-  test "a nested ACL is not included into its controller" do
-    assert_not_includes DocumentsController.ancestors, DocumentsController::ACL
+  test "a nested ACL does not override the controller's includes and orders" do
     assert_equal StandardAPI::Controller, DocumentsController.instance_method(:orders).owner
-    assert_equal [:attributes, :orders], DocumentsController::ACL.instance_methods(false).sort
+    assert_equal StandardAPI::Controller, DocumentsController.instance_method(:includes).owner
   end
 
   test "a nested ACL keeps its record argument" do
@@ -67,13 +66,13 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     end
     StandardAPI::AccessControlList.load!
 
-    controller = PropertiesController.new
+    controller = @acl_base.new
     assert_equal [:record], controller.send(:attachment_includes)
     assert_equal [:id], controller.send(:attachment_orders)
     assert_equal StandardAPI::Controller, @acl_controller.instance_method(:includes).owner
   end
 
-  test "nested and filter are copied under their own names" do
+  test "nested and filter are renamed to their own names" do
     acl_controller(Attachment) do
       def nested
         [ :record ]
@@ -85,8 +84,8 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     end
     StandardAPI::AccessControlList.load!
 
-    assert StandardAPI::Controller.private_method_defined?(:nested_attachment_attributes)
-    assert StandardAPI::Controller.private_method_defined?(:filter_attachment_params)
+    assert @acl_base.private_method_defined?(:nested_attachment_attributes)
+    assert @acl_base.private_method_defined?(:filter_attachment_params)
   end
 
   test "helpers in a nested ACL are rejected" do
@@ -117,7 +116,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_match(/camera_includes is defined by both CameraACL and/, error.message)
   end
 
-  test "a controller method with the copied name is rejected" do
+  test "a controller method with the renamed name is rejected" do
     controller = acl_controller(Attachment) do
       def orders
         [ :id ]
@@ -126,7 +125,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     controller.define_method(:attachment_orders) { [ :id ] }
 
     error = assert_raises(ArgumentError) { StandardAPI::AccessControlList.load! }
-    assert_match(/#attachment_orders conflicts with/, error.message)
+    assert_match(/attachment_orders is defined by both #{Regexp.escape(controller.inspect)} and/, error.message)
   end
 
   test "a nested ACL on a controller without a model is rejected" do
@@ -140,20 +139,18 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_match(/has no model/, error.message)
   end
 
-  test "load! replaces the previous copies" do
-    controller = acl_controller(Attachment) do
+  test "load! can be repeated" do
+    acl_controller(Attachment) do
       def orders
         [ :id ]
       end
     end
     StandardAPI::AccessControlList.load!
     StandardAPI::AccessControlList.load!
-    assert StandardAPI::Controller.private_method_defined?(:attachment_orders)
 
-    controller.send(:remove_const, :ACL)
-    StandardAPI::AccessControlList.load!
-    assert_not StandardAPI::Controller.private_method_defined?(:attachment_orders)
-    assert StandardAPI::Controller.private_method_defined?(:document_orders)
+    assert_equal [:attachment_orders], @acl_controller::ACL.private_instance_methods(false)
+    assert_equal 1, @acl_base.ancestors.count(@acl_controller::ACL)
+    assert_equal [:id], @acl_base.new.send(:attachment_orders)
   end
 
 end

@@ -11,8 +11,8 @@ module StandardAPI
       end
     end
 
-    # The methods an ACL may define, and the name each is copied to on
-    # StandardAPI::Controller, given the model's prefix.
+    # The methods an ACL may define, and the name each is renamed to given the
+    # model's prefix.
     METHODS = {
       attributes: '%s_attributes',
       orders: '%s_orders',
@@ -24,7 +24,13 @@ module StandardAPI
 
     def self.included(application_controller)
       base_controllers[application_controller.name || application_controller] = application_controller
-      load!
+
+      acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
+      return if !acl_dir.exist?
+
+      traverse(acl_dir) do |child|
+        include_acl(application_controller, child.classify.constantize, child.delete_suffix('_acl').gsub('/', '_'))
+      end
     end
 
     # Controllers that include StandardAPI::AccessControlList, keyed by name so
@@ -33,59 +39,56 @@ module StandardAPI
       @base_controllers ||= {}
     end
 
-    # Copy every ACL onto StandardAPI::Controller under its model's prefix:
-    # the modules in app/controllers/acl, and an +ACL+ module nested in any
-    # controller below a base controller. The copies from the previous call are
-    # removed first, so this can be rerun after a reload. Controllers must
-    # already be loaded for their ACL to be found; the Railtie loads them.
+    # Include the +ACL+ module nested in any controller below a base controller
+    # into that base controller, as #included does for app/controllers/acl.
+    # Controllers must already be loaded for their ACL to be found, so the
+    # Railtie calls this once they are, at boot and after each reload.
     def self.load!
-      @defined&.each_key do |name|
-        StandardAPI::Controller.send(:remove_method, name)
-      end
-      @defined = {}
+      base_controllers.each_value do |base|
+        [base, *base.descendants].each do |controller|
+          next if !controller.const_defined?(:ACL, false)
 
-      acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
-      if acl_dir.exist?
-        traverse(acl_dir) do |child|
-          define_acl(child.classify.constantize, child.delete_suffix('_acl').gsub('/', '_'))
+          acl = controller.const_get(:ACL, false)
+          model = controller.model
+          raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
+
+          include_acl(base, acl, model_name(model), controller: controller)
         end
-      end
-
-      base_controllers.values.flat_map { |c| [c, *c.descendants] }.uniq.each do |controller|
-        next if !controller.const_defined?(:ACL, false)
-
-        acl = controller.const_get(:ACL, false)
-        model = controller.model
-        raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
-
-        define_acl(acl, model_name(model), controller: controller)
       end
     end
 
-    # The ACL module is left untouched: each method is copied with
-    # define_method, which a module's methods allow onto any receiver. Methods
-    # outside METHODS are rejected rather than silently dropped. When the ACL
-    # is nested in +controller+, a method the controller defines under the
-    # copied name would shadow the copy, so that is rejected too.
-    def self.define_acl(acl, prefix, controller: nil)
+    # Rename the methods of +acl+ in place under +prefix+, make them private so
+    # they aren't routable, and include +acl+ into +base+. A module already
+    # renamed or included is skipped, so this is safe to repeat. Methods
+    # outside METHODS are rejected rather than silently dropped, as is a name
+    # +base+ already gets from somewhere else. When the ACL is nested in
+    # +controller+, a method the controller defines under the renamed name
+    # would shadow it, so that is rejected too.
+    def self.include_acl(base, acl, prefix, controller: nil)
+      renames = METHODS.to_h { |m, format| [m, (format % prefix).to_sym] }
+
       (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |m|
-        format = METHODS[m]
-        if !format
+        next if renames.value?(m)
+        if !renames.key?(m)
           raise ArgumentError, "#{acl}##{m} is not an ACL method (allowed: #{METHODS.keys.join(', ')})"
         end
 
-        name = (format % prefix).to_sym
-        if (source = @defined[name])
-          raise ArgumentError, "#{name} is defined by both #{source} and #{acl}"
-        end
-        if controller && (controller.method_defined?(name) || controller.private_method_defined?(name))
-          raise ArgumentError, "#{controller}##{name} conflicts with #{acl}##{m}"
-        end
-
-        StandardAPI::Controller.send(:define_method, name, acl.instance_method(m))
-        StandardAPI::Controller.send(:private, name)
-        @defined[name] = acl
+        acl.send(:alias_method, renames[m], m)
+        acl.send(:remove_method, m)
+        acl.send(:private, renames[m])
       end
+
+      return if base.include?(acl)
+
+      (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |name|
+        [base, controller].compact.uniq.each do |klass|
+          next if !klass.method_defined?(name) && !klass.private_method_defined?(name)
+
+          raise ArgumentError, "#{name} is defined by both #{klass.instance_method(name).owner} and #{acl}"
+        end
+      end
+
+      base.include(acl)
     end
 
     def self.model_name(model)

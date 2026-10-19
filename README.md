@@ -140,12 +140,12 @@ following files:
       end
     end
 
-All of these methods are optional. StandardAPI copies each onto
-`StandardAPI::Controller` under the model's name (`photo_attributes`,
-`nested_photo_attributes`, `photo_orders`, `photo_includes`, `photo_excludes`,
-`filter_photo_params`) to determine allowed attributes, nested attributes,
-orders and includes. An ACL may only define these methods; anything else, such
-as a helper, raises at boot.
+All of these methods are optional. StandardAPI renames each under the model's
+name (`photo_attributes`, `nested_photo_attributes`, `photo_orders`,
+`photo_includes`, `photo_excludes`, `filter_photo_params`), makes it private
+and includes the module in ApplicationController to determine allowed
+attributes, nested attributes, orders and includes. An ACL may only define
+these methods; anything else, such as a helper, raises at boot.
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
@@ -165,10 +165,10 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
       end
     end
 
-It is copied the same way, so `PhotosController::ACL` and
+It is renamed and included the same way, so `PhotosController::ACL` and
 `app/controllers/acl/photo_acl.rb` are interchangeable; defining both raises.
-The module is never included into the controller, so its `includes`, `orders`
-and `excludes` don't override the controller's own. Controllers are loaded at
+Because its methods are renamed, its `includes`, `orders` and `excludes` don't
+override the controller's own. Controllers are loaded at
 boot (and after each reload) so their ACLs are found before the first request.
 
 `includes` now returns a shallow Array, StandardAPI can how determine including

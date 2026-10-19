@@ -26,7 +26,7 @@ module StandardAPI
     end
 
     # A controller's nested ACL module is only found once the controller is
-    # loaded, so load them all before copying the ACLs. This runs after boot
+    # loaded, so load them all before including the ACLs. This runs after boot
     # (ahead of config.eager_load) and again after every reload, rather than
     # when the base controller includes AccessControlList: loading subclasses
     # while its class body is still being evaluated would leave them without
