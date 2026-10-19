@@ -25,6 +25,18 @@ module StandardAPI
       end
     end
 
+    # A controller's nested ACL module is only found once the controller is
+    # loaded, so load them all before copying the ACLs. This runs after boot
+    # (ahead of config.eager_load) and again after every reload, rather than
+    # when the base controller includes AccessControlList: loading subclasses
+    # while its class body is still being evaluated would leave them without
+    # any callbacks declared after the include.
+    config.to_prepare do
+      controllers = Rails.application.root.join('app', 'controllers')
+      Rails.autoloaders.main.eager_load_dir(controllers.to_s) if controllers.exist?
+      StandardAPI::AccessControlList.load! if !StandardAPI::AccessControlList.base_controllers.empty?
+    end
+
   end
   
   module AutosaveByDefault

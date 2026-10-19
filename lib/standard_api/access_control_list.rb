@@ -11,31 +11,88 @@ module StandardAPI
       end
     end
 
+    # The methods an ACL may define, and the name each is copied to on
+    # StandardAPI::Controller, given the model's prefix.
+    METHODS = {
+      attributes: '%s_attributes',
+      orders: '%s_orders',
+      includes: '%s_includes',
+      excludes: '%s_excludes',
+      nested: 'nested_%s_attributes',
+      filter: 'filter_%s_params'
+    }.freeze
+
     def self.included(application_controller)
+      base_controllers[application_controller.name || application_controller] = application_controller
+      load!
+    end
+
+    # Controllers that include StandardAPI::AccessControlList, keyed by name so
+    # a reloaded class replaces the stale one.
+    def self.base_controllers
+      @base_controllers ||= {}
+    end
+
+    # Copy every ACL onto StandardAPI::Controller under its model's prefix:
+    # the modules in app/controllers/acl, and an +ACL+ module nested in any
+    # controller below a base controller. The copies from the previous call are
+    # removed first, so this can be rerun after a reload. Controllers must
+    # already be loaded for their ACL to be found; the Railtie loads them.
+    def self.load!
+      @defined&.each_key do |name|
+        StandardAPI::Controller.send(:remove_method, name)
+      end
+      @defined = {}
+
       acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
-      return if !acl_dir.exist?
+      if acl_dir.exist?
+        traverse(acl_dir) do |child|
+          define_acl(child.classify.constantize, child.delete_suffix('_acl').gsub('/', '_'))
+        end
+      end
 
-      traverse(acl_dir) do |child|
-        mod = child.classify.constantize
-        prefix = child.delete_suffix('_acl').gsub('/', '_')
+      base_controllers.values.flat_map { |c| [c, *c.descendants] }.uniq.each do |controller|
+        next if !controller.const_defined?(:ACL, false)
 
-        [:orders, :includes, :attributes, :excludes].each do |m|
-          next if !mod.instance_methods.include?(m)
-          mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
-          mod.send :remove_method, m
+        acl = controller.const_get(:ACL, false)
+        model = controller.model
+        raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
+
+        define_acl(acl, model_name(model), controller: controller)
+      end
+    end
+
+    # The ACL module is left untouched: each method is copied with
+    # define_method, which a module's methods allow onto any receiver. Methods
+    # outside METHODS are rejected rather than silently dropped. When the ACL
+    # is nested in +controller+, a method the controller defines under the
+    # copied name would shadow the copy, so that is rejected too.
+    def self.define_acl(acl, prefix, controller: nil)
+      (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |m|
+        format = METHODS[m]
+        if !format
+          raise ArgumentError, "#{acl}##{m} is not an ACL method (allowed: #{METHODS.keys.join(', ')})"
         end
 
-        if mod.instance_methods.include?(:nested)
-          mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
-          mod.send :remove_method, :nested
+        name = (format % prefix).to_sym
+        if (source = @defined[name])
+          raise ArgumentError, "#{name} is defined by both #{source} and #{acl}"
+        end
+        if controller && (controller.method_defined?(name) || controller.private_method_defined?(name))
+          raise ArgumentError, "#{controller}##{name} conflicts with #{acl}##{m}"
         end
 
-        if mod.instance_methods.include?(:filter)
-          mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
-          mod.send :remove_method, :filter
-        end
+        StandardAPI::Controller.send(:define_method, name, acl.instance_method(m))
+        StandardAPI::Controller.send(:private, name)
+        @defined[name] = acl
+      end
+    end
 
-        application_controller.include mod
+    def self.model_name(model)
+      if model.model_name.singular.starts_with?('habtm_')
+        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
+      else
+        model.model_name.singular
       end
     end
 
@@ -147,11 +204,7 @@ module StandardAPI
     end
 
     def model_name(model)
-      if model.model_name.singular.starts_with?('habtm_')
-        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
-      else
-        model.model_name.singular
-      end
+      StandardAPI::AccessControlList.model_name(model)
     end
 
   end
