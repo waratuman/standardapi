@@ -3,29 +3,26 @@ require 'standard_api/test_helper'
 class ControllerACLTest < ActionDispatch::IntegrationTest
 
   # Build a throwaway controller with a nested ACL module. It gets its own base
-  # controller, removed in teardown, so it never shows up in
-  # ApplicationController.descendants (and so in #models or schema.json). The
-  # base is named before it includes AccessControlList, which registers it by
-  # name. Subclasses are tracked weakly, so the controller is kept in
-  # @acl_controller to stop it being collected before load! finds it.
+  # controller so it never shows up in ApplicationController.descendants (and
+  # so in #models or schema.json). Subclasses are tracked weakly, so the
+  # controllers are kept in @acl_controllers to stop them being collected
+  # before load! finds them; teardown removes their ACL so later calls to
+  # load! skip them.
   def acl_controller(model, &acl)
-    if !@acl_base
-      @acl_base = self.class.const_set(:BaseController, Class.new(ActionController::Base))
-      @acl_base.include StandardAPI::Controller
-      @acl_base.include StandardAPI::AccessControlList
+    @acl_base ||= Class.new(ActionController::Base) do
+      include StandardAPI::Controller
+      include StandardAPI::AccessControlList
     end
 
     @acl_controller = Class.new(@acl_base)
     @acl_controller.define_singleton_method(:model) { model }
     @acl_controller.const_set(:ACL, Module.new(&acl))
+    (@acl_controllers ||= []) << @acl_controller
     @acl_controller
   end
 
   teardown do
-    if @acl_base
-      StandardAPI::AccessControlList.base_controllers.delete(@acl_base.name)
-      self.class.send(:remove_const, :BaseController)
-    end
+    @acl_controllers&.each { |c| c.send(:remove_const, :ACL) }
   end
 
   test "a nested ACL is renamed under the model's prefix and included into the base controller" do

@@ -23,8 +23,6 @@ module StandardAPI
     }.freeze
 
     def self.included(application_controller)
-      base_controllers[application_controller.name] = application_controller
-
       acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
       return if !acl_dir.exist?
 
@@ -33,27 +31,23 @@ module StandardAPI
       end
     end
 
-    # Controllers that include StandardAPI::AccessControlList, keyed by name so
-    # a reloaded class replaces the stale one.
-    def self.base_controllers
-      @base_controllers ||= {}
-    end
-
-    # Include the +ACL+ module nested in any controller below a base controller
-    # into that base controller, as #included does for app/controllers/acl.
-    # Controllers must already be loaded for their ACL to be found, so the
-    # Railtie calls this once they are, at boot and after each reload.
+    # Include the +ACL+ module nested in any controller into its base
+    # controller, the topmost class that includes AccessControlList, as
+    # #included does for app/controllers/acl. Controllers must already be
+    # loaded for their ACL to be found, so the Railtie calls this once they
+    # are, at boot and after each reload.
     def self.load!
-      base_controllers.each_value do |base|
-        [base, *base.descendants].each do |controller|
-          next if !controller.const_defined?(:ACL, false)
+      ActionController::Metal.descendants.each do |controller|
+        next if !controller.const_defined?(:ACL, false)
 
-          acl = controller.const_get(:ACL, false)
-          model = controller.model
-          raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
+        base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
+        next if !base
 
-          include_acl(base, acl, model_name(model), controller: controller)
-        end
+        acl = controller.const_get(:ACL, false)
+        model = controller.model
+        raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
+
+        include_acl(base, acl, model_name(model), controller: controller)
       end
     end
 

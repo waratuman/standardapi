@@ -34,7 +34,7 @@ module StandardAPI
     config.to_prepare do
       controllers = Rails.application.root.join('app', 'controllers')
       Rails.autoloaders.main.eager_load_dir(controllers.to_s) if controllers.exist?
-      StandardAPI::AccessControlList.load! if !StandardAPI::AccessControlList.base_controllers.empty?
+      StandardAPI::AccessControlList.load!
     end
 
   end
