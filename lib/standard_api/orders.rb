@@ -12,6 +12,14 @@ module StandardAPI
       @deprecations
     end
 
+    # Deprecated, include StandardAPI::Orders and use #sanitize_orders
+    def self.sanitize(orders, permit)
+      message = "StandardAPI::Orders.sanitize has been deprecated, include StandardAPI::Orders and use #sanitize_orders instead"
+      Rails.logger&.warn("DEPRECATION WARNING: #{message}") if deprecations.add?(message)
+
+      Object.new.extend(self).send(:sanitize_orders, orders, permit)
+    end
+
     private
 
     # Log the deprecation warning +message+, once per process

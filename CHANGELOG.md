@@ -29,3 +29,7 @@
   in the associated model's ACL `orders` instead.
 - Ordering through an association whose model's ACL has no `orders`, which
   permits any of its columns. Permit the columns in its ACL `orders` instead.
+- `Controller#model_orders`, including overriding it. Define the model's ACL
+  `orders` and use `orders_for(model)` instead.
+- `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
+  `StandardAPI::Controller`; use `sanitize_orders` instead.

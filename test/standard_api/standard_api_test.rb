@@ -95,6 +95,43 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:orders_for, Reference), []
   end
 
+  test 'Controller#model_orders is deprecated' do
+    StandardAPI::Orders.deprecations.clear
+    @controller = PropertiesController.new
+    @controller.stubs(:model).returns(Property)
+    @controller.logger.expects(:warn).once.with('DEPRECATION WARNING: PropertiesController#model_orders has been deprecated, use orders_for(model) instead')
+
+    assert_equal @controller.send(:orders_for, Property), @controller.send(:model_orders)
+  end
+
+  test 'Controller#model_orders overrides are honoured, with a deprecation warning' do
+    AccountsController.class_eval do
+      private def model_orders
+        [ "id", "name" ]
+      end
+    end
+
+    StandardAPI::Orders.deprecations.clear
+    warnings = []
+    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
+
+    create(:account)
+    get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
+    assert_response :ok
+
+    assert_includes warnings, 'DEPRECATION WARNING: AccountsController#model_orders has been deprecated, define account_orders instead'
+  ensure
+    AccountsController.send(:remove_method, :model_orders)
+  end
+
+  test 'Orders::sanitize is deprecated' do
+    StandardAPI::Orders.deprecations.clear
+    Rails.logger.expects(:warn).once.with('DEPRECATION WARNING: StandardAPI::Orders.sanitize has been deprecated, include StandardAPI::Orders and use #sanitize_orders instead')
+
+    assert_equal({ x: :desc }, StandardAPI::Orders.sanitize({ x: :desc }, [:x]))
+    assert_equal({ x: :desc }, StandardAPI::Orders.sanitize({ x: :desc }, [:x]))
+  end
+
   test 'Orders#orders_for falls back to the orders of the base class' do
     orders_for = Class.new do
       include StandardAPI::Orders
