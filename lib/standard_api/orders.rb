@@ -34,15 +34,14 @@ module StandardAPI
       return [] if !(method = orders_method_for(klass))
 
       orders = self.send(method)
-      Array(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
+      permits = Array(orders).flatten.select { |x| x.is_a?(Hash) || x.is_a?(ActionController::Parameters) }
+      permits.flat_map(&:keys).each do |name|
+        # A polymorphic association has no single ACL to permit its columns
+        # in, so permitting them here is not deprecated
         association = klass.reflect_on_association(name)
-        nested_acl = if association && !association.polymorphic?
-          "#{association.klass.name}ACL#orders"
-        else
-          "the #{name} ACL's orders"
-        end
+        next if !association || association.polymorphic?
 
-        deprecation_warning("#{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead")
+        deprecation_warning("#{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ association.klass.name }ACL#orders instead")
       end
 
       orders

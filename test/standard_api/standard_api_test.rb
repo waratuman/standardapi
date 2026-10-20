@@ -709,6 +709,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :account_orders)
   end
 
+  test 'Orders#orders_for warns about permits of an association, other than a polymorphic one' do
+    StandardAPI::Orders.deprecations.clear
+    logger = mock
+    logger.expects(:warn).once.with('DEPRECATION WARNING: AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead')
+
+    Class.new do
+      include StandardAPI::Orders
+      define_method(:logger) { logger }
+      private def account_orders = ["id", ActionController::Parameters.new(property: [:name]), { subject: [:id] }]
+    end.new.send(:orders_for, Account)
+  end
+
   test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
     sanitize = Class.new do
       include StandardAPI::Orders
