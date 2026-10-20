@@ -5,7 +5,7 @@ module CameraACL
   end
 
   # Filters allowed in the `where` param
-  def filters
+  def wheres
     [ :id, :make, { photo_id: [:eq, :in] }, :photo ]
   end
 

@@ -11,6 +11,10 @@ module PhotoACL
     [ :account ]
   end
 
+  def wheres
+    [ :account_id, :properties ]
+  end
+
   def nested
     [ :account, :camera ]
   end

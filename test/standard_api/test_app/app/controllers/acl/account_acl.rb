@@ -8,6 +8,10 @@ module AccountACL
     [ "id", "property" ]
   end
 
+  def wheres
+    [ "id" ]
+  end
+
   def includes
     {
       photos: true,

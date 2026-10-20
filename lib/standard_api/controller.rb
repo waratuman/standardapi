@@ -2,7 +2,7 @@ module StandardAPI
   module Controller
     include StandardAPI::Orders
     include StandardAPI::Includes
-    include StandardAPI::Filters
+    include StandardAPI::Wheres
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -356,7 +356,7 @@ module StandardAPI
     end
 
     def resources
-      query = self.class.model.filter(filters).filter(mask[self.class.model.table_name.to_sym])
+      query = self.class.model.filter(wheres).filter(mask[self.class.model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
@@ -442,12 +442,11 @@ module StandardAPI
       end
     end
 
-    # The +where+ param, checked against the ACL's filters if it defines any
-    def filters
-      return @filters if defined?(@filters)
+    # The +where+ param, checked against the ACL's wheres
+    def wheres
+      return @wheres if defined?(@wheres)
 
-      permit = filters_for(model)
-      @filters = permit ? sanitize_filters(params['where'], permit, model) : params['where']
+      @wheres = sanitize_wheres(params['where'], wheres_for(model), model)
     end
 
     def orders

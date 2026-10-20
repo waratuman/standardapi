@@ -43,7 +43,7 @@ module StandardAPI
     # Raises if another ACL included into +application_controller+ defines
     # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      [:orders, :includes, :filters, :attributes, :excludes].each do |m|
+      [:orders, :includes, :wheres, :attributes, :excludes].each do |m|
         next if !mod.instance_methods.include?(m)
         mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
         mod.send :remove_method, m
