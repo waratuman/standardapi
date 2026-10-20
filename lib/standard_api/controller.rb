@@ -17,6 +17,7 @@ module StandardAPI
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
+      klass.rescue_from ::ActiveRecord::Sort::InvalidSort, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end

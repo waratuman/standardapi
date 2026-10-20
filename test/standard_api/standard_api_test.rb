@@ -668,6 +668,23 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
   end
 
+  test 'order through an association rejects orders ActiveRecord::Sort can not order by' do
+    ApplicationController.class_eval do
+      private def property_orders
+        [ "name", "landlord" ]
+      end
+    end
+
+    create(:account, property: create(:property))
+
+    # ActiveRecord::Sort only orders one association deep
+    get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    assert_response :bad_request
+    assert_equal 'Unknown column landlord', response.body
+  ensure
+    ApplicationController.send(:remove_method, :property_orders)
+  end
+
   test 'order through an association rejects orders the associated ACL does not permit' do
     create(:account, property: create(:property))
 
