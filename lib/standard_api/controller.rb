@@ -1,6 +1,7 @@
 module StandardAPI
   module Controller
     include StandardAPI::Orders
+    include StandardAPI::Includes
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -40,7 +41,7 @@ module StandardAPI
 
     def json_schema
       Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = StandardAPI::Includes.normalize(params[:include] || {})
+      @includes = normalize_includes(params[:include] || {})
     end
 
     def index
@@ -246,7 +247,7 @@ module StandardAPI
     end
 
     def model_includes
-      StandardAPI::Includes.includes_for(self, model)
+      includes_for(model)
     end
 
     def model_params
@@ -403,7 +404,7 @@ module StandardAPI
 
     def includes
       @includes ||= if params[:include]
-        StandardAPI::Includes.sanitize(params[:include], model_includes, model: model, acl: self)
+        sanitize_includes(params[:include], model_includes, model)
       else
         {}
       end

@@ -769,21 +769,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       "Expected a deprecation warning, got: #{warnings.inspect}"
   end
 
-  test 'Includes::sanitize checks an association permitted by name against its ACL' do
-    acl = Class.new do
+  test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do
+    sanitize = Class.new do
+      include StandardAPI::Includes
       def logger; end
       private def account_includes = [:photos]
-    end.new
+    end.new.method(:sanitize_includes)
 
-    assert_equal({ 'landlord' => { 'photos' => {} } }, StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord], model: Property, acl: acl))
+    assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }, [:landlord], Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      StandardAPI::Includes.sanitize({ landlord: :property }, [:landlord], model: Property, acl: acl)
+      sanitize.call({ landlord: :property }, [:landlord], Property)
     end
 
-    # An explicit nested permit, or a call without an ACL, is unchanged
-    assert_equal({ 'landlord' => { 'property' => {} } }, StandardAPI::Includes.sanitize({ landlord: :property }, { landlord: [:property] }, model: Property, acl: acl))
+    # An explicit nested permit, or a call without a model, is unchanged
+    assert_equal({ 'landlord' => { 'property' => {} } }, sanitize.call({ landlord: :property }, { landlord: [:property] }, Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord])
+      sanitize.call({ landlord: :photos }, [:landlord])
     end
   end
 
@@ -818,8 +819,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # Includes Test
 
-  test 'Includes::normailze' do
-    method = StandardAPI::Includes.method(:normalize)
+  test 'Includes#normalize_includes' do
+    method = PropertiesController.new.method(:normalize_includes)
     assert_equal method.call(:x), { 'x' => {} }
     assert_equal method.call([:x, :y]), { 'x' => {}, 'y' => {} }
     assert_equal method.call([ { x: true }, { y: true } ]), { 'x' => {}, 'y' => {} }
@@ -833,15 +834,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal method.call({ x: { order: { y: :asc } } }), { 'x' => { 'order' => { 'y' => :asc } } }
   end
 
-  # sanitize({:key => {}}, [:key]) # => {:key => {}}
-  # sanitize({:key => {}}, {:key => true}) # => {:key => {}}
-  # sanitize({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
-  # sanitize({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
-  # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
-  test 'Includes::sanitize' do
-    method = StandardAPI::Includes.method(:sanitize)
+  # sanitize_includes({:key => {}}, [:key]) # => {:key => {}}
+  # sanitize_includes({:key => {}}, {:key => true}) # => {:key => {}}
+  # sanitize_includes({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
+  # sanitize_includes({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
+  # sanitize_includes({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
+  test 'Includes#sanitize_includes' do
+    method = PropertiesController.new.method(:sanitize_includes)
     assert_equal method.call(:x, [:x]), { 'x' => {} }
     assert_equal method.call(:x, {:x => true}), { 'x' => {} }
 
