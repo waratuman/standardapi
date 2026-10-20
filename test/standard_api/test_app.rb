@@ -70,7 +70,7 @@ Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables
   get :schema, to: 'application#schema', as: :schema
 
-  [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit, :cameras].each do |r|
+  [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit, :cameras, :cacheable_accounts].each do |r|
     standard_resources r
   end
 

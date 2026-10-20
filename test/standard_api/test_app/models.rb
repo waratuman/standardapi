@@ -7,6 +7,34 @@ class Account < ActiveRecord::Base
   belongs_to :subject, polymorphic: true
 end
 
+# Uses virtual cache columns so the collection-cache integration tests can
+# exercise cache invalidation without making every Account response cacheable.
+class CacheableAccount < Account
+  self.table_name = 'accounts'
+
+  class_attribute :fixed_cache_timestamp
+
+  def self.column_names
+    super | ['cached_at', 'photos_cached_at']
+  end
+
+  def cached_at
+    fixed_cache_timestamp
+  end
+
+  def photos_cached_at
+    fixed_cache_timestamp
+  end
+
+  def [](attribute)
+    if ['cached_at', 'photos_cached_at'].include?(attribute)
+      fixed_cache_timestamp
+    else
+      super
+    end
+  end
+end
+
 class Photo < ActiveRecord::Base
   belongs_to :account, counter_cache: true
   has_and_belongs_to_many :properties
