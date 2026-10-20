@@ -90,9 +90,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Controller#model_orders defaults to []' do
+  test 'Orders#orders_for defaults to []' do
     @controller = ReferencesController.new
-    assert_equal @controller.send(:model_orders), []
+    assert_equal @controller.send(:orders_for, Reference), []
   end
 
   test 'Controller#model_includes defaults to []' do

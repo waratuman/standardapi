@@ -71,10 +71,6 @@ module StandardAPI
       application_controller.include mod
     end
 
-    def model_orders
-      orders_for(model)
-    end
-
     def model_params
       return @model_params if instance_variable_defined?(:@model_params)
       @model_params = if self.respond_to?("filter_#{model_name(model)}_params", true)

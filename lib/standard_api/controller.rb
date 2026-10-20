@@ -252,10 +252,6 @@ module StandardAPI
       end
     end
 
-    def model_orders
-      orders_for(model)
-    end
-
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
@@ -453,7 +449,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= sanitize_orders(params[:order] || default_orders, model_orders | required_orders, model)
+      @orders ||= sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
     end
 
     # The maximum number of results returned by #index
