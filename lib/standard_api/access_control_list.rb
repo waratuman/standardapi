@@ -27,10 +27,12 @@ module StandardAPI
     # are, at boot and after each reload.
     def self.load!
       ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(:ACL, false) || !controller.model
+        next if !controller.const_defined?(:ACL, false)
 
+        # Only a controller using StandardAPI has a model; any other
+        # controller's ACL constant is none of our business
         base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
-        next if !base
+        next if !base || !controller.model
 
         include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
       end
