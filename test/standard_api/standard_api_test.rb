@@ -119,9 +119,9 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], orders_for.call(Pdf)
   end
 
-  test 'Controller#model_includes defaults to []' do
+  test 'Includes#includes_for defaults to []' do
     @controller = DocumentsController.new
-    assert_equal @controller.send(:model_includes), []
+    assert_equal @controller.send(:includes_for, Document), []
   end
 
   test 'Controller#model_params defaults to ActionController::Parameters' do

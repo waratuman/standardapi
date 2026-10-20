@@ -246,10 +246,6 @@ module StandardAPI
       @models
     end
 
-    def model_includes
-      includes_for(model)
-    end
-
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
@@ -404,7 +400,7 @@ module StandardAPI
 
     def includes
       @includes ||= if params[:include]
-        sanitize_includes(params[:include], model_includes, model)
+        sanitize_includes(params[:include], includes_for(model), model)
       else
         {}
       end
