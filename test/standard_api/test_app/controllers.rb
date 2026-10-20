@@ -38,16 +38,20 @@ end
 
 class DocumentsController < ApplicationController
 
-  def document_attributes(document=nil)
-    document&.type == "movie" ? [
-      :file, :type, :rating
-    ] : [
-      :file, :type
-    ]
-  end
+  module ACL
 
-  def document_orders
-    [ :id ]
+    def attributes(document=nil)
+      document&.type == "movie" ? [
+        :file, :type, :rating
+      ] : [
+        :file, :type
+      ]
+    end
+
+    def orders
+      [ :id ]
+    end
+
   end
 
 end

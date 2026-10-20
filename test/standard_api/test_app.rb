@@ -61,6 +61,10 @@ require 'standard_api/test_app/models'
 # Test Application Controllers
 require 'standard_api/test_app/controllers'
 
+# The controllers above are defined after boot, outside app/controllers, so the
+# Railtie never saw their nested ACL modules.
+StandardAPI::AccessControlList.load!
+
 # Test Application Routes
 Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables

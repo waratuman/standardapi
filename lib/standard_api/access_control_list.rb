@@ -16,27 +16,59 @@ module StandardAPI
       return if !acl_dir.exist?
 
       traverse(acl_dir) do |child|
-        mod = child.classify.constantize
-        prefix = child.delete_suffix('_acl').gsub('/', '_')
-
-        [:orders, :includes, :attributes, :excludes].each do |m|
-          next if !mod.instance_methods.include?(m)
-          mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
-          mod.send :remove_method, m
-        end
-
-        if mod.instance_methods.include?(:nested)
-          mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
-          mod.send :remove_method, :nested
-        end
-
-        if mod.instance_methods.include?(:filter)
-          mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
-          mod.send :remove_method, :filter
-        end
-
-        application_controller.include mod
+        include_acl(application_controller, child.classify.constantize, child.delete_suffix('_acl').gsub('/', '_'))
       end
+    end
+
+    # Include the +ACL+ module nested in a controller into its base controller
+    # (the topmost class that includes AccessControlList), the same way
+    # #included does for app/controllers/acl. Controllers must already be
+    # loaded for their ACL to be found, so the Railtie calls this once they
+    # are, at boot and after each reload.
+    def self.load!
+      ActionController::Metal.descendants.each do |controller|
+        next if !controller.const_defined?(:ACL, false)
+
+        # Only a controller using StandardAPI has a model; any other
+        # controller's ACL constant is none of our business
+        base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
+        next if !base || !controller.model
+
+        include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
+      end
+    end
+
+    # Rename the ACL methods of +mod+ under +prefix+ and include it into
+    # +application_controller+. A module already renamed is left as it is.
+    # Raises if another ACL included into +application_controller+ defines
+    # any of the same methods, as one would silently override the other.
+    def self.include_acl(application_controller, mod, prefix)
+      [:orders, :includes, :attributes, :excludes].each do |m|
+        next if !mod.instance_methods.include?(m)
+        mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
+        mod.send :remove_method, m
+      end
+
+      if mod.instance_methods.include?(:nested)
+        mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
+        mod.send :remove_method, :nested
+      end
+
+      if mod.instance_methods.include?(:filter)
+        mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
+        mod.send :remove_method, :filter
+      end
+
+      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
+      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
+      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
+        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
+        next if !other
+
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
+      end
+
+      application_controller.include mod
     end
 
     def model_orders

@@ -144,6 +144,31 @@ All of these methods are optional and will be included in ApplicationController
 for StandardAPI to determine allowed attributes, nested attributes, orders and
 includes.
 
+An ACL can instead be nested in the model's controller as an `ACL` module:
+
+    class PhotosController < ApplicationController
+      module ACL
+        def attributes(record = nil)
+          [ :caption ]
+        end
+
+        def orders
+          [ :id, :created_at, :updated_at ]
+        end
+
+        def includes
+          [ :author ]
+        end
+      end
+    end
+
+It is included in ApplicationController the same way as an
+`app/controllers/acl` file, under the model's name (`photo_attributes`,
+`photo_orders`, ...), so it is never included in its own controller and its
+`includes`, `orders` and `excludes` don't override the controller's own.
+Controllers are loaded at boot (and after each reload) so their ACLs are found
+before the first request.
+
 `includes` now returns a shallow Array, StandardAPI can how determine including
 an `author` and the author's `photos` is allowed by looking at what includes are
 allowed on photo and author.

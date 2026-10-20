@@ -11,6 +11,10 @@ module StandardAPI
     end
   end
 
+  # Raised when an ACL or controller uses a form StandardAPI no longer supports
+  class InvalidConfiguration < StandardAPIError
+  end
+
   class UnpermittedParameters < StandardAPIError
     attr_reader :params
 
