@@ -76,8 +76,8 @@ inherited controllers an exposed API.
       #
       # An association can be listed by name, ie. `:account`, to allow
       # ordering by the columns the associated model's orders permit
-      # (`account_orders`). Permitting the columns here, ie.
-      # `{ account: [:name] }`, raises, except for a polymorphic association.
+      # (`account_orders`). Only names can be listed here; a Hash, ie.
+      # `{ account: [:name] }`, raises.
       def photo_orders
         [:id, :created_at, :updated_at]
       end
