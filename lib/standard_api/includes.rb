@@ -62,6 +62,25 @@ module StandardAPI
       normalized
     end
 
+    # The includes +acl+, ie. a controller, permits on +klass+, or [] if it
+    # has none
+    def self.includes_for(acl, klass)
+      return [] if !acl.respond_to?("#{klass.model_name.singular}_includes", true)
+
+      permitted = acl.send("#{klass.model_name.singular}_includes")
+      normalize(permitted).each do |name, subincludes|
+        next if subincludes.blank? || StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name)
+        association = klass.reflect_on_association(name)
+        next if !association || association.polymorphic?
+
+        acl.logger&.warn <<~NOTE.strip_heredoc
+          DEPRECATION WARNING: #{ klass.name }ACL#includes permitting includes of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#includes and its includes in #{ association.klass.name }ACL#includes instead
+        NOTE
+      end
+
+      permitted || []
+    end
+
     # sanitize({:key => {}}, [:key]) # => {:key => {}}
     # sanitize({:key => {}}, {:key => true}) # => {:key => {}}
     # sanitize({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
@@ -70,12 +89,12 @@ module StandardAPI
     # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
     # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
     #
-    # When +model+ and a block are given, includes nested in an association
-    # permitted by name alone (ie. +:key+) are checked against the associated
-    # model's permitted includes, which the block returns for a given model:
+    # When +model+ and +acl+, ie. a controller, are given, includes nested in
+    # an association permitted by name alone (ie. +:key+) are checked against
+    # the includes +acl+ permits on the associated model:
     #
-    # sanitize({:key => {:value => {}}}, [:key], model: Model) { |m| [:value] } # => {:key => {:value => {}}}
-    def self.sanitize(includes, permit, normalized=false, model: nil, &acl)
+    # sanitize({:key => {:value => {}}}, [:key], model: Model, acl: controller) # => {:key => {:value => {}}} if controller.key_includes includes :value
+    def self.sanitize(includes, permit, normalized=false, model: nil, acl: nil)
       includes = normalize(includes) if !normalized
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -89,8 +108,8 @@ module StandardAPI
           subpermit = permit[k] || {}
           association = model.reflect_on_association(k) if acl && model
           if association && !association.polymorphic?
-            subpermit = acl.call(association.klass) || {} if subpermit.empty?
-            sanitize(v, subpermit, true, model: association.klass, &acl)
+            subpermit = includes_for(acl, association.klass) if subpermit.empty?
+            sanitize(v, subpermit, true, model: association.klass, acl: acl)
           else
             sanitize(v, subpermit, true)
           end

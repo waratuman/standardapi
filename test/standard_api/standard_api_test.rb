@@ -770,14 +770,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Includes::sanitize checks an association permitted by name against its ACL' do
-    acl = { Account => [:photos] }
-    assert_equal({ 'landlord' => { 'photos' => {} } }, StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord], model: Property) { |m| acl[m] })
+    acl = Class.new do
+      def logger; end
+      private def account_includes = [:photos]
+    end.new
+
+    assert_equal({ 'landlord' => { 'photos' => {} } }, StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord], model: Property, acl: acl))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      StandardAPI::Includes.sanitize({ landlord: :property }, [:landlord], model: Property) { |m| acl[m] }
+      StandardAPI::Includes.sanitize({ landlord: :property }, [:landlord], model: Property, acl: acl)
     end
 
-    # An explicit nested permit, or a call without an ACL lookup, is unchanged
-    assert_equal({ 'landlord' => { 'property' => {} } }, StandardAPI::Includes.sanitize({ landlord: :property }, { landlord: [:property] }, model: Property) { |m| acl[m] })
+    # An explicit nested permit, or a call without an ACL, is unchanged
+    assert_equal({ 'landlord' => { 'property' => {} } }, StandardAPI::Includes.sanitize({ landlord: :property }, { landlord: [:property] }, model: Property, acl: acl))
     assert_raises(StandardAPI::UnpermittedParameters) do
       StandardAPI::Includes.sanitize({ landlord: :photos }, [:landlord])
     end
