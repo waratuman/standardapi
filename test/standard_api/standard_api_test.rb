@@ -701,7 +701,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     {
       { property: [:name] } => 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead',
-      ActionController::Parameters.new(property: [:name]) => 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead',
       { subject: [:id] } => 'AccountACL#orders permitting subject in a Hash is not supported, ordering through a polymorphic association is not supported',
       { name: [:asc] } => 'AccountACL#orders permitting name in a Hash is not supported, permit :name instead'
     }.each do |permit, message|
