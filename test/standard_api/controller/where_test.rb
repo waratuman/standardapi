@@ -121,9 +121,9 @@ class ControllerWhereTest < ActionDispatch::IntegrationTest
     assert_equal({ make: { at: 'now' } }, sanitize.call({ make: { at: 'now' } }, [{ make: :eq }], Camera))
 
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(1, [:make], Camera) }
-    assert_raises(ArgumentError) { sanitize.call({ make: 'l' }, [{ make: :bogus }], Camera) }
+    assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ make: 'l' }, [{ make: :bogus }], Camera) }
     # Operators can't be permitted on an association
-    assert_raises(ArgumentError) { sanitize.call({ photo: { id: 1 } }, [{ photo: [:eq] }], Camera) }
+    assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ photo: { id: 1 } }, [{ photo: [:eq] }], Camera) }
   end
 
 end

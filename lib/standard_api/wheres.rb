@@ -57,7 +57,7 @@ module StandardAPI
     def wheres_for(klass)
       return [] if !(method = wheres_method_for(klass))
 
-      self.send(method) || []
+      self.send(method)
     end
 
     # Check +wheres+, ie. the +where+ param, against +permit+, the wheres
@@ -80,14 +80,14 @@ module StandardAPI
 
     # { "column" => :all | [canonical operators] }
     def normalize_where_permit(permit)
-      Array.wrap(permit).flatten.each_with_object({}) do |entry, normalized|
+      permit.each_with_object({}) do |entry, normalized|
         if entry.is_a?(Hash)
           entry.each do |key, operators|
             normalized[key.to_s] = if operators.to_s == '*'
               :all
             else
               Array.wrap(operators).map do |operator|
-                OPERATOR_NAMES[operator.to_s] || raise(ArgumentError, "Unknown where operator #{operator.inspect} for #{key}")
+                OPERATOR_NAMES[operator.to_s] || raise(StandardAPI::InvalidConfiguration, "Unknown where operator #{operator.inspect} for #{key}")
               end
             end
           end
@@ -133,7 +133,7 @@ module StandardAPI
         end
       elsif association = model.reflect_on_association(key)
         if permitted != :all
-          raise ArgumentError, "#{model.name} wheres can't permit operators on the association #{key}, permit :#{key} and its wheres in the associated model's wheres"
+          raise StandardAPI::InvalidConfiguration, "#{model.name} wheres can't permit operators on the association #{key}, permit :#{key} and its wheres in the associated model's wheres"
         end
 
         check_association_where(key, association, value)
