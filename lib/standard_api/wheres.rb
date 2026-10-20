@@ -45,11 +45,19 @@ module StandardAPI
 
     private
 
+    # The ACL +wheres+ method for +klass+, falling back to the one for its
+    # base class (ie. an STI subclass), or nil if there is none
+    def wheres_method_for(klass)
+      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_wheres" }.find do |method|
+        self.respond_to?(method, true)
+      end
+    end
+
     # The wheres the ACL permits on +klass+, or [] if it has none
     def wheres_for(klass)
-      return [] if !self.respond_to?("#{klass.model_name.singular}_wheres", true)
+      return [] if !(method = wheres_method_for(klass))
 
-      self.send("#{klass.model_name.singular}_wheres") || []
+      self.send(method) || []
     end
 
     # Check +wheres+, ie. the +where+ param, against +permit+, the wheres

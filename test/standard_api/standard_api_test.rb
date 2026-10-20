@@ -119,6 +119,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], orders_for.call(Pdf)
   end
 
+  test 'Wheres#wheres_for falls back to the wheres of the base class' do
+    wheres_for = Class.new do
+      include StandardAPI::Wheres
+      private def document_wheres = [:id]
+    end.new.method(:wheres_for)
+
+    assert_equal [:id], wheres_for.call(Pdf)
+  end
+
   test 'Includes#includes_for falls back to the includes of the base class' do
     includes_for = Class.new do
       include StandardAPI::Includes
