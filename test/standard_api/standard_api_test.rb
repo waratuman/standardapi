@@ -692,6 +692,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     b = create(:account, property: create(:property, name: 'b'))
     a = create(:account, property: create(:property, name: 'a'))
 
+    StandardAPI::Orders.deprecations.clear
     warnings = []
     ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
 
@@ -699,8 +700,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
 
-    assert warnings.any? { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') },
-      "Expected a deprecation warning, got: #{warnings.inspect}"
+    get accounts_path(order: [{ property: { name: :asc } }, { property: { name: :desc } }], limit: 10, format: 'json')
+    assert_response :ok
+
+    deprecations = warnings.select { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') }
+    assert_equal 1, deprecations.size, "Expected one deprecation warning, got: #{warnings.inspect}"
   ensure
     ApplicationController.send(:remove_method, :account_orders)
   end

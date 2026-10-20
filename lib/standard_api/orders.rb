@@ -1,9 +1,25 @@
+require 'concurrent/set'
+
 module StandardAPI
   # Included in StandardAPI::Controller, so the ACL +orders+ methods are
   # called on the controller.
   module Orders
 
+    # The deprecation warnings that have been logged
+    @deprecations = Concurrent::Set.new
+
+    def self.deprecations
+      @deprecations
+    end
+
     private
+
+    # Log the deprecation warning +message+, once per process
+    def deprecation_warning(message)
+      return if !Orders.deprecations.add?(message)
+
+      logger&.warn("DEPRECATION WARNING: #{message}")
+    end
 
     # The ACL +orders+ method for +klass+, falling back to the one for its
     # base class (ie. an STI subclass), or nil if there is none
@@ -26,9 +42,7 @@ module StandardAPI
           "the #{name} ACL's orders"
         end
 
-        logger&.warn <<~NOTE.strip_heredoc
-          DEPRECATION WARNING: #{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead
-        NOTE
+        deprecation_warning("#{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead")
       end
 
       orders
