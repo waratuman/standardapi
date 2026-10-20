@@ -102,12 +102,16 @@ module StandardAPI
     # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
     # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
     #
-    # When +model+ is given, includes nested in an association permitted by
-    # name alone (ie. +:key+) are checked against the includes the ACL permits
-    # on the associated model:
+    # Includes of +model+ nested in an association permitted by name alone
+    # (ie. +:key+) are checked against the includes the ACL permits on the
+    # associated model:
     #
     # sanitize_includes({:key => {:value => {}}}, [:key], Model) # => {:key => {:value => {}}} if key_includes includes :value
-    def sanitize_includes(includes, permit, model = nil, normalized: false)
+    #
+    # +model+ is nil when there is no single model, ie. through a polymorphic
+    # association or a method rendered as an include, in which case includes
+    # are checked against +permit+ alone.
+    def sanitize_includes(includes, permit, model, normalized: false)
       includes = normalize_includes(includes) if !normalized
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -124,7 +128,7 @@ module StandardAPI
             subpermit = includes_for(association.klass) if subpermit.empty?
             sanitize_includes(v, subpermit, association.klass, normalized: true)
           else
-            sanitize_includes(v, subpermit, normalized: true)
+            sanitize_includes(v, subpermit, nil, normalized: true)
           end
         elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           v

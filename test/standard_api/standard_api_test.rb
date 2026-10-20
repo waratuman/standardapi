@@ -826,7 +826,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do
     sanitize = Class.new do
       include StandardAPI::Includes
-      def logger; end
       private def account_includes = [:photos]
     end.new.method(:sanitize_includes)
 
@@ -838,7 +837,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     # An explicit nested permit, or a call without a model, is unchanged
     assert_equal({ 'landlord' => { 'property' => {} } }, sanitize.call({ landlord: :property }, { landlord: [:property] }, Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: :photos }, [:landlord])
+      sanitize.call({ landlord: :photos }, [:landlord], nil)
     end
   end
 
@@ -896,7 +895,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
   # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
   test 'Includes#sanitize_includes' do
-    method = PropertiesController.new.method(:sanitize_includes)
+    # Checked against +permit+ alone, without a model
+    method = ->(includes, permit) { PropertiesController.new.send(:sanitize_includes, includes, permit, nil) }
     assert_equal method.call(:x, [:x]), { 'x' => {} }
     assert_equal method.call(:x, {:x => true}), { 'x' => {} }
 
