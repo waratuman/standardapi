@@ -31,13 +31,16 @@ module StandardAPI
       orders
     end
 
-    # Sanitize +orders+ against +permit+. When +model+ is given, ordering
-    # through an association permitted by name alone (ie. +:owner+) is checked
-    # against the orders the ACL permits on the associated model:
+    # Sanitize +orders+ of +model+ against +permit+. Ordering through an
+    # association permitted by name alone (ie. +:owner+) is checked against the
+    # orders the ACL permits on the associated model:
     #
     #   sanitize_orders({ owner: { name: :asc } }, [:owner], Property)
     #   # => { owner: { name: :asc } } if owner_orders includes :name
-    def sanitize_orders(orders, permit, model = nil)
+    #
+    # +model+ is nil when there is no single model, ie. through a polymorphic
+    # association, in which case orders are checked against +permit+ alone.
+    def sanitize_orders(orders, permit, model)
       return nil if orders.nil?
 
       permit = [permit] if !permit.is_a?(Array)

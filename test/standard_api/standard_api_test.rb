@@ -720,7 +720,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     # A column, or a call without a model, is unchanged
     assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
-    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord]))
+    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord], nil))
   end
 
   test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
@@ -798,7 +798,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   # Order Test
 
   test 'Orders#sanitize_orders(:column, [:column])' do
-    method = PropertiesController.new.method(:sanitize_orders)
+    # Checked against +permit+ alone, without a model
+    method = ->(orders, permit) { PropertiesController.new.send(:sanitize_orders, orders, permit, nil) }
 
     assert_equal :x, method.call(:x, :x)
     assert_equal :x, method.call(:x, [:x])
