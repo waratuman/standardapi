@@ -119,9 +119,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], orders_for.call(Pdf)
   end
 
-  test 'Controller#model_includes defaults to []' do
+  test 'Includes#includes_for falls back to the includes of the base class' do
+    includes_for = Class.new do
+      include StandardAPI::Includes
+      private def document_includes = [:id]
+    end.new.method(:includes_for)
+
+    assert_equal [:id], includes_for.call(Pdf)
+  end
+
+  test 'Includes#includes_for defaults to []' do
     @controller = DocumentsController.new
-    assert_equal @controller.send(:model_includes), []
+    assert_equal @controller.send(:includes_for, Document), []
   end
 
   test 'Controller#model_params defaults to ActionController::Parameters' do
@@ -735,6 +744,103 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'include through an association uses the associated ACL' do
+    property = create(:property)
+    account = create(:account, property: property)
+    photo = create(:photo, account: account)
+
+    get property_path(property, include: { landlord: :photos }, format: 'json')
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['landlord']['id']
+    assert_equal [photo.id], JSON(response.body)['landlord']['photos'].map { |x| x['id'] }
+  end
+
+  test 'include through an association rejects includes the associated ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    get property_path(property, include: { photos: :camera }, format: 'json')
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "camera"', response.body
+  end
+
+  test 'include through two associations uses each associated ACL' do
+    account = create(:account)
+    camera = create(:camera, photo: create(:photo, account: account))
+
+    get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['photo']['account']['id']
+  end
+
+  test 'includes permitting includes of an association raise' do
+    ApplicationController.class_eval do
+      private def camera_includes
+        { photo: [ :account ] }
+      end
+    end
+
+    camera = create(:camera, photo: create(:photo))
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    end
+    assert_equal 'CameraACL#includes permitting includes of photo is not supported, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead', error.message
+  ensure
+    ApplicationController.send(:remove_method, :camera_includes)
+  end
+
+  test 'Includes#includes_for raises on includes of an association, other than a polymorphic one or a method' do
+    includes_for = Class.new do
+      include StandardAPI::Includes
+      private def account_includes = @includes
+    end.new
+
+    # subject is polymorphic and specs is a method of Camera
+    includes_for.instance_variable_set(:@includes, { subject: [:landlord], photos: true })
+    assert_equal({ subject: [:landlord], photos: true }, includes_for.send(:includes_for, Account))
+    assert_equal({ specs: [:serial] }, Class.new { include StandardAPI::Includes; private def camera_includes = { specs: [:serial] } }.new.send(:includes_for, Camera))
+
+    includes_for.instance_variable_set(:@includes, { photos: [:camera] })
+    assert_raises(StandardAPI::InvalidConfiguration) { includes_for.send(:includes_for, Account) }
+  end
+
+  test 'Controller#model_includes overrides raise' do
+    AccountsController.class_eval do
+      private def model_includes
+        [ :photos ]
+      end
+    end
+
+    account = create(:account)
+
+    # #show first calls #includes from the view, which wraps the error
+    error = assert_raises(ActionView::Template::Error) do
+      get account_path(account, include: :photos, format: 'json')
+    end
+    assert_instance_of StandardAPI::InvalidConfiguration, error.cause
+    assert_equal 'AccountsController#model_includes is not supported, define account_includes in AccountACL instead', error.cause.message
+  ensure
+    AccountsController.send(:remove_method, :model_includes)
+  end
+
+  test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do
+    sanitize = Class.new do
+      include StandardAPI::Includes
+      private def account_includes = [:photos]
+    end.new.method(:sanitize_includes)
+
+    assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }, [:landlord], Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: :property }, [:landlord], Property)
+    end
+
+    # An explicit nested permit, or a call without a model, is unchanged
+    assert_equal({ 'landlord' => { 'property' => {} } }, sanitize.call({ landlord: :property }, { landlord: [:property] }, Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: :photos }, [:landlord], nil)
+    end
+  end
+
   test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
     sanitize = Class.new do
       include StandardAPI::Orders
@@ -766,8 +872,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # Includes Test
 
-  test 'Includes::normailze' do
-    method = StandardAPI::Includes.method(:normalize)
+  test 'Includes#normalize_includes' do
+    method = PropertiesController.new.method(:normalize_includes)
     assert_equal method.call(:x), { 'x' => {} }
     assert_equal method.call([:x, :y]), { 'x' => {}, 'y' => {} }
     assert_equal method.call([ { x: true }, { y: true } ]), { 'x' => {}, 'y' => {} }
@@ -781,15 +887,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal method.call({ x: { order: { y: :asc } } }), { 'x' => { 'order' => { 'y' => :asc } } }
   end
 
-  # sanitize({:key => {}}, [:key]) # => {:key => {}}
-  # sanitize({:key => {}}, {:key => true}) # => {:key => {}}
-  # sanitize({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
-  # sanitize({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
-  # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
-  test 'Includes::sanitize' do
-    method = StandardAPI::Includes.method(:sanitize)
+  # sanitize_includes({:key => {}}, [:key]) # => {:key => {}}
+  # sanitize_includes({:key => {}}, {:key => true}) # => {:key => {}}
+  # sanitize_includes({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
+  # sanitize_includes({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
+  # sanitize_includes({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
+  test 'Includes#sanitize_includes' do
+    # Checked against +permit+ alone, without a model
+    method = ->(includes, permit) { PropertiesController.new.send(:sanitize_includes, includes, permit, nil) }
     assert_equal method.call(:x, [:x]), { 'x' => {} }
     assert_equal method.call(:x, {:x => true}), { 'x' => {} }
 

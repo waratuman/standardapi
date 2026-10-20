@@ -1,6 +1,7 @@
 module StandardAPI
   module Controller
     include StandardAPI::Orders
+    include StandardAPI::Includes
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -40,7 +41,7 @@ module StandardAPI
 
     def json_schema
       Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = StandardAPI::Includes.normalize(params[:include] || {})
+      @includes = normalize_includes(params[:include] || {})
     end
 
     def index
@@ -245,14 +246,6 @@ module StandardAPI
       @models
     end
 
-    def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send("#{model.model_name.singular}_includes")
-      else
-        []
-      end
-    end
-
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
@@ -406,8 +399,14 @@ module StandardAPI
     end
 
     def includes
+      # #model_includes was removed; raise rather than ignore an override of it
+      # TODO: Remove this check in 10.0
+      if respond_to?(:model_includes, true)
+        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, define #{ model.model_name.singular }_includes in #{ model.name }ACL instead"
+      end
+
       @includes ||= if params[:include]
-        StandardAPI::Includes.sanitize(params[:include], model_includes)
+        sanitize_includes(params[:include], includes_for(model), model)
       else
         {}
       end

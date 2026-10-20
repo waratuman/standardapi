@@ -84,11 +84,13 @@ inherited controllers an exposed API.
       
       # Allowed includes
       # Similarly, the includes (including of relationships in the reponse) are
-      # whitelisted. Note how includes can also support nested includes. In this
-      # case when including the author, the photos that the author took can also
-      # be included.
+      # whitelisted. Includes nested in a relationship are permitted by the
+      # related model's includes. In this case when including the author, the
+      # photos that the author took can also be included if the author model's
+      # includes permit `:photos`. Permitting the nested includes here, ie.
+      # `{ author: [:photos] }`, raises, except for a polymorphic association.
       def photo_includes
-        { author: [:photos] }
+        [:author]
       end
     end
 
