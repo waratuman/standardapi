@@ -20,7 +20,7 @@ module StandardAPI
       # ACL orders list the columns and associations that can be ordered by;
       # what can be ordered by through an association is up to its own ACL
       orders = self.send(method)
-      Array.wrap(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
+      orders.grep(Hash).flat_map(&:keys).each do |name|
         association = klass.reflect_on_association(name)
         instead = if association.nil?
           "permit :#{ name } instead"
@@ -46,7 +46,7 @@ module StandardAPI
     def sanitize_orders(orders, permit, model)
       return nil if orders.nil?
 
-      permit = Array.wrap(permit).flatten.map(&:to_s)
+      permit = permit.map(&:to_s)
       permitted = []
 
       case orders

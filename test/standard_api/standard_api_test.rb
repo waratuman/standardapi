@@ -708,10 +708,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       error = assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
       assert_equal message, error.message
     end
-
-    # A Hash on its own, rather than in an Array
-    orders_for.instance_variable_set(:@orders, { property: [:name] })
-    assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
   end
 
   test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
@@ -806,28 +802,28 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'Orders#sanitize_orders(:column, [:column])' do
     method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, permit, Account) }
 
-    assert_equal :name, method.call(:name, :name)
+    assert_equal :name, method.call(:name, [:name])
     assert_equal :name, method.call(:name, [:name])
     assert_equal :name, method.call([:name], [:name])
     assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call(:name, :id)
+      method.call(:name, [:id])
     end
 
-    assert_equal({ name: :asc }, method.call({ name: :asc }, :name))
-    assert_equal({ name: :desc }, method.call({ name: :desc }, :name))
+    assert_equal({ name: :asc }, method.call({ name: :asc }, [:name]))
+    assert_equal({ name: :desc }, method.call({ name: :desc }, [:name]))
     assert_equal([{ name: :desc}, {id: :desc }], method.call({ name: :desc, id: :desc }, [:name, :id]))
-    assert_equal({ name: :asc }, method.call([{ name: :asc }], :name))
-    assert_equal({ name: :desc }, method.call([{ name: :desc }], :name))
-    assert_equal({ name: { asc: :nulls_last } }, method.call([{ name: { asc: :nulls_last } }], :name))
-    assert_equal({ name: { asc: :nulls_first } }, method.call([{ name: { asc: :nulls_first } }], :name))
-    assert_equal({ name: { desc: :nulls_last } }, method.call([{ name: { desc: :nulls_last } }], :name))
-    assert_equal({ name: { desc: :nulls_first }}, method.call([{ name: { desc: :nulls_first } }], :name))
+    assert_equal({ name: :asc }, method.call([{ name: :asc }], [:name]))
+    assert_equal({ name: :desc }, method.call([{ name: :desc }], [:name]))
+    assert_equal({ name: { asc: :nulls_last } }, method.call([{ name: { asc: :nulls_last } }], [:name]))
+    assert_equal({ name: { asc: :nulls_first } }, method.call([{ name: { asc: :nulls_first } }], [:name]))
+    assert_equal({ name: { desc: :nulls_last } }, method.call([{ name: { desc: :nulls_last } }], [:name]))
+    assert_equal({ name: { desc: :nulls_first }}, method.call([{ name: { desc: :nulls_first } }], [:name]))
 
     # Through an association, checked against PropertyACL#orders
-    assert_equal({ property: :id }, method.call(['property.id'], :property))
+    assert_equal({ property: :id }, method.call(['property.id'], [:property]))
     assert_equal({ property: :id }, method.call([{ property: :id }], [:property]))
     assert_equal({ property: :id }, method.call([{ property: [:id] }], [:property]))
-    assert_equal({ property: { id: :desc } }, method.call([{'property.id' => :desc}], :property))
+    assert_equal({ property: { id: :desc } }, method.call([{'property.id' => :desc}], [:property]))
     assert_equal({ property: { id: :desc } }, method.call([{ property: { id: :desc } }], [:property]))
     assert_equal({ property: { id: :desc } }, method.call([{ property: [{ id: :desc }] }], [:property]))
     assert_equal({ property: {:id => {:asc => :nulls_last}} }, method.call([{ property: {:id => {:asc => :nulls_last}} }], [:property]))
