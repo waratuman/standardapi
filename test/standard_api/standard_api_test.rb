@@ -95,6 +95,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:orders_for, Reference), []
   end
 
+  test 'Orders#orders_for falls back to the orders of the base class' do
+    orders_for = Class.new do
+      include StandardAPI::Orders
+      def logger; end
+      private def document_orders = [:id]
+    end.new.method(:orders_for)
+
+    assert_equal [:id], orders_for.call(Pdf)
+  end
+
   test 'Controller#model_includes defaults to []' do
     @controller = DocumentsController.new
     assert_equal @controller.send(:model_includes), []

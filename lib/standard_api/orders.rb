@@ -5,11 +5,19 @@ module StandardAPI
 
     private
 
+    # The ACL +orders+ method for +klass+, falling back to the one for its
+    # base class (ie. an STI subclass), or nil if there is none
+    def orders_method_for(klass)
+      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_orders" }.find do |method|
+        self.respond_to?(method, true)
+      end
+    end
+
     # The orders the ACL permits on +klass+, or [] if it has none
     def orders_for(klass)
-      return [] if !self.respond_to?("#{klass.model_name.singular}_orders", true)
+      return [] if !(method = orders_method_for(klass))
 
-      orders = self.send("#{klass.model_name.singular}_orders")
+      orders = self.send(method)
       Array(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
         association = klass.reflect_on_association(name)
         nested_acl = if association && !association.polymorphic?
