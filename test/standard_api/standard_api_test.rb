@@ -567,6 +567,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
   end
 
+  test 'include with where key rejects wheres the included ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    # PhotoACL#wheres does not permit format
+    get property_path(property, include: { photos: { where: { format: 'jpg' } } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+
+    get property_path(property, include: { photos: { where: [{ id: 1 }, 'OR', { format: 'jpg' }] } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+  end
+
+  test 'include with where key under a polymorphic association is rejected' do
+    create(:account, subject: create(:property))
+
+    get "/accounts", params: { limit: 10, include: { subject: { where: { id: 1 } } } }, as: :json
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "where"', response.body
+  end
+
   test 'include with order key' do
     photos = Array.new(5) { create(:photo) }
     property = create(:property, photos: photos)

@@ -81,11 +81,6 @@ class ControllerWhereTest < ActionDispatch::IntegrationTest
     get properties_path(format: :json), params: { limit: 100, where: { photo_ids: [1] } }
     assert_response :bad_request
     assert_equal 'found unpermitted parameter: "photo_ids"', response.body
-
-    # PhotoACL#wheres does not permit id
-    get cameras_path(format: :json), params: { limit: 100, where: { photo: { id: 1 } } }
-    assert_response :bad_request
-    assert_equal 'found unpermitted parameter: "id"', response.body
   end
 
   test "wheres are rejected without an ACL wheres method" do

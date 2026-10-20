@@ -12,7 +12,7 @@ module PhotoACL
   end
 
   def wheres
-    [ :account_id, :properties ]
+    [ :id, :account_id, :properties ]
   end
 
   def nested

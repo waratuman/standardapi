@@ -130,7 +130,14 @@ module StandardAPI
           else
             sanitize_includes(v, subpermit, nil, normalized: true)
           end
-        elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
+        elsif k.to_s == 'where'
+          # Filters the included records, so is checked against the wheres
+          # permitted on their model (StandardAPI::Wheres). Without a model,
+          # ie. under a polymorphic association, it can't be checked.
+          raise StandardAPI::UnpermittedParameters.new([k]) if !model
+
+          sanitize_wheres(v, wheres_for(model), model)
+        elsif ['limit', 'when', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
           raise StandardAPI::UnpermittedParameters.new([k])
