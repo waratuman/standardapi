@@ -24,6 +24,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
 
     schema = JSON(response.body)
     assert_equal 2, schema.dig('properties', 'numericality', 'default')
+    assert_equal false, schema.dig('properties', 'active', 'default')
   end
   
   test 'Controller#json_schema.json required' do

@@ -15,7 +15,17 @@
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them.
+- `schemas(model)` returns the attribute definitions that `schema.json`,
+  `json_schema.json` and `application/_record` are built from, for use without
+  rendering a view.
 
 ### Deprecated
 
 - Zero-arity ACL `excludes` methods. Accept the record argument instead.
+
+### Fixed
+
+- `json_schema.json` includes `false` column defaults, and no longer sets a
+  `null` default on enums without one.
+- The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
+  a model has no ACL `attributes`, instead of always `true`.

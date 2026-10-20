@@ -5,7 +5,7 @@ module StandardAPI
     # scope the query rather than name a relation.
     RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
 
-    delegate :preloadables, :model_partial, to: :helpers
+    delegate :preloadables, :model_partial, :schemas, to: :helpers
 
     def self.included(klass)
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,

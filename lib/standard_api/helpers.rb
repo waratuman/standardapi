@@ -61,6 +61,142 @@ module StandardAPI
       end
     end
 
+    # The attributes of a model, or of a loaded record, as StandardAPI exposes
+    # them. `schema.json`, `json_schema.json` and application/_record are all
+    # built from this, so code that needs the same information (an MCP tool
+    # describing a model, say) can read it directly instead of rendering a
+    # schema view and parsing it back.
+    #
+    # Returns an Array of Hashes, one per attribute, in column order:
+    #
+    #   name            String   the attribute name
+    #   type            String   the StandardAPI type, as in schema.json
+    #                            ("string", "integer", "datetime", "hash", ...).
+    #                            "string" for an enum. nil if the SQL type is
+    #                            not one StandardAPI maps
+    #   sql_type        String   the column's SQL type
+    #   cast_type       Symbol   the ActiveModel type,
+    #                            `type_for_attribute(name).type`
+    #   enum            Array    the names an enum accepts, or nil if the
+    #                            attribute isn't an enum
+    #   default         Object   the column default, cast to Ruby. For an enum,
+    #                            the name of the default value
+    #   primary_key     Boolean
+    #   null            Boolean  whether the column allows NULL
+    #   array           Boolean  whether the column is an array
+    #   description     String   the column comment, or nil
+    #   auto_populated  Boolean  whether the database fills the column in
+    #                            itself. nil when the adapter can't tell
+    #   read_only       Boolean  true when the attribute can't be written
+    #                            through the API: it is missing from the ACL's
+    #                            `attributes`, or, with no ACL `attributes`,
+    #                            the model marks it readonly
+    #   required        Boolean  true when a create must set it: the column is
+    #                            NOT NULL and writable (neither ACL read only
+    #                            nor auto populated), or it has a presence
+    #                            validation, or an acceptance validation
+    #                            without `allow_nil`
+    #   validations     Array    the model's validations of the attribute, as
+    #                            `{ kind: :length, options: { maximum: 12 } }`
+    #
+    # The ACL is consulted without a record, as `attributes(nil)`, so
+    # `read_only` is the model wide answer. Definitions are built once per
+    # model and view context, so a request rendering many records builds them
+    # once.
+    #
+    # Given a record, the definitions are for the record's own
+    # `attribute_names`, so a partial `select` or a computed column is
+    # described as it was loaded. The ACL isn't consulted for a record, as
+    # application/_record renders every record through this, so `read_only`
+    # and `required` are nil. An attribute with no column has only `name` and
+    # `cast_type`; its other keys are nil, false or empty.
+    def schemas(model_or_record)
+      return acl_schemas(model_or_record).values if model_or_record.is_a?(Class)
+
+      record = model_or_record
+      by_name = column_schemas(record.class)
+      record.attribute_names.map do |name|
+        by_name[name] || virtual_attribute_schema(record, name)
+      end
+    end
+
+    # #schemas for +model+ with the ACL applied, keyed by attribute name.
+    def acl_schemas(model)
+      @acl_schemas ||= {}
+      @acl_schemas[model] ||= begin
+        permitted = if controller.respond_to?(:model_attributes)
+          controller.model_attributes(model)&.map(&:to_s)
+        end
+
+        column_schemas(model).transform_values do |attribute|
+          acl_read_only = !permitted.nil? && permitted.exclude?(attribute[:name])
+          writable = !acl_read_only && !attribute[:auto_populated]
+
+          attribute.merge(
+            read_only: permitted ? acl_read_only : model.readonly_attribute?(attribute[:name]),
+            required: (attribute[:null] == false && writable) || attribute[:validations].any? { |v|
+              v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
+            }
+          )
+        end
+      end
+    end
+    private :acl_schemas
+
+    # #schemas for +model+ without the ACL, keyed by attribute name.
+    def column_schemas(model)
+      @column_schemas ||= {}
+      @column_schemas[model] ||= model.columns.each_with_object({}) do |column, schemas|
+        schemas[column.name] = column_schema(model, column)
+      end
+    end
+    private :column_schemas
+
+    def column_schema(model, column)
+      name = column.name
+      attribute_type = model.type_for_attribute(name)
+      default = column_default_value(column, model)
+      enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
+
+      {
+        name: name,
+        type: enum ? 'string' : json_column_type(column.sql_type),
+        sql_type: column.sql_type,
+        cast_type: attribute_type.type,
+        enum: enum&.keys,
+        default: enum ? enum.key(default) : default,
+        primary_key: name == model.primary_key,
+        null: column.null,
+        array: column.array,
+        description: column.comment,
+        auto_populated: (!!column.auto_populated? if column.respond_to?(:auto_populated?)),
+        read_only: nil,
+        required: nil,
+        validations: model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
+      }
+    end
+    private :column_schema
+
+    def virtual_attribute_schema(record, name)
+      {
+        name: name,
+        type: nil,
+        sql_type: nil,
+        cast_type: record.type_for_attribute(name).type,
+        enum: nil,
+        default: nil,
+        primary_key: false,
+        null: nil,
+        array: false,
+        description: nil,
+        auto_populated: nil,
+        read_only: nil,
+        required: nil,
+        validations: []
+      }
+    end
+    private :virtual_attribute_schema
+
     # The excludes that apply to +record+ inside a partial: the record's own
     # ACL excludes deep-merged with whatever the parent partial passed down as
     # the `excludes` local.
