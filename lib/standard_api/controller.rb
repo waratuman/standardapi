@@ -451,6 +451,7 @@ module StandardAPI
 
       @orders ||= begin
         # #model_orders was removed; raise rather than ignore an override of it
+        # TODO: Remove this check in 10.0
         if respond_to?(:model_orders, true)
           raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
         end
