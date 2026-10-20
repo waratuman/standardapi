@@ -37,6 +37,7 @@ module StandardAPI
       end
 
       test '#calculate.json params[:where]' do
+        skip("#{model.name}ACL#wheres doesn't permit id with gt. Skipping where tests") if !where_permitted?({ id: { gt: 1 } })
         m1 = create_model
         create_model
 

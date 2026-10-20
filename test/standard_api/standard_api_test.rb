@@ -119,6 +119,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], orders_for.call(Pdf)
   end
 
+  test 'TestCase#where_permitted? checks the ACL wheres' do
+    assert where_permitted?({ id: 1 })
+    assert_not where_permitted?({ name: 'a' })
+  end
+
   test 'Wheres#wheres_for falls back to the wheres of the base class' do
     wheres_for = Class.new do
       include StandardAPI::Wheres
