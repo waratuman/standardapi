@@ -95,43 +95,24 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:orders_for, Reference), []
   end
 
-  test 'Controller#model_orders is deprecated' do
-    @controller = PropertiesController.new
-    @controller.stubs(:model).returns(Property)
-    @controller.logger.expects(:warn).once.with('DEPRECATION WARNING: PropertiesController#model_orders has been deprecated, use orders_for(model) instead')
-
-    assert_equal @controller.send(:orders_for, Property), @controller.send(:model_orders)
-  end
-
-  test 'Controller#model_orders overrides are honoured, with a deprecation warning' do
+  test 'Controller#model_orders overrides raise' do
     AccountsController.class_eval do
       private def model_orders
         [ "id", "name" ]
       end
     end
 
-    warnings = []
-    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
-
-    create(:account)
-    get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
-    assert_response :ok
-
-    assert_includes warnings, 'DEPRECATION WARNING: AccountsController#model_orders has been deprecated, define account_orders instead'
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
+    end
+    assert_equal 'AccountsController#model_orders is not supported, define account_orders in AccountACL instead', error.message
   ensure
     AccountsController.send(:remove_method, :model_orders)
-  end
-
-  test 'Orders::sanitize is deprecated' do
-    Rails.logger.expects(:warn).once.with('DEPRECATION WARNING: StandardAPI::Orders.sanitize has been deprecated, include StandardAPI::Orders and use #sanitize_orders instead')
-
-    assert_equal({ x: :desc }, StandardAPI::Orders.sanitize({ x: :desc }, [:x]))
   end
 
   test 'Orders#orders_for falls back to the orders of the base class' do
     orders_for = Class.new do
       include StandardAPI::Orders
-      def logger; end
       private def document_orders = [:id]
     end.new.method(:orders_for)
 
@@ -697,44 +678,37 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'orders permitting columns of an association are still honoured, with a deprecation warning' do
+  test 'orders permitting columns of an association raise' do
     ApplicationController.class_eval do
       private def account_orders
         [ "id", { property: [:name] } ]
       end
     end
 
-    b = create(:account, property: create(:property, name: 'b'))
-    a = create(:account, property: create(:property, name: 'a'))
-
-    warnings = []
-    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
-
-    get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
-    assert_response :ok
-    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
-
-    assert warnings.any? { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') },
-      "Expected a deprecation warning, got: #{warnings.inspect}"
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
+    end
+    assert_equal 'AccountACL#orders permitting columns of property is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead', error.message
   ensure
     ApplicationController.send(:remove_method, :account_orders)
   end
 
-  test 'Orders#orders_for warns about permits of an association, other than a polymorphic one' do
-    logger = mock
-    logger.expects(:warn).once.with('DEPRECATION WARNING: AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead')
-
-    Class.new do
+  test 'Orders#orders_for raises on permits of an association, other than a polymorphic one' do
+    orders_for = Class.new do
       include StandardAPI::Orders
-      define_method(:logger) { logger }
-      private def account_orders = ["id", ActionController::Parameters.new(property: [:name]), { subject: [:id] }]
-    end.new.send(:orders_for, Account)
+      private def account_orders = @orders
+    end.new
+
+    orders_for.instance_variable_set(:@orders, ["id", { subject: [:id] }])
+    assert_equal ["id", { subject: [:id] }], orders_for.send(:orders_for, Account)
+
+    orders_for.instance_variable_set(:@orders, ["id", ActionController::Parameters.new(property: [:name])])
+    assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
   end
 
   test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
     sanitize = Class.new do
       include StandardAPI::Orders
-      def logger; end
       private def account_orders = [:name]
     end.new.method(:sanitize_orders)
 
@@ -752,7 +726,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
     sanitize = Class.new do
       include StandardAPI::Orders
-      def logger; end
     end.new.method(:sanitize_orders)
 
     assert_raises(StandardAPI::UnpermittedParameters) do

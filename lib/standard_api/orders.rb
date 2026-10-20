@@ -3,20 +3,7 @@ module StandardAPI
   # called on the controller.
   module Orders
 
-    # Deprecated, include StandardAPI::Orders and use #sanitize_orders
-    def self.sanitize(orders, permit)
-      message = "StandardAPI::Orders.sanitize has been deprecated, include StandardAPI::Orders and use #sanitize_orders instead"
-      Rails.logger&.warn("DEPRECATION WARNING: #{message}")
-
-      Object.new.extend(self).send(:sanitize_orders, orders, permit)
-    end
-
     private
-
-    # Log the deprecation warning +message+
-    def deprecation_warning(message)
-      logger&.warn("DEPRECATION WARNING: #{message}")
-    end
 
     # The ACL +orders+ method for +klass+, falling back to the one for its
     # base class (ie. an STI subclass), or nil if there is none
@@ -34,11 +21,11 @@ module StandardAPI
       permits = Array(orders).flatten.select { |x| x.is_a?(Hash) || x.is_a?(ActionController::Parameters) }
       permits.flat_map(&:keys).each do |name|
         # A polymorphic association has no single ACL to permit its columns
-        # in, so permitting them here is not deprecated
+        # in, so they can still be permitted here
         association = klass.reflect_on_association(name)
         next if !association || association.polymorphic?
 
-        deprecation_warning("#{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ association.klass.name }ACL#orders instead")
+        raise StandardAPI::InvalidConfiguration, "#{ klass.name }ACL#orders permitting columns of #{ name } is not supported, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ association.klass.name }ACL#orders instead"
       end
 
       orders

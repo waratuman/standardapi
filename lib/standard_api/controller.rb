@@ -252,12 +252,6 @@ module StandardAPI
       end
     end
 
-    # Deprecated, use orders_for(model)
-    def model_orders
-      deprecation_warning("#{ self.class.name }#model_orders has been deprecated, use orders_for(model) instead")
-      orders_for(model)
-    end
-
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
@@ -456,15 +450,12 @@ module StandardAPI
       end
 
       @orders ||= begin
-        # An override of the deprecated #model_orders is still honoured
-        permit = if method(:model_orders).owner == StandardAPI::Controller
-          orders_for(model)
-        else
-          deprecation_warning("#{ method(:model_orders).owner.name }#model_orders has been deprecated, define #{ model.model_name.singular }_orders instead")
-          model_orders
+        # #model_orders was removed; raise rather than ignore an override of it
+        if respond_to?(:model_orders, true)
+          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
         end
 
-        sanitize_orders(params[:order] || default_orders, permit | required_orders, model)
+        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
       end
     end
 

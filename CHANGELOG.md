@@ -10,6 +10,16 @@
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
   has no `orders`, are rejected with a 400.
+- Permitting an association's columns in ACL `orders`, ie.
+  `{ property: [:name] }`, raises `StandardAPI::InvalidConfiguration`. List
+  the association by name and permit its columns in the associated model's ACL
+  `orders` instead. A polymorphic association's columns can still be permitted
+  this way.
+- Remove `Controller#model_orders`. Define the model's ACL `orders` and use
+  `orders_for(model)` instead. A controller that still overrides
+  `model_orders` raises `StandardAPI::InvalidConfiguration`.
+- Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
+  `StandardAPI::Controller`; use `sanitize_orders` instead.
 
 ### Added
 
@@ -25,10 +35,3 @@
 ### Deprecated
 
 - Zero-arity ACL `excludes` methods. Accept the record argument instead.
-- Permitting an association's columns in ACL `orders`, ie.
-  `{ property: [:name] }`. List the association by name and permit its columns
-  in the associated model's ACL `orders` instead.
-- `Controller#model_orders`, including overriding it. Define the model's ACL
-  `orders` and use `orders_for(model)` instead.
-- `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
-  `StandardAPI::Controller`; use `sanitize_orders` instead.
