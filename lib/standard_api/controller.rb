@@ -427,11 +427,13 @@ module StandardAPI
       nil
     end
 
-    # The +where+ param, checked against the ACL's wheres
+    # The +where+ param, checked against the ACL's wheres. It filters
+    # #resources, ie. the controller's model even in the *_resource actions,
+    # where #model is the association's model.
     def wheres
       return @wheres if defined?(@wheres)
 
-      @wheres = sanitize_wheres(params['where'], wheres_for(model), model)
+      @wheres = sanitize_wheres(params['where'], wheres_for(self.class.model), self.class.model)
     end
 
     def orders
