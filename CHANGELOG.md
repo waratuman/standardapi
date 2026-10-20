@@ -6,11 +6,6 @@
 
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
-- ACL methods and helpers are private. Calling them publicly (e.g.
-  `controller.photo_attributes`) no longer works, and they are no longer
-  routable actions.
-- An ACL method or helper whose name the base controller already has, such as
-  a helper of the same name in another ACL, raises at boot.
 
 ### Added
 

@@ -11,17 +11,6 @@ module StandardAPI
       end
     end
 
-    # The methods an ACL may define, and the name each is renamed to given the
-    # model's prefix.
-    METHODS = {
-      attributes: '%s_attributes',
-      orders: '%s_orders',
-      includes: '%s_includes',
-      excludes: '%s_excludes',
-      nested: 'nested_%s_attributes',
-      filter: 'filter_%s_params'
-    }.freeze
-
     def self.included(application_controller)
       acl_dir = Rails.application.root.join('app', 'controllers', 'acl')
       return if !acl_dir.exist?
@@ -31,54 +20,42 @@ module StandardAPI
       end
     end
 
-    # Include the +ACL+ module nested in any controller into its base
-    # controller, the topmost class that includes AccessControlList, as
+    # Include the +ACL+ module nested in a controller into its base controller
+    # (the topmost class that includes AccessControlList), the same way
     # #included does for app/controllers/acl. Controllers must already be
     # loaded for their ACL to be found, so the Railtie calls this once they
     # are, at boot and after each reload.
     def self.load!
       ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(:ACL, false)
+        next if !controller.const_defined?(:ACL, false) || !controller.model
 
         base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
         next if !base
 
-        acl = controller.const_get(:ACL, false)
-        model = controller.model
-        raise ArgumentError, "#{acl} is defined but #{controller} has no model" if !model
-
-        include_acl(base, acl, model_name(model), controller: controller)
+        include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
       end
     end
 
-    # Rename the ACL methods of +acl+ in place under +prefix+, make every
-    # method in it private so none are routable, and include +acl+ into +base+.
-    # Other methods are kept as helpers under their own names. A module +base+
-    # already includes is skipped, so this is safe to repeat; one already
-    # renamed for another base keeps its names. Any name +base+ already gets
-    # from somewhere else, such as another ACL's helper of the same name, is
-    # rejected. When the ACL is nested in +controller+, a method the controller
-    # defines under the same name would shadow it, so that is rejected too.
-    def self.include_acl(base, acl, prefix, controller: nil)
-      return if base.include?(acl)
-
-      (acl.instance_methods(false) + acl.private_instance_methods(false)).each do |m|
-        name = METHODS.key?(m) ? (METHODS[m] % prefix).to_sym : m
-
-        [base, controller].compact.uniq.each do |klass|
-          next if !klass.method_defined?(name) && !klass.private_method_defined?(name)
-
-          raise ArgumentError, "#{name} is defined by both #{klass.instance_method(name).owner} and #{acl}"
-        end
-
-        if name != m
-          acl.send(:alias_method, name, m)
-          acl.send(:remove_method, m)
-        end
-        acl.send(:private, name)
+    # Rename the ACL methods of +mod+ under +prefix+ and include it into
+    # +application_controller+. A module already renamed is left as it is.
+    def self.include_acl(application_controller, mod, prefix)
+      [:orders, :includes, :attributes, :excludes].each do |m|
+        next if !mod.instance_methods.include?(m)
+        mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
+        mod.send :remove_method, m
       end
 
-      base.include(acl)
+      if mod.instance_methods.include?(:nested)
+        mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
+        mod.send :remove_method, :nested
+      end
+
+      if mod.instance_methods.include?(:filter)
+        mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
+        mod.send :remove_method, :filter
+      end
+
+      application_controller.include mod
     end
 
     def model_orders
@@ -195,8 +172,6 @@ module StandardAPI
         model.model_name.singular
       end
     end
-    # Also callable as AccessControlList.model_name, for .load!
-    module_function :model_name
 
   end
 end
