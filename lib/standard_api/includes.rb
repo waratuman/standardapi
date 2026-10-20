@@ -66,11 +66,19 @@ module StandardAPI
       normalized
     end
 
+    # The ACL +includes+ method for +klass+, falling back to the one for its
+    # base class (ie. an STI subclass), or nil if there is none
+    def includes_method_for(klass)
+      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_includes" }.find do |method|
+        self.respond_to?(method, true)
+      end
+    end
+
     # The includes the ACL permits on +klass+, or [] if it has none
     def includes_for(klass)
-      return [] if !self.respond_to?("#{klass.model_name.singular}_includes", true)
+      return [] if !(method = includes_method_for(klass))
 
-      permitted = self.send("#{klass.model_name.singular}_includes")
+      permitted = self.send(method)
       normalize_includes(permitted).each do |name, subincludes|
         next if subincludes.blank? || StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name)
         association = klass.reflect_on_association(name)
