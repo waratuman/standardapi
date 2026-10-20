@@ -4,8 +4,26 @@
 
 ### Breaking changes
 
+- Require Ruby 3.3 or later and activerecord-sort 8.0.1 or later.
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
+- Ordering through an association listed by name in ACL `orders`, ie.
+  `:property`, is checked against the associated model's ACL `orders`. Orders
+  it doesn't permit, including any through an association whose model's ACL
+  has no `orders`, are rejected with a 400.
+- ACL `orders` list only the names of columns and associations that can be
+  ordered by. A Hash in ACL `orders`, ie. `{ property: [:name] }`, raises
+  `StandardAPI::InvalidConfiguration`. List the association by name and permit
+  its columns in the associated model's ACL `orders` instead.
+- Ordering through a polymorphic association is rejected with a 400; there is
+  no single ACL to check it against.
+- Orders ActiveRecord::Sort can't order by, ie. through more than one
+  association, are rejected with a 400 rather than failing with a 500.
+- Remove `Controller#model_orders`. Define the model's ACL `orders` and use
+  `orders_for(model)` instead. A controller that still overrides
+  `model_orders` raises `StandardAPI::InvalidConfiguration`.
+- Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
+  `StandardAPI::Controller`; use `sanitize_orders` instead.
 
 ### Added
 

@@ -1,5 +1,6 @@
 module StandardAPI
   module Controller
+    include StandardAPI::Orders
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -16,6 +17,7 @@ module StandardAPI
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
+      klass.rescue_from ::ActiveRecord::Sort::InvalidSort, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
@@ -251,14 +253,6 @@ module StandardAPI
       end
     end
 
-    def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
-      else
-        []
-      end
-    end
-
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
         params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
@@ -456,7 +450,15 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
+      @orders ||= begin
+        # #model_orders was removed; raise rather than ignore an override of it
+        # TODO: Remove this check in 10.0
+        if respond_to?(:model_orders, true)
+          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
+        end
+
+        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
+      end
     end
 
     # The maximum number of results returned by #index

@@ -20,22 +20,14 @@ jobs:
           - postgresql
           - sqlite3
         ruby-version:
-          - 3.2
           - 3.3
           - 3.4
           - 4.0
         rails-version:
           - 8.0.5
           - 8.1.4
-          - main
         postgres-version:
           - 15
-        exclude:
-          - ruby-version: 3.2
-            rails-version: main
-        include:
-          - rails-version: main
-            allow-failure: true
 
     steps:
       - name: Install Postgresql
