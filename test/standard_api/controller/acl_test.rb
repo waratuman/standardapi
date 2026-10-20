@@ -109,6 +109,22 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_not_includes ApplicationController.ancestors, controller::ACL
   end
 
+  test "two nested ACLs of one model defining the same method raise" do
+    acl_controller(Attachment) do
+      def orders
+        [ :id ]
+      end
+    end
+    acl_controller(Attachment) do
+      def orders
+        [ :id, :created_at ]
+      end
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
+    assert_match(/both define attachment_orders/, error.message)
+  end
+
   test "load! can be repeated" do
     acl_controller(Attachment) do
       def orders

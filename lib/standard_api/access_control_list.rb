@@ -40,6 +40,8 @@ module StandardAPI
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+. A module already renamed is left as it is.
+    # Raises if another ACL included into +application_controller+ defines
+    # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
       [:orders, :includes, :attributes, :excludes].each do |m|
         next if !mod.instance_methods.include?(m)
@@ -55,6 +57,15 @@ module StandardAPI
       if mod.instance_methods.include?(:filter)
         mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
         mod.send :remove_method, :filter
+      end
+
+      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
+      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
+      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
+        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
+        next if !other
+
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
       end
 
       application_controller.include mod
