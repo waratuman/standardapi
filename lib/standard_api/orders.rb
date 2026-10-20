@@ -55,14 +55,6 @@ module StandardAPI
       orders
     end
 
-    # Sanitize +orders+ through an association to +klass+ against +permit+.
-    # ActiveRecord::Sort only orders one association deep, so only the columns
-    # of +klass+ in +permit+ are permitted.
-    def sanitize_association_orders(orders, permit, klass)
-      permit = Array.wrap(permit).flatten.select { |x| klass.column_names.include?(x.to_s) }
-      sanitize_orders(orders, permit)
-    end
-
     # Sanitize +orders+ against +permit+. When +model+ is given, ordering
     # through an association permitted by name alone (ie. +:owner+) is checked
     # against the orders the ACL permits on the associated model:
@@ -91,7 +83,7 @@ module StandardAPI
             end
 
             value = if association
-              sanitize_association_orders(value, orders_for(association.klass), association.klass)
+              sanitize_orders(value, orders_for(association.klass), association.klass)
             else
               case value
               when Hash
@@ -106,12 +98,8 @@ module StandardAPI
           elsif permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }
             subpermit = permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }[key.to_s]
             association = model&.reflect_on_association(key)
-            sanitized_value = if association && !association.polymorphic?
-              sanitize_association_orders(value, subpermit, association.klass)
-            else
-              sanitize_orders(value, subpermit)
-            end
-            permitted << { key.to_sym => sanitized_value }
+            association = nil if association&.polymorphic?
+            permitted << { key.to_sym => sanitize_orders(value, subpermit, association&.klass) }
           else
             raise(StandardAPI::UnpermittedParameters.new([orders]))
           end

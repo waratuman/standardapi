@@ -701,24 +701,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'order through an association rejects orders through its associations' do
-    ApplicationController.class_eval do
-      private def property_orders
-        [ "name", "landlord" ]
-      end
-    end
-
-    create(:account, property: create(:property))
-
-    get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
-    assert_response :bad_request
-
-    get accounts_path(order: { property: 'landlord.id' }, limit: 10, format: 'json')
-    assert_response :bad_request
-  ensure
-    ApplicationController.send(:remove_method, :property_orders)
-  end
-
   test 'orders permitting columns of an association are still honoured, with a deprecation warning' do
     ApplicationController.class_eval do
       private def account_orders
@@ -790,7 +772,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
   end
 
-  test 'Orders#sanitize_orders limits a hash permit of an association to its columns' do
+  test 'Orders#sanitize_orders checks a hash permit of an association against its ACL' do
     sanitize = PropertiesController.new.method(:sanitize_orders)
 
     assert_equal({ property: { name: :asc } }, sanitize.call({ property: { name: :asc } }, [{ property: [:name, :landlord] }], Account))
