@@ -40,6 +40,8 @@ module StandardAPI
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+. A module already renamed is left as it is.
+    # Raises if another ACL included into +application_controller+ defines
+    # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
       [:orders, :includes, :attributes, :excludes].each do |m|
         next if !mod.instance_methods.include?(m)
@@ -57,7 +59,23 @@ module StandardAPI
         mod.send :remove_method, :filter
       end
 
+      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
+        other = acl_modules.find do |m|
+          m != mod && application_controller.include?(m) &&
+            (m.method_defined?(method, false) || m.private_method_defined?(method, false))
+        end
+        next if !other
+
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name || mod.inspect } and #{ other.name || other.inspect } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
+      end
+
+      acl_modules << mod
       application_controller.include mod
+    end
+
+    # The ACL modules included by #include_acl
+    def self.acl_modules
+      @acl_modules ||= Set.new
     end
 
     def model_orders
