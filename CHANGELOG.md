@@ -24,6 +24,22 @@
   `model_orders` raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
+- Includes through an association listed by name in ACL `includes`, ie.
+  `:landlord`, are checked against the associated model's ACL `includes`.
+  Includes it doesn't permit are rejected with a 400. This also loosens
+  includes: listing an association by name permits everything its ACL
+  `includes` permit, at every level below it.
+- Permitting an association's includes in ACL `includes`, ie.
+  `{ landlord: [:photos] }`, raises `StandardAPI::InvalidConfiguration`. List
+  the association by name and permit its includes in the associated model's
+  ACL `includes` instead. A polymorphic association's includes, or those of a
+  method rendered as an include, can still be permitted this way.
+- Remove `Controller#model_includes`. Define the model's ACL `includes` and use
+  `includes_for(model)` instead. A controller that still overrides
+  `model_includes` raises `StandardAPI::InvalidConfiguration`.
+- Remove `StandardAPI::Includes.sanitize` and `.normalize`.
+  `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
+  `sanitize_includes` and `normalize_includes` instead.
 
 ### Added
 

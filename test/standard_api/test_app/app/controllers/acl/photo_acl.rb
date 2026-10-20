@@ -6,6 +6,11 @@ module PhotoACL
     ]
   end
   
+  # Sub resources allowed to be included in the response
+  def includes
+    [ :account ]
+  end
+
   def nested
     [ :account, :camera ]
   end

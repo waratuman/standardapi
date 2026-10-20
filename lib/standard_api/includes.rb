@@ -81,12 +81,14 @@ module StandardAPI
       permitted = self.send(method)
       normalize_includes(permitted).each do |name, subincludes|
         next if subincludes.blank? || StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name)
+
+        # A polymorphic association, or a method rendered as an include, has
+        # no single ACL to permit its includes in, so they can still be
+        # permitted here
         association = klass.reflect_on_association(name)
         next if !association || association.polymorphic?
 
-        logger&.warn <<~NOTE.strip_heredoc
-          DEPRECATION WARNING: #{ klass.name }ACL#includes permitting includes of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#includes and its includes in #{ association.klass.name }ACL#includes instead
-        NOTE
+        raise StandardAPI::InvalidConfiguration, "#{ klass.name }ACL#includes permitting includes of #{ name } is not supported, permit :#{ name } in #{ klass.name }ACL#includes and its includes in #{ association.klass.name }ACL#includes instead"
       end
 
       permitted || []

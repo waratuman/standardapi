@@ -763,19 +763,64 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "camera"', response.body
   end
 
-  test 'includes permitting includes of an association are still honoured, with a deprecation warning' do
+  test 'include through two associations uses each associated ACL' do
     account = create(:account)
     camera = create(:camera, photo: create(:photo, account: account))
-
-    warnings = []
-    ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
 
     get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
     assert_response :ok
     assert_equal account.id, JSON(response.body)['photo']['account']['id']
+  end
 
-    assert warnings.any? { |w| w.include?('CameraACL#includes permitting includes of photo has been deprecated, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead') },
-      "Expected a deprecation warning, got: #{warnings.inspect}"
+  test 'includes permitting includes of an association raise' do
+    ApplicationController.class_eval do
+      private def camera_includes
+        { photo: [ :account ] }
+      end
+    end
+
+    camera = create(:camera, photo: create(:photo))
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    end
+    assert_equal 'CameraACL#includes permitting includes of photo is not supported, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead', error.message
+  ensure
+    ApplicationController.send(:remove_method, :camera_includes)
+  end
+
+  test 'Includes#includes_for raises on includes of an association, other than a polymorphic one or a method' do
+    includes_for = Class.new do
+      include StandardAPI::Includes
+      private def account_includes = @includes
+    end.new
+
+    # subject is polymorphic and specs is a method of Camera
+    includes_for.instance_variable_set(:@includes, { subject: [:landlord], photos: true })
+    assert_equal({ subject: [:landlord], photos: true }, includes_for.send(:includes_for, Account))
+    assert_equal({ specs: [:serial] }, Class.new { include StandardAPI::Includes; private def camera_includes = { specs: [:serial] } }.new.send(:includes_for, Camera))
+
+    includes_for.instance_variable_set(:@includes, { photos: [:camera] })
+    assert_raises(StandardAPI::InvalidConfiguration) { includes_for.send(:includes_for, Account) }
+  end
+
+  test 'Controller#model_includes overrides raise' do
+    AccountsController.class_eval do
+      private def model_includes
+        [ :photos ]
+      end
+    end
+
+    account = create(:account)
+
+    # #show first calls #includes from the view, which wraps the error
+    error = assert_raises(ActionView::Template::Error) do
+      get account_path(account, include: :photos, format: 'json')
+    end
+    assert_instance_of StandardAPI::InvalidConfiguration, error.cause
+    assert_equal 'AccountsController#model_includes is not supported, define account_includes in AccountACL instead', error.cause.message
+  ensure
+    AccountsController.send(:remove_method, :model_includes)
   end
 
   test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do

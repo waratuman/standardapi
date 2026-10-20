@@ -88,7 +88,7 @@ inherited controllers an exposed API.
       # related model's includes. In this case when including the author, the
       # photos that the author took can also be included if the author model's
       # includes permit `:photos`. Permitting the nested includes here, ie.
-      # `{ author: [:photos] }`, is deprecated.
+      # `{ author: [:photos] }`, raises, except for a polymorphic association.
       def photo_includes
         [:author]
       end
