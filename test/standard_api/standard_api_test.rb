@@ -678,15 +678,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Orders::sanitize checks an association permitted by name against its ACL' do
-    acl = { Account => [:name] }
-    assert_equal({ landlord: { name: :asc } }, StandardAPI::Orders.sanitize({ landlord: { name: :asc } }, [:landlord], Property) { |m| acl[m] })
-    assert_equal({ landlord: :name }, StandardAPI::Orders.sanitize('landlord.name', [:landlord], Property) { |m| acl[m] })
+    acl = Class.new do
+      def logger; end
+      private def account_orders = [:name]
+    end.new
+
+    assert_equal({ landlord: { name: :asc } }, StandardAPI::Orders.sanitize({ landlord: { name: :asc } }, [:landlord], Property, acl))
+    assert_equal({ landlord: :name }, StandardAPI::Orders.sanitize('landlord.name', [:landlord], Property, acl))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord], Property) { |m| acl[m] }
+      StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord], Property, acl)
     end
 
-    # A column, or a call without an ACL lookup, is unchanged
-    assert_equal({ name: :desc }, StandardAPI::Orders.sanitize({ name: :desc }, [:name], Property) { |m| acl[m] })
+    # A column, or a call without an ACL, is unchanged
+    assert_equal({ name: :desc }, StandardAPI::Orders.sanitize({ name: :desc }, [:name], Property, acl))
     assert_equal({ landlord: { id: :asc } }, StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord]))
   end
 

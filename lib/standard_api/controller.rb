@@ -252,28 +252,7 @@ module StandardAPI
     end
 
     def model_orders
-      orders_for(model)
-    end
-
-    # The orders permitted on +klass+ by its ACL, or [] if it has none
-    def orders_for(klass)
-      return [] if !self.respond_to?("#{klass.model_name.singular}_orders", true)
-
-      orders = self.send("#{klass.model_name.singular}_orders")
-      Array(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
-        association = klass.reflect_on_association(name)
-        nested_acl = if association && !association.polymorphic?
-          "#{association.klass.name}ACL#orders"
-        else
-          "the #{name} ACL's orders"
-        end
-
-        logger.warn <<~NOTE.strip_heredoc
-          DEPRECATION WARNING: #{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead
-        NOTE
-      end
-
-      orders
+      StandardAPI::Orders.orders_for(self, model)
     end
 
     def model_params
@@ -473,9 +452,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders, model) do |klass|
-        orders_for(klass)
-      end
+      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders, model, self)
     end
 
     # The maximum number of results returned by #index

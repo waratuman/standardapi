@@ -72,7 +72,7 @@ module StandardAPI
     end
 
     def model_orders
-      orders_for(model)
+      StandardAPI::Orders.orders_for(self, model)
     end
 
     def model_params
