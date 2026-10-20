@@ -76,7 +76,13 @@ module StandardAPI
             permitted << sanitize_orders({key2.to_sym => { key3.to_sym => value } }, permit, model)
           elsif permit.include?(key.to_s)
             association = model&.reflect_on_association(key)
-            value = if association && !association.polymorphic?
+            association = nil if association&.polymorphic?
+            if association && !orders_method_for(association.klass)
+              deprecation_warning("#{ model.name }ACL#orders permitting #{ key } without #{ association.klass.name }ACL#orders has been deprecated, permit the columns of #{ key } that can be ordered by in #{ association.klass.name }ACL#orders")
+              association = nil
+            end
+
+            value = if association
               sanitize_association_orders(value, orders_for(association.klass), association.klass)
             else
               case value

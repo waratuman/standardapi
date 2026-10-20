@@ -6,6 +6,9 @@
 
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
+- Ordering through an association listed by name in ACL `orders`, ie.
+  `:property`, is checked against the associated model's ACL `orders` and
+  limited to its columns. Orders it doesn't permit are rejected with a 400.
 
 ### Added
 
@@ -21,3 +24,8 @@
 ### Deprecated
 
 - Zero-arity ACL `excludes` methods. Accept the record argument instead.
+- Permitting an association's columns in ACL `orders`, ie.
+  `{ property: [:name] }`. List the association by name and permit its columns
+  in the associated model's ACL `orders` instead.
+- Ordering through an association whose model's ACL has no `orders`, which
+  permits any of its columns. Permit the columns in its ACL `orders` instead.
