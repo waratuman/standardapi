@@ -133,6 +133,17 @@ following files:
         [ :id, :created_at, :updated_at ]
       end
       
+      # Allowed filters in the `where` param
+      #
+      # A column, or a column with "*", permits any operator on it, or the
+      # operators it permits can be listed (aliases such as `greater_than` for
+      # `gt` are permitted with them). An association or `filter_on` filter is
+      # permitted by name, and what is filtered on it is not checked. Without
+      # a `filters` method the `where` param is not checked.
+      def filters
+        [ :id, :caption, { created_at: [:gt, :lt] }, :author ]
+      end
+      
       # Allowed includes
       def includes
         [ :author ]

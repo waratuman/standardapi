@@ -2,6 +2,7 @@ module StandardAPI
   module Controller
     include StandardAPI::Orders
     include StandardAPI::Includes
+    include StandardAPI::Filters
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -355,7 +356,7 @@ module StandardAPI
     end
 
     def resources
-      query = self.class.model.filter(params['where']).filter(mask[self.class.model.table_name.to_sym])
+      query = self.class.model.filter(filters).filter(mask[self.class.model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
@@ -439,6 +440,14 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{column}]"]) if !model.columns_hash.has_key?(column.to_s)
         end
       end
+    end
+
+    # The +where+ param, checked against the ACL's filters if it defines any
+    def filters
+      return @filters if defined?(@filters)
+
+      permit = filters_for(model)
+      @filters = permit ? sanitize_filters(params['where'], permit, model) : params['where']
     end
 
     def orders
