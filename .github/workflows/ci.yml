@@ -26,12 +26,8 @@ jobs:
         rails-version:
           - 8.0.5
           - 8.1.4
-          - main
         postgres-version:
           - 15
-        include:
-          - rails-version: main
-            allow-failure: true
 
     steps:
       - name: Install Postgresql
