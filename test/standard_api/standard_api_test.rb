@@ -149,6 +149,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_nil @controller.model_attributes(Reference)
   end
 
+  test 'Controller#model_nested_attributes accepts arrays and hashes' do
+    @controller = PhotosController.new
+
+    assert_equal [:account, :camera], @controller.model_nested_attributes(Photo)
+    assert_equal [:photos, :accounts], @controller.model_nested_attributes(Property)
+    assert_equal [], @controller.model_nested_attributes(Document)
+  end
+
   test 'Controller#mask' do
     @controller = ReferencesController.new
     @controller.define_singleton_method(:mask_for) do |table_name|

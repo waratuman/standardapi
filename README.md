@@ -117,8 +117,9 @@ following files:
       end
       
       # Allowed saving / creating nested attributes
+      # Arrays and hashes are accepted; hash keys name the allowed relations.
       def nested
-        [ :camera ]
+        { camera: true }
       end
       
       # Allowed orders
