@@ -20,7 +20,7 @@ module StandardAPI
       # ACL orders list the columns and associations that can be ordered by;
       # what can be ordered by through an association is up to its own ACL
       orders = self.send(method)
-      permits = Array(orders).flatten.select { |x| x.is_a?(Hash) || x.is_a?(ActionController::Parameters) }
+      permits = Array.wrap(orders).flatten.select { |x| x.is_a?(Hash) || x.is_a?(ActionController::Parameters) }
       permits.flat_map(&:keys).each do |name|
         association = klass.reflect_on_association(name)
         instead = if association.nil?

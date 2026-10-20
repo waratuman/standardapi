@@ -709,6 +709,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       error = assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
       assert_equal message, error.message
     end
+
+    # A Hash on its own, rather than in an Array
+    orders_for.instance_variable_set(:@orders, { property: [:name] })
+    assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
   end
 
   test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
