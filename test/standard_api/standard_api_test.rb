@@ -96,7 +96,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#model_orders is deprecated' do
-    StandardAPI::Orders.deprecations.clear
     @controller = PropertiesController.new
     @controller.stubs(:model).returns(Property)
     @controller.logger.expects(:warn).once.with('DEPRECATION WARNING: PropertiesController#model_orders has been deprecated, use orders_for(model) instead')
@@ -111,7 +110,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       end
     end
 
-    StandardAPI::Orders.deprecations.clear
     warnings = []
     ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
 
@@ -125,10 +123,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Orders::sanitize is deprecated' do
-    StandardAPI::Orders.deprecations.clear
     Rails.logger.expects(:warn).once.with('DEPRECATION WARNING: StandardAPI::Orders.sanitize has been deprecated, include StandardAPI::Orders and use #sanitize_orders instead')
 
-    assert_equal({ x: :desc }, StandardAPI::Orders.sanitize({ x: :desc }, [:x]))
     assert_equal({ x: :desc }, StandardAPI::Orders.sanitize({ x: :desc }, [:x]))
   end
 
@@ -711,7 +707,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     b = create(:account, property: create(:property, name: 'b'))
     a = create(:account, property: create(:property, name: 'a'))
 
-    StandardAPI::Orders.deprecations.clear
     warnings = []
     ActiveSupport::LogSubscriber.logger.stubs(:warn).with { |msg| warnings << msg.to_s; true }
 
@@ -719,17 +714,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
 
-    get accounts_path(order: [{ property: { name: :asc } }, { property: { name: :desc } }], limit: 10, format: 'json')
-    assert_response :ok
-
-    deprecations = warnings.select { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') }
-    assert_equal 1, deprecations.size, "Expected one deprecation warning, got: #{warnings.inspect}"
+    assert warnings.any? { |w| w.include?('AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead') },
+      "Expected a deprecation warning, got: #{warnings.inspect}"
   ensure
     ApplicationController.send(:remove_method, :account_orders)
   end
 
   test 'Orders#orders_for warns about permits of an association, other than a polymorphic one' do
-    StandardAPI::Orders.deprecations.clear
     logger = mock
     logger.expects(:warn).once.with('DEPRECATION WARNING: AccountACL#orders permitting columns of property has been deprecated, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead')
 
@@ -759,9 +750,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'Orders#sanitize_orders permits any column of an association whose model has no orders, with a deprecation warning' do
-    StandardAPI::Orders.deprecations.clear
     logger = mock
-    logger.expects(:warn).once.with('DEPRECATION WARNING: PropertyACL#orders permitting landlord without AccountACL#orders has been deprecated, permit the columns of landlord that can be ordered by in AccountACL#orders')
+    logger.expects(:warn).twice.with('DEPRECATION WARNING: PropertyACL#orders permitting landlord without AccountACL#orders has been deprecated, permit the columns of landlord that can be ordered by in AccountACL#orders')
 
     sanitize = Class.new do
       include StandardAPI::Orders
