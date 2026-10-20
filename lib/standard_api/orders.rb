@@ -1,12 +1,15 @@
 module StandardAPI
+  # Included in StandardAPI::Controller, so the ACL +orders+ methods are
+  # called on the controller.
   module Orders
 
-    # The orders +acl+, ie. a controller, permits on +klass+, or [] if it
-    # has none
-    def self.orders_for(acl, klass)
-      return [] if !acl.respond_to?("#{klass.model_name.singular}_orders", true)
+    private
 
-      orders = acl.send("#{klass.model_name.singular}_orders")
+    # The orders the ACL permits on +klass+, or [] if it has none
+    def orders_for(klass)
+      return [] if !self.respond_to?("#{klass.model_name.singular}_orders", true)
+
+      orders = self.send("#{klass.model_name.singular}_orders")
       Array(orders).flatten.grep(Hash).flat_map(&:keys).each do |name|
         association = klass.reflect_on_association(name)
         nested_acl = if association && !association.polymorphic?
@@ -15,7 +18,7 @@ module StandardAPI
           "the #{name} ACL's orders"
         end
 
-        acl.logger&.warn <<~NOTE.strip_heredoc
+        logger&.warn <<~NOTE.strip_heredoc
           DEPRECATION WARNING: #{ klass.name }ACL#orders permitting columns of #{ name } has been deprecated, permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ nested_acl } instead
         NOTE
       end
@@ -23,13 +26,13 @@ module StandardAPI
       orders
     end
 
-    # Sanitize +orders+ against +permit+. When +model+ and +acl+ are given,
-    # ordering through an association permitted by name alone (ie. +:owner+)
-    # is checked against the orders +acl+ permits on the associated model:
+    # Sanitize +orders+ against +permit+. When +model+ is given, ordering
+    # through an association permitted by name alone (ie. +:owner+) is checked
+    # against the orders the ACL permits on the associated model:
     #
-    #   sanitize({ owner: { name: :asc } }, [:owner], Property, controller)
-    #   # => { owner: { name: :asc } } if controller.owner_orders includes :name
-    def self.sanitize(orders, permit, model = nil, acl = nil)
+    #   sanitize_orders({ owner: { name: :asc } }, [:owner], Property)
+    #   # => { owner: { name: :asc } } if owner_orders includes :name
+    def sanitize_orders(orders, permit, model = nil)
       return nil if orders.nil?
 
       permit = [permit] if !permit.is_a?(Array)
@@ -41,11 +44,11 @@ module StandardAPI
         orders.each do |key, value|
           if key.to_s.count('.') == 1
             key2, key3 = *key.to_s.split('.')
-            permitted << sanitize({key2.to_sym => { key3.to_sym => value } }, permit, model, acl)
+            permitted << sanitize_orders({key2.to_sym => { key3.to_sym => value } }, permit, model)
           elsif permit.include?(key.to_s)
-            association = model.reflect_on_association(key) if acl && model
+            association = model&.reflect_on_association(key)
             value = if association && !association.polymorphic?
-              sanitize(value, orders_for(acl, association.klass), association.klass, acl)
+              sanitize_orders(value, orders_for(association.klass), association.klass)
             else
               case value
               when Hash
@@ -59,7 +62,7 @@ module StandardAPI
             permitted << { key.to_sym => value }
           elsif permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }
             subpermit = permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }[key.to_s]
-            sanitized_value = sanitize(value, subpermit)
+            sanitized_value = sanitize_orders(value, subpermit)
             permitted << { key.to_sym => sanitized_value }
           else
             raise(StandardAPI::UnpermittedParameters.new([orders]))
@@ -67,7 +70,7 @@ module StandardAPI
         end
       when Array
         orders.each do |order|
-          order = sanitize(order, permit, model, acl)
+          order = sanitize_orders(order, permit, model)
           if order.is_a?(Array)
             permitted += order
           else
@@ -77,7 +80,7 @@ module StandardAPI
       else
         if orders.to_s.count('.') == 1
           key, value = *orders.to_s.split('.')
-          permitted = sanitize({key.to_sym => value.to_sym}, permit, model, acl)
+          permitted = sanitize_orders({key.to_sym => value.to_sym}, permit, model)
         elsif permit.include?(orders.to_s)
           permitted = orders
         else

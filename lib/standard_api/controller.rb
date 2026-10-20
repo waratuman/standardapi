@@ -1,5 +1,6 @@
 module StandardAPI
   module Controller
+    include StandardAPI::Orders
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -252,7 +253,7 @@ module StandardAPI
     end
 
     def model_orders
-      StandardAPI::Orders.orders_for(self, model)
+      orders_for(model)
     end
 
     def model_params
@@ -452,7 +453,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders, model, self)
+      @orders ||= sanitize_orders(params[:order] || default_orders, model_orders | required_orders, model)
     end
 
     # The maximum number of results returned by #index

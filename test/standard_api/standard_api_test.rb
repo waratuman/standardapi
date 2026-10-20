@@ -677,21 +677,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :account_orders)
   end
 
-  test 'Orders::sanitize checks an association permitted by name against its ACL' do
-    acl = Class.new do
+  test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
+    sanitize = Class.new do
+      include StandardAPI::Orders
       def logger; end
       private def account_orders = [:name]
-    end.new
+    end.new.method(:sanitize_orders)
 
-    assert_equal({ landlord: { name: :asc } }, StandardAPI::Orders.sanitize({ landlord: { name: :asc } }, [:landlord], Property, acl))
-    assert_equal({ landlord: :name }, StandardAPI::Orders.sanitize('landlord.name', [:landlord], Property, acl))
+    assert_equal({ landlord: { name: :asc } }, sanitize.call({ landlord: { name: :asc } }, [:landlord], Property))
+    assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord], Property, acl)
+      sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
     end
 
-    # A column, or a call without an ACL, is unchanged
-    assert_equal({ name: :desc }, StandardAPI::Orders.sanitize({ name: :desc }, [:name], Property, acl))
-    assert_equal({ landlord: { id: :asc } }, StandardAPI::Orders.sanitize({ landlord: { id: :asc } }, [:landlord]))
+    # A column, or a call without a model, is unchanged
+    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
+    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord]))
   end
 
   # Includes Test
@@ -746,8 +747,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # Order Test
 
-  test 'Orders::sanitize(:column, [:column])' do
-    method = StandardAPI::Orders.method(:sanitize)
+  test 'Orders#sanitize_orders(:column, [:column])' do
+    method = PropertiesController.new.method(:sanitize_orders)
 
     assert_equal :x, method.call(:x, :x)
     assert_equal :x, method.call(:x, [:x])
