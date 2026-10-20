@@ -59,23 +59,16 @@ module StandardAPI
         mod.send :remove_method, :filter
       end
 
+      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
+      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
       (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
-        other = acl_modules.find do |m|
-          m != mod && application_controller.include?(m) &&
-            (m.method_defined?(method, false) || m.private_method_defined?(method, false))
-        end
+        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
         next if !other
 
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name || mod.inspect } and #{ other.name || other.inspect } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
       end
 
-      acl_modules << mod
       application_controller.include mod
-    end
-
-    # The ACL modules included by #include_acl
-    def self.acl_modules
-      @acl_modules ||= Set.new
     end
 
     def model_orders
