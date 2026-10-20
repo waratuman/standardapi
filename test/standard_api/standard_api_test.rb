@@ -713,6 +713,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord]))
   end
 
+  test 'Orders#sanitize_orders limits a hash permit of an association to its columns' do
+    sanitize = PropertiesController.new.method(:sanitize_orders)
+
+    assert_equal({ property: { name: :asc } }, sanitize.call({ property: { name: :asc } }, [{ property: [:name, :landlord] }], Account))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ property: { landlord: { anything: :asc } } }, [{ property: [:name, :landlord] }], Account)
+    end
+  end
+
   # Includes Test
 
   test 'Includes::normailze' do

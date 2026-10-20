@@ -70,7 +70,12 @@ module StandardAPI
             permitted << { key.to_sym => value }
           elsif permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }
             subpermit = permit.find { |x| (x.is_a?(Hash) || x.is_a?(ActionController::Parameters)) && x.has_key?(key.to_s) }[key.to_s]
-            sanitized_value = sanitize_orders(value, subpermit)
+            association = model&.reflect_on_association(key)
+            sanitized_value = if association && !association.polymorphic?
+              sanitize_association_orders(value, subpermit, association.klass)
+            else
+              sanitize_orders(value, subpermit)
+            end
             permitted << { key.to_sym => sanitized_value }
           else
             raise(StandardAPI::UnpermittedParameters.new([orders]))
