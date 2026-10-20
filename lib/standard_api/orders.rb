@@ -66,10 +66,6 @@ module StandardAPI
           elsif permit.include?(key.to_s)
             association = model&.reflect_on_association(key)
             association = nil if association&.polymorphic?
-            if association && !orders_method_for(association.klass)
-              deprecation_warning("#{ model.name }ACL#orders permitting #{ key } without #{ association.klass.name }ACL#orders has been deprecated, permit the columns of #{ key } that can be ordered by in #{ association.klass.name }ACL#orders")
-              association = nil
-            end
 
             value = if association
               sanitize_orders(value, orders_for(association.klass), association.klass)

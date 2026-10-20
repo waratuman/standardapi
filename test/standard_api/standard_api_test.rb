@@ -749,17 +749,18 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord]))
   end
 
-  test 'Orders#sanitize_orders permits any column of an association whose model has no orders, with a deprecation warning' do
-    logger = mock
-    logger.expects(:warn).twice.with('DEPRECATION WARNING: PropertyACL#orders permitting landlord without AccountACL#orders has been deprecated, permit the columns of landlord that can be ordered by in AccountACL#orders')
-
+  test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
     sanitize = Class.new do
       include StandardAPI::Orders
-      define_method(:logger) { logger }
+      def logger; end
     end.new.method(:sanitize_orders)
 
-    assert_equal({ landlord: { name: :asc } }, sanitize.call({ landlord: { name: :asc } }, [:landlord], Property))
-    assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
+    end
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call('landlord.name', [:landlord], Property)
+    end
   end
 
   test 'Orders#sanitize_orders checks a hash permit of an association against its ACL' do

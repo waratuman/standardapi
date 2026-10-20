@@ -76,10 +76,9 @@ inherited controllers an exposed API.
       #
       # An association can be listed by name, ie. `:account`, to allow
       # ordering by the columns the associated model's orders permit
-      # (`account_orders`). If the associated model has no orders, any of its
-      # columns may be ordered by, which is deprecated. Permitting the columns
-      # here, ie. `{ account: [:name] }`, is deprecated, except for a
-      # polymorphic association.
+      # (`account_orders`). Permitting the columns here, ie.
+      # `{ account: [:name] }`, is deprecated, except for a polymorphic
+      # association.
       def photo_orders
         [:id, :created_at, :updated_at]
       end
