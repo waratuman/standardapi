@@ -238,6 +238,9 @@ module StandardAPI
       @models = ApplicationController.descendants
       @models.select! { |c| c.ancestors.include?(self.class) && c != self.class }
       @models.map!(&:model).compact!
+      # Several controllers can serve one model; schema.json lists it once.
+      @models.uniq!
+      @models
     end
 
     def model_includes
