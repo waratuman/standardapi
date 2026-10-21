@@ -432,47 +432,6 @@ module StandardAPI
       end
     end
 
-    # The JSON Schema property for +schema+, a #schemas_for definition. For an
-    # array, `readOnly`, `default` and `description` describe the array, and
-    # the type and validations its elements.
-    def json_schema_for_attribute(schema)
-      properties = json_schema_for_type(schema[:type])
-      schema[:validations].each { |v| add_json_schema_validation(properties, v[:kind], v[:options]) }
-
-      properties = { type: 'array', items: properties } if schema[:array]
-      properties[:readOnly] = true if schema[:read_only] || schema[:auto_populated]
-      properties[:default] = schema[:default] if !schema[:default].nil?
-      properties[:description] = schema[:comment] if schema[:comment]
-      properties
-    end
-
-    # Add the JSON Schema keywords for a validation of +kind+ to +properties+
-    def add_json_schema_validation(properties, kind, options)
-      case kind
-      when :numericality
-        properties["exclusiveMinimum"] = options[:greater_than] if options[:greater_than]
-        properties["exclusiveMaximum"] = options[:less_than] if options[:less_than]
-        properties["minimum"] = options[:greater_than_or_equal_to] if options[:greater_than_or_equal_to]
-        properties["maximum"] = options[:less_than_or_equal_to] if options[:less_than_or_equal_to]
-      when :inclusion
-        properties["enum"] = options[:in] if options[:in]
-      when :acceptance
-        properties["const"] = true
-      when :format
-        properties["pattern"] = options[:with] if options[:with]
-      when :length
-        properties["minLength"] = options[:minimum] if options[:minimum]
-        properties["maxLength"] = options[:maximum] if options[:maximum]
-      when :presence
-        # Already counted in schema[:required]
-      else
-        puts "******* MISSING VALIDATOR **********"
-        puts({ kind: kind, options: options }.inspect)
-        warn "missing validator"
-      end
-    end
-    private :add_json_schema_validation
-
     # The JSON Schema for a #schemas_for `type`, or an empty schema for a type
     # it doesn't know
     def json_schema_for_type(type)
