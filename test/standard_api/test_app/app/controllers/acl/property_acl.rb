@@ -32,6 +32,11 @@ module PropertyACL
     ]
   end
 
+  # Filters allowed in the `where` param
+  def wheres
+    [ :id, :accounts, :landlord ]
+  end
+
   # Sub resources allowed to be included in the response
   def includes
     [ :photos, :landlord, :english_name, :document ]
