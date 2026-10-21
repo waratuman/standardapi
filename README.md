@@ -245,13 +245,14 @@ timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
-An ACL may also define `schemas(schemas)` to adjust how its model's attributes
-are described. It receives the definitions StandardAPI builds for the model and
-returns the definitions to use, so it can change, drop or add attributes:
+An ACL may also define `schemas(default_schema)` to adjust how its model's
+attributes are described. It receives the definitions StandardAPI builds for
+the model and returns the definitions to use, so it can change, drop or add
+attributes:
 
     module PhotoACL
-      def schemas(schemas)
-        schemas.map do |schema|
+      def schemas(default_schema)
+        default_schema.map do |schema|
           schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
         end
       end

@@ -51,7 +51,7 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
-- An ACL can define `schemas(schemas)` to adjust its model's attribute
+- An ACL can define `schemas(default_schema)` to adjust its model's attribute
   definitions: it receives the definitions StandardAPI builds and returns the
   ones to use. `schemas_for(Model)` returns the result, for use without
   rendering a view, and `json_schema.json` is built from it. Each definition

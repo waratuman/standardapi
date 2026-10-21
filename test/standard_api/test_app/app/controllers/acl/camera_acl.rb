@@ -6,8 +6,8 @@ module CameraACL
 
   # Adjusts the attribute definitions schemas_for(Camera) and json_schema.json
   # are built from
-  def schemas(schemas)
-    schemas.map do |schema|
+  def schemas(default_schema)
+    default_schema.map do |schema|
       schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
     end
   end
