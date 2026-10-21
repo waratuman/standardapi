@@ -525,6 +525,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'A Name', JSON(response.body)['english_name']
   end
 
+  test 'include with when key renders the include only for matching records' do
+    photo = create(:photo)
+    matching = create(:property, name: 'a', photos: [photo])
+    other = create(:property, name: 'b', photos: [create(:photo)])
+
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    assert_response :ok
+    json = JSON(response.body).index_by { |x| x['id'] }
+    assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
+    assert_not json[other.id].has_key?('photos')
+  end
+
+  test 'include with when key only reads columns' do
+    create(:property, photos: [create(:photo)])
+
+    # A method, not a column, is never called
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { destroy: '1' } } } }
+    assert_response :bad_request
+    assert_equal 1, Property.count
+  end
+
   test 'include with where key' do
     photo_a = create(:photo)
     photo_b = create(:photo)

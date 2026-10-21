@@ -16,7 +16,7 @@ else
         case value
         when Hash, ActionController::Parameters
           if value.has_key?('when')
-            value['when'].all? { |k, v| record.send(k).as_json == v }
+            value['when'].all? { |k, v| record.read_attribute(k).as_json == v }
           else
             true
           end

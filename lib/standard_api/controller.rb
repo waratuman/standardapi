@@ -406,7 +406,7 @@ module StandardAPI
       end
 
       @includes ||= if params[:include]
-        sanitize_includes(params[:include], includes_for(model), model)
+        sanitize_includes(params[:include], includes_for(model), model).tap { |i| check_include_whens(i) }
       else
         {}
       end
@@ -424,6 +424,21 @@ module StandardAPI
 
     def default_orders
       nil
+    end
+
+    # The index views render an include only for the records whose attributes
+    # match its +when+, ie. include[photos][when][active]=true, so its keys
+    # must be columns of the model. A +when+ nested deeper is not evaluated;
+    # it only stops preloading.
+    def check_include_whens(includes)
+      includes.each do |key, value|
+        next if !value.is_a?(Hash) || !value.has_key?('when')
+        raise StandardAPI::UnpermittedParameters.new(["#{key}[when]"]) if !value['when'].is_a?(Hash)
+
+        value['when'].each_key do |column|
+          raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{column}]"]) if !model.columns_hash.has_key?(column.to_s)
+        end
+      end
     end
 
     def orders
