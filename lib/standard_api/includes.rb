@@ -122,6 +122,8 @@ module StandardAPI
       permit = normalize_includes(permit.with_indifferent_access)
       includes.each do |k, v|
         permitted[k] = if permit.has_key?(k)
+          check_include_when(k, v['when'], model) if v.is_a?(Hash) && v.has_key?('when')
+
           subpermit = permit[k] || {}
           association = model&.reflect_on_association(k)
           if association && !association.polymorphic?
@@ -145,6 +147,22 @@ module StandardAPI
       end
 
       permitted
+    end
+
+    # The index views render an include only for the records whose attributes
+    # match its +when+, ie. include[photos][when][active]=true, read with
+    # read_attribute, so its keys must be attributes of +model+, the model of
+    # the records the include is on. Under a polymorphic association there is
+    # no single model to check against; a +when+ there only stops preloading.
+    def check_include_when(key, conditions, model)
+      return if !model
+      raise StandardAPI::UnpermittedParameters.new(["#{key}[when]"]) if !conditions.is_a?(Hash)
+
+      conditions.each_key do |name|
+        next if model.attribute_names.include?(name.to_s) || model.attribute_alias?(name)
+
+        raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
+      end
     end
 
   end
