@@ -67,6 +67,15 @@ module StandardAPI::TestCase
     controller_class.new.send(:default_orders)
   end
 
+  # Whether the ACL's wheres permit filtering on +where+
+  def where_permitted?(where)
+    controller = controller_class.new
+    controller.send(:sanitize_wheres, where, controller.send(:wheres_for, model), model)
+    true
+  rescue StandardAPI::UnpermittedParameters
+    false
+  end
+
   def resource_limit
     controller_class.new.send(:resource_limit)
   end

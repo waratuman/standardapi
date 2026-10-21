@@ -119,6 +119,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], orders_for.call(Pdf)
   end
 
+  test 'TestCase#where_permitted? checks the ACL wheres' do
+    assert where_permitted?({ id: 1 })
+    assert_not where_permitted?({ name: 'a' })
+  end
+
+  test 'Wheres#wheres_for falls back to the wheres of the base class' do
+    wheres_for = Class.new do
+      include StandardAPI::Wheres
+      private def document_wheres = [:id]
+    end.new.method(:wheres_for)
+
+    assert_equal [:id], wheres_for.call(Pdf)
+  end
+
   test 'Includes#includes_for falls back to the includes of the base class' do
     includes_for = Class.new do
       include StandardAPI::Includes
@@ -525,6 +539,60 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'A Name', JSON(response.body)['english_name']
   end
 
+  test 'include with when key renders the include only for matching records' do
+    ApplicationController.class_eval do
+      private def property_wheres
+        [ :id, :name ]
+      end
+    end
+
+    photo = create(:photo)
+    matching = create(:property, name: 'a', photos: [photo])
+    other = create(:property, name: 'b', photos: [create(:photo)])
+
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    assert_response :ok
+    json = JSON(response.body).index_by { |x| x['id'] }
+    assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
+    assert_not json[other.id].has_key?('photos')
+  ensure
+    ApplicationController.send(:remove_method, :property_wheres)
+  end
+
+  test 'include with when key only reads attributes' do
+    create(:property, photos: [create(:photo)])
+
+    # A method, not an attribute, is never called
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { destroy: '1' } } } }
+    assert_response :bad_request
+    assert_equal 1, Property.count
+
+    # A nested when is checked against the model of the records it's on
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
+    assert_response :bad_request
+
+    # An attribute PropertyACL#wheres doesn't permit
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'x' } } } }
+    assert_response :bad_request
+  end
+
+  test 'Includes#check_include_when permits attributes, including aliases and the attributes API' do
+    klass = Class.new(Property) do
+      alias_attribute :title, :name
+      attribute :featured, :boolean
+      def self.name = 'Property'
+    end
+    controller = PropertiesController.new
+    controller.define_singleton_method(:property_wheres) { [ :name, :title, :featured ] }
+    check = controller.method(:check_include_when)
+
+    assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', { 'destroy' => '1' }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', 'name', klass) }
+    # Under a polymorphic association there is no model to check against
+    assert_nothing_raised { check.call('photos', { 'destroy' => '1' }, nil) }
+  end
+
   test 'include with where key' do
     photo_a = create(:photo)
     photo_b = create(:photo)
@@ -544,6 +612,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     ] } }, format: :json)
     assert_equal [photo_a.id, photo_c.id].sort,
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
+  end
+
+  test 'include with where key rejects wheres the included ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    # PhotoACL#wheres does not permit format
+    get property_path(property, include: { photos: { where: { format: 'jpg' } } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+
+    get property_path(property, include: { photos: { where: [{ id: 1 }, 'OR', { format: 'jpg' }] } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+  end
+
+  test 'include with where key under a polymorphic association is rejected' do
+    create(:account, subject: create(:property))
+
+    get "/accounts", params: { limit: 10, include: { subject: { where: { id: 1 } } } }, as: :json
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "where"', response.body
   end
 
   test 'include with order key' do

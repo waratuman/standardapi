@@ -122,6 +122,8 @@ module StandardAPI
       permit = normalize_includes(permit.with_indifferent_access)
       includes.each do |k, v|
         permitted[k] = if permit.has_key?(k)
+          check_include_when(k, v['when'], model) if v.is_a?(Hash) && v.has_key?('when')
+
           subpermit = permit[k] || {}
           association = model&.reflect_on_association(k)
           if association && !association.polymorphic?
@@ -130,7 +132,14 @@ module StandardAPI
           else
             sanitize_includes(v, subpermit, nil, normalized: true)
           end
-        elsif ['limit', 'when', 'where', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
+        elsif k.to_s == 'where'
+          # Filters the included records, so is checked against the wheres
+          # permitted on their model (StandardAPI::Wheres). Without a model,
+          # ie. under a polymorphic association, it can't be checked.
+          raise StandardAPI::UnpermittedParameters.new([k]) if !model
+
+          sanitize_wheres(v, wheres_for(model), model)
+        elsif ['limit', 'when', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
           raise StandardAPI::UnpermittedParameters.new([k])
@@ -138,6 +147,26 @@ module StandardAPI
       end
 
       permitted
+    end
+
+    # The index views render an include only for the records whose attributes
+    # match its +when+, ie. include[photos][when][active]=true, read with
+    # read_attribute, so its keys must be attributes of +model+, the model of
+    # the records the include is on, and are checked like a where with +eq+
+    # against the wheres permitted on it. Under a polymorphic association
+    # there is no single model to check against; a +when+ there only stops
+    # preloading.
+    def check_include_when(key, conditions, model)
+      return if !model
+      raise StandardAPI::UnpermittedParameters.new(["#{key}[when]"]) if !conditions.is_a?(Hash)
+
+      conditions.each_key do |name|
+        if !model.attribute_names.include?(name.to_s) && !model.attribute_alias?(name)
+          raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
+        end
+
+        check_wheres({ name.to_s => true }, normalize_where_permit(wheres_for(model)), model)
+      end
     end
 
   end
