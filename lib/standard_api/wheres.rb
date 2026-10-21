@@ -3,44 +3,25 @@ module StandardAPI
   # called on the controller.
   module Wheres
 
-    # Every operator activerecord-filter accepts on a column, as its canonical
-    # name => its aliases.
+    # The aliases activerecord-filter accepts for an operator, as its
+    # canonical name => its aliases, so permitting one permits the others.
+    # Other operators aren't checked here: activerecord-filter rejects one it
+    # doesn't support.
     #
-    # TODO: Move to activerecord-filter, ie. ActiveRecord::Filter::OPERATORS,
-    # so this list can't drift from the operators it supports.
-    OPERATORS = {
-      contains:     [],
-      contained_by: [],
-      eq:           [:equal_to],
-      neq:          [:not, :not_equal],
-      excludes:     [],
-      gt:           [:greater_than],
-      gte:          [:gteq, :greater_than_or_equal_to],
-      lt:           [:less_than],
-      lte:          [:lteq, :less_than_or_equal_to],
-      in:           [],
-      not_in:       [],
-      has_key:      [],
-      has_keys:     [],
-      has_any_key:  [],
-      intersects:   [],
-      like:         [],
-      ilike:        [],
-      overlaps:     [],
-      not_overlaps: [],
-      ts_match:     [],
-      within:       [],
-      # Range columns only, unreleased after activerecord-filter 9.0.0
-      ends_before:  [],
-      ends_by:      [],
-      starts_after: [],
-      starts_by:    [],
-      adjacent_to:  []
+    # TODO: Move to activerecord-filter, ie. ActiveRecord::Filter, so this
+    # list can't drift from the aliases it supports.
+    OPERATOR_ALIASES = {
+      eq:  [:equal_to],
+      neq: [:not, :not_equal],
+      gt:  [:greater_than],
+      gte: [:gteq, :greater_than_or_equal_to],
+      lt:  [:less_than],
+      lte: [:lteq, :less_than_or_equal_to]
     }.freeze
 
-    # Each operator name and alias, as a String => its canonical name
-    OPERATOR_NAMES = OPERATORS.each_with_object({}) do |(operator, aliases), names|
-      ([operator] + aliases).each { |name| names[name.to_s] = operator }
+    # Each alias, as a String => its canonical name
+    CANONICAL_OPERATORS = OPERATOR_ALIASES.each_with_object({}) do |(operator, aliases), names|
+      aliases.each { |name| names[name.to_s] = operator.to_s }
     end.freeze
 
     private
@@ -78,6 +59,11 @@ module StandardAPI
       wheres
     end
 
+    # The canonical name of the operator +name+, ie. "gt" for "greater_than"
+    def canonical_operator(name)
+      CANONICAL_OPERATORS.fetch(name.to_s, name.to_s)
+    end
+
     # { "column" => :all | [canonical operators] }
     def normalize_where_permit(permit)
       permit.each_with_object({}) do |entry, normalized|
@@ -86,9 +72,7 @@ module StandardAPI
             normalized[key.to_s] = if operators.to_s == '*'
               :all
             else
-              Array.wrap(operators).map do |operator|
-                OPERATOR_NAMES[operator.to_s] || raise(StandardAPI::InvalidConfiguration, "Unknown where operator #{operator.inspect} for #{key}")
-              end
+              Array.wrap(operators).map { |operator| canonical_operator(operator) }
             end
           end
         else
@@ -126,10 +110,9 @@ module StandardAPI
         nil
       elsif column = model.columns_hash[name]
         where_operators(value, column).each do |operator|
-          canonical = OPERATOR_NAMES[operator.to_s]
-          if !canonical || (permitted != :all && !permitted.include?(canonical))
-            raise StandardAPI::UnpermittedParameters.new(["#{key}[#{operator}]"])
-          end
+          next if permitted == :all || permitted.include?(canonical_operator(operator))
+
+          raise StandardAPI::UnpermittedParameters.new(["#{key}[#{operator}]"])
         end
       elsif association = model.reflect_on_association(key)
         if permitted != :all

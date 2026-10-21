@@ -43,8 +43,13 @@ class ControllerWhereTest < ActionDispatch::IntegrationTest
     assert_unpermitted({ where: [{ make: 'Leica' }, 'OR', { hidden: true }] }, 'found unpermitted parameter: "hidden"')
   end
 
-  test "an unknown operator is rejected" do
-    assert_unpermitted({ where: { make: { bogus: 'Leica' } } }, 'found unpermitted parameter: "make[bogus]"')
+  test "an unknown operator is left to activerecord-filter" do
+    # The query runs in the view, which wraps the error
+    error = assert_raises(ActionView::Template::Error) do
+      get cameras_path(format: :json), params: { limit: 100, where: { make: { bogus: 'Leica' } } }
+    end
+    assert_instance_of RuntimeError, error.cause
+    assert_match(/Not Supported: bogus/, error.cause.message)
   end
 
   test "AND and OR filters are checked" do
@@ -121,7 +126,9 @@ class ControllerWhereTest < ActionDispatch::IntegrationTest
     assert_equal({ make: { at: 'now' } }, sanitize.call({ make: { at: 'now' } }, [{ make: :eq }], Camera))
 
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(1, [:make], Camera) }
-    assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ make: 'l' }, [{ make: :bogus }], Camera) }
+    # An operator the ACL lists but activerecord-filter doesn't support only permits itself
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ make: 'l' }, [{ make: :bogus }], Camera) }
+    assert_equal({ make: { bogus: 'l' } }, sanitize.call({ make: { bogus: 'l' } }, [{ make: :bogus }], Camera))
     # Operators can't be permitted on an association
     assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ photo: { id: 1 } }, [{ photo: [:eq] }], Camera) }
   end
