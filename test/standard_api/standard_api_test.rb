@@ -90,14 +90,61 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Controller#model_orders defaults to []' do
+  test 'Orders#orders_for defaults to []' do
     @controller = ReferencesController.new
-    assert_equal @controller.send(:model_orders), []
+    assert_equal @controller.send(:orders_for, Reference), []
   end
 
-  test 'Controller#model_includes defaults to []' do
+  test 'Controller#model_orders overrides raise' do
+    AccountsController.class_eval do
+      private def model_orders
+        [ "id", "name" ]
+      end
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
+    end
+    assert_equal 'AccountsController#model_orders is not supported, define account_orders in AccountACL instead', error.message
+  ensure
+    AccountsController.send(:remove_method, :model_orders)
+  end
+
+  test 'Orders#orders_for falls back to the orders of the base class' do
+    orders_for = Class.new do
+      include StandardAPI::Orders
+      private def document_orders = [:id]
+    end.new.method(:orders_for)
+
+    assert_equal [:id], orders_for.call(Pdf)
+  end
+
+  test 'TestCase#where_permitted? checks the ACL wheres' do
+    assert where_permitted?({ id: 1 })
+    assert_not where_permitted?({ name: 'a' })
+  end
+
+  test 'Wheres#wheres_for falls back to the wheres of the base class' do
+    wheres_for = Class.new do
+      include StandardAPI::Wheres
+      private def document_wheres = [:id]
+    end.new.method(:wheres_for)
+
+    assert_equal [:id], wheres_for.call(Pdf)
+  end
+
+  test 'Includes#includes_for falls back to the includes of the base class' do
+    includes_for = Class.new do
+      include StandardAPI::Includes
+      private def document_includes = [:id]
+    end.new.method(:includes_for)
+
+    assert_equal [:id], includes_for.call(Pdf)
+  end
+
+  test 'Includes#includes_for defaults to []' do
     @controller = DocumentsController.new
-    assert_equal @controller.send(:model_includes), []
+    assert_equal @controller.send(:includes_for, Document), []
   end
 
   test 'Controller#model_params defaults to ActionController::Parameters' do
@@ -492,6 +539,60 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'A Name', JSON(response.body)['english_name']
   end
 
+  test 'include with when key renders the include only for matching records' do
+    ApplicationController.class_eval do
+      private def property_wheres
+        [ :id, :name ]
+      end
+    end
+
+    photo = create(:photo)
+    matching = create(:property, name: 'a', photos: [photo])
+    other = create(:property, name: 'b', photos: [create(:photo)])
+
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    assert_response :ok
+    json = JSON(response.body).index_by { |x| x['id'] }
+    assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
+    assert_not json[other.id].has_key?('photos')
+  ensure
+    ApplicationController.send(:remove_method, :property_wheres)
+  end
+
+  test 'include with when key only reads attributes' do
+    create(:property, photos: [create(:photo)])
+
+    # A method, not an attribute, is never called
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { destroy: '1' } } } }
+    assert_response :bad_request
+    assert_equal 1, Property.count
+
+    # A nested when is checked against the model of the records it's on
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
+    assert_response :bad_request
+
+    # An attribute PropertyACL#wheres doesn't permit
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'x' } } } }
+    assert_response :bad_request
+  end
+
+  test 'Includes#check_include_when permits attributes, including aliases and the attributes API' do
+    klass = Class.new(Property) do
+      alias_attribute :title, :name
+      attribute :featured, :boolean
+      def self.name = 'Property'
+    end
+    controller = PropertiesController.new
+    controller.define_singleton_method(:property_wheres) { [ :name, :title, :featured ] }
+    check = controller.method(:check_include_when)
+
+    assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', { 'destroy' => '1' }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', 'name', klass) }
+    # Under a polymorphic association there is no model to check against
+    assert_nothing_raised { check.call('photos', { 'destroy' => '1' }, nil) }
+  end
+
   test 'include with where key' do
     photo_a = create(:photo)
     photo_b = create(:photo)
@@ -511,6 +612,27 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     ] } }, format: :json)
     assert_equal [photo_a.id, photo_c.id].sort,
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
+  end
+
+  test 'include with where key rejects wheres the included ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    # PhotoACL#wheres does not permit format
+    get property_path(property, include: { photos: { where: { format: 'jpg' } } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+
+    get property_path(property, include: { photos: { where: [{ id: 1 }, 'OR', { format: 'jpg' }] } }, format: :json)
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "format"', response.body
+  end
+
+  test 'include with where key under a polymorphic association is rejected' do
+    create(:account, subject: create(:property))
+
+    get "/accounts", params: { limit: 10, include: { subject: { where: { id: 1 } } } }, as: :json
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "where"', response.body
   end
 
   test 'include with order key' do
@@ -627,10 +749,220 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
   end
 
+  test 'order through an association uses the associated ACL' do
+    b = create(:account, property: create(:property, name: 'b'))
+    a = create(:account, property: create(:property, name: 'a'))
+
+    get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
+
+    get accounts_path(order: { property: { name: :desc } }, limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [b.id, a.id], JSON(response.body).map { |x| x['id'] }
+
+    get accounts_path(order: 'property.name', limit: 10, format: 'json')
+    assert_response :ok
+    assert_equal [a.id, b.id], JSON(response.body).map { |x| x['id'] }
+  end
+
+  test 'order through an association rejects orders ActiveRecord::Sort can not order by' do
+    ApplicationController.class_eval do
+      private def property_orders
+        [ "name", "landlord" ]
+      end
+    end
+
+    create(:account, property: create(:property))
+
+    # ActiveRecord::Sort only orders one association deep
+    get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    assert_response :bad_request
+    assert_equal 'Unknown column landlord', response.body
+  ensure
+    ApplicationController.send(:remove_method, :property_orders)
+  end
+
+  test 'order through an association rejects orders the associated ACL does not permit' do
+    create(:account, property: create(:property))
+
+    get accounts_path(order: { property: { updated_at: :asc } }, limit: 10, format: 'json')
+    assert_response :bad_request
+
+    get accounts_path(order: 'property.updated_at', limit: 10, format: 'json')
+    assert_response :bad_request
+  end
+
+  test 'orders permitting columns of an association raise' do
+    ApplicationController.class_eval do
+      private def account_orders
+        [ "id", { property: [:name] } ]
+      end
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
+    end
+    assert_equal 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead', error.message
+  ensure
+    ApplicationController.send(:remove_method, :account_orders)
+  end
+
+  test 'Orders#orders_for raises on any Hash permit' do
+    orders_for = Class.new do
+      include StandardAPI::Orders
+      private def account_orders = @orders
+    end.new
+
+    {
+      { property: [:name] } => 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead',
+      { subject: [:id] } => 'AccountACL#orders permitting subject in a Hash is not supported, ordering through a polymorphic association is not supported',
+      { name: [:asc] } => 'AccountACL#orders permitting name in a Hash is not supported, permit :name instead'
+    }.each do |permit, message|
+      orders_for.instance_variable_set(:@orders, ["id", permit])
+      error = assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
+      assert_equal message, error.message
+    end
+  end
+
+  test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
+    sanitize = AccountsController.new.method(:sanitize_orders)
+
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ subject: { id: :asc } }, [:subject], Account)
+    end
+  end
+
+  test 'include through an association uses the associated ACL' do
+    property = create(:property)
+    account = create(:account, property: property)
+    photo = create(:photo, account: account)
+
+    get property_path(property, include: { landlord: :photos }, format: 'json')
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['landlord']['id']
+    assert_equal [photo.id], JSON(response.body)['landlord']['photos'].map { |x| x['id'] }
+  end
+
+  test 'include through an association rejects includes the associated ACL does not permit' do
+    property = create(:property, photos: [create(:photo)])
+
+    get property_path(property, include: { photos: :camera }, format: 'json')
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "camera"', response.body
+  end
+
+  test 'include through two associations uses each associated ACL' do
+    account = create(:account)
+    camera = create(:camera, photo: create(:photo, account: account))
+
+    get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    assert_response :ok
+    assert_equal account.id, JSON(response.body)['photo']['account']['id']
+  end
+
+  test 'includes permitting includes of an association raise' do
+    ApplicationController.class_eval do
+      private def camera_includes
+        { photo: [ :account ] }
+      end
+    end
+
+    camera = create(:camera, photo: create(:photo))
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
+    end
+    assert_equal 'CameraACL#includes permitting includes of photo is not supported, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead', error.message
+  ensure
+    ApplicationController.send(:remove_method, :camera_includes)
+  end
+
+  test 'Includes#includes_for raises on includes of an association, other than a polymorphic one or a method' do
+    includes_for = Class.new do
+      include StandardAPI::Includes
+      private def account_includes = @includes
+    end.new
+
+    # subject is polymorphic and specs is a method of Camera
+    includes_for.instance_variable_set(:@includes, { subject: [:landlord], photos: true })
+    assert_equal({ subject: [:landlord], photos: true }, includes_for.send(:includes_for, Account))
+    assert_equal({ specs: [:serial] }, Class.new { include StandardAPI::Includes; private def camera_includes = { specs: [:serial] } }.new.send(:includes_for, Camera))
+
+    includes_for.instance_variable_set(:@includes, { photos: [:camera] })
+    assert_raises(StandardAPI::InvalidConfiguration) { includes_for.send(:includes_for, Account) }
+  end
+
+  test 'Controller#model_includes overrides raise' do
+    AccountsController.class_eval do
+      private def model_includes
+        [ :photos ]
+      end
+    end
+
+    account = create(:account)
+
+    # #show first calls #includes from the view, which wraps the error
+    error = assert_raises(ActionView::Template::Error) do
+      get account_path(account, include: :photos, format: 'json')
+    end
+    assert_instance_of StandardAPI::InvalidConfiguration, error.cause
+    assert_equal 'AccountsController#model_includes is not supported, define account_includes in AccountACL instead', error.cause.message
+  ensure
+    AccountsController.send(:remove_method, :model_includes)
+  end
+
+  test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do
+    sanitize = Class.new do
+      include StandardAPI::Includes
+      private def account_includes = [:photos]
+    end.new.method(:sanitize_includes)
+
+    assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }, [:landlord], Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: :property }, [:landlord], Property)
+    end
+
+    # An explicit nested permit, or a call without a model, is unchanged
+    assert_equal({ 'landlord' => { 'property' => {} } }, sanitize.call({ landlord: :property }, { landlord: [:property] }, Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: :photos }, [:landlord], nil)
+    end
+  end
+
+  test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
+    sanitize = Class.new do
+      include StandardAPI::Orders
+      private def account_orders = [:name]
+    end.new.method(:sanitize_orders)
+
+    assert_equal({ landlord: { name: :asc } }, sanitize.call({ landlord: { name: :asc } }, [:landlord], Property))
+    assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
+    end
+
+    # A column is unchanged
+    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
+  end
+
+  test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
+    sanitize = Class.new do
+      include StandardAPI::Orders
+    end.new.method(:sanitize_orders)
+
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
+    end
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      sanitize.call('landlord.name', [:landlord], Property)
+    end
+  end
+
   # Includes Test
 
-  test 'Includes::normailze' do
-    method = StandardAPI::Includes.method(:normalize)
+  test 'Includes#normalize_includes' do
+    method = PropertiesController.new.method(:normalize_includes)
     assert_equal method.call(:x), { 'x' => {} }
     assert_equal method.call([:x, :y]), { 'x' => {}, 'y' => {} }
     assert_equal method.call([ { x: true }, { y: true } ]), { 'x' => {}, 'y' => {} }
@@ -644,15 +976,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal method.call({ x: { order: { y: :asc } } }), { 'x' => { 'order' => { 'y' => :asc } } }
   end
 
-  # sanitize({:key => {}}, [:key]) # => {:key => {}}
-  # sanitize({:key => {}}, {:key => true}) # => {:key => {}}
-  # sanitize({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
-  # sanitize({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
-  # sanitize({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
-  # sanitize({:key => {:value => {}}}, [:key]) => # Raises ParseError
-  test 'Includes::sanitize' do
-    method = StandardAPI::Includes.method(:sanitize)
+  # sanitize_includes({:key => {}}, [:key]) # => {:key => {}}
+  # sanitize_includes({:key => {}}, {:key => true}) # => {:key => {}}
+  # sanitize_includes({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
+  # sanitize_includes({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
+  # sanitize_includes({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
+  # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
+  test 'Includes#sanitize_includes' do
+    # Checked against +permit+ alone, without a model
+    method = ->(includes, permit) { PropertiesController.new.send(:sanitize_includes, includes, permit, nil) }
     assert_equal method.call(:x, [:x]), { 'x' => {} }
     assert_equal method.call(:x, {:x => true}), { 'x' => {} }
 
@@ -679,39 +1012,35 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # Order Test
 
-  test 'Orders::sanitize(:column, [:column])' do
-    method = StandardAPI::Orders.method(:sanitize)
+  test 'Orders#sanitize_orders(:column, [:column])' do
+    method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, permit, Account) }
 
-    assert_equal :x, method.call(:x, :x)
-    assert_equal :x, method.call(:x, [:x])
-    assert_equal :x, method.call([:x], [:x])
+    assert_equal :name, method.call(:name, [:name])
+    assert_equal :name, method.call(:name, [:name])
+    assert_equal :name, method.call([:name], [:name])
     assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call(:x, :y)
+      method.call(:name, [:id])
     end
 
-    assert_equal({ x: :asc }, method.call({ x: :asc }, :x))
-    assert_equal({ x: :desc }, method.call({ x: :desc }, :x))
-    assert_equal([{ x: :desc}, {y: :desc }], method.call({ x: :desc, y: :desc }, [:x, :y]))
-    assert_equal({ x: :asc }, method.call([{ x: :asc }], :x))
-    assert_equal({ x: :desc }, method.call([{ x: :desc }], :x))
-    assert_equal({ x: { asc: :nulls_last } }, method.call([{ x: { asc: :nulls_last } }], :x))
-    assert_equal({ x: { asc: :nulls_first } }, method.call([{ x: { asc: :nulls_first } }], :x))
-    assert_equal({ x: { desc: :nulls_last } }, method.call([{ x: { desc: :nulls_last } }], :x))
-    assert_equal({ x: { desc: :nulls_first }}, method.call([{ x: { desc: :nulls_first } }], :x))
-    assert_equal({ relation: :id }, method.call(['relation.id'], { relation: :id }))
-    assert_equal({ relation: :id }, method.call([{ relation: :id }], { relation: :id }))
-    assert_equal({ relation: :id }, method.call([{ relation: :id }], [{ relation: :id }]))
-    assert_equal({ relation: :id }, method.call([{ relation: [:id] }], { relation: [:id] }))
-    assert_equal({ relation: :id }, method.call([{ relation: [:id] }], [{ relation: [:id] }]))
-    assert_equal({ relation: { id: :desc } }, method.call([{'relation.id' => :desc}], { relation: :id }))
-    assert_equal({ relation: { id: :desc } }, method.call([{ relation: { id: :desc } }], { relation: [:id] }))
-    assert_equal({ relation: { id: :desc } }, method.call([{ relation: { id: :desc } }], [{ relation: [:id] }]))
-    assert_equal({ relation: { id: :desc } }, method.call([{ relation: [{ id: :desc }] }], [{ relation: [:id] }]))
-    assert_equal({ relation: { id: :desc } }, method.call([{ relation: [{ id: :desc }] }], [{ relation: [:id] }]))
-    assert_equal({ relation: {:id => {:asc => :nulls_last}} }, method.call([{ relation: {:id => {:asc => :nulls_last}} }], [{ relation: [:id] }]))
-    assert_equal({ relation: {:id => {:asc => :nulls_last}} }, method.call([{ relation: {:id => {:asc => :nulls_last}} }], [{ relation: [:id] }]))
-    assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
-    assert_equal({ relation: {:id => [{:asc => :nulls_last}]} }, method.call([{ relation: {:id => [{:asc => :nulls_last}]} }], [{ relation: [:id] }]))
+    assert_equal({ name: :asc }, method.call({ name: :asc }, [:name]))
+    assert_equal({ name: :desc }, method.call({ name: :desc }, [:name]))
+    assert_equal([{ name: :desc}, {id: :desc }], method.call({ name: :desc, id: :desc }, [:name, :id]))
+    assert_equal({ name: :asc }, method.call([{ name: :asc }], [:name]))
+    assert_equal({ name: :desc }, method.call([{ name: :desc }], [:name]))
+    assert_equal({ name: { asc: :nulls_last } }, method.call([{ name: { asc: :nulls_last } }], [:name]))
+    assert_equal({ name: { asc: :nulls_first } }, method.call([{ name: { asc: :nulls_first } }], [:name]))
+    assert_equal({ name: { desc: :nulls_last } }, method.call([{ name: { desc: :nulls_last } }], [:name]))
+    assert_equal({ name: { desc: :nulls_first }}, method.call([{ name: { desc: :nulls_first } }], [:name]))
+
+    # Through an association, checked against PropertyACL#orders
+    assert_equal({ property: :id }, method.call(['property.id'], [:property]))
+    assert_equal({ property: :id }, method.call([{ property: :id }], [:property]))
+    assert_equal({ property: :id }, method.call([{ property: [:id] }], [:property]))
+    assert_equal({ property: { id: :desc } }, method.call([{'property.id' => :desc}], [:property]))
+    assert_equal({ property: { id: :desc } }, method.call([{ property: { id: :desc } }], [:property]))
+    assert_equal({ property: { id: :desc } }, method.call([{ property: [{ id: :desc }] }], [:property]))
+    assert_equal({ property: {:id => {:asc => :nulls_last}} }, method.call([{ property: {:id => {:asc => :nulls_last}} }], [:property]))
+    assert_equal({ property: {:id => [{:asc => :nulls_last}]} }, method.call([{ property: {:id => [{:asc => :nulls_last}]} }], [:property]))
   end
 
   test 'order: :attribute' do

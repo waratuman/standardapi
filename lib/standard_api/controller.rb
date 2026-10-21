@@ -1,5 +1,8 @@
 module StandardAPI
   module Controller
+    include StandardAPI::Orders
+    include StandardAPI::Includes
+    include StandardAPI::Wheres
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -16,6 +19,7 @@ module StandardAPI
 
       klass.rescue_from StandardAPI::ParameterMissing, with: :bad_request
       klass.rescue_from StandardAPI::UnpermittedParameters, with: :bad_request
+      klass.rescue_from ::ActiveRecord::Sort::InvalidSort, with: :bad_request
       klass.append_view_path(File.join(File.dirname(__FILE__), 'views'))
       klass.extend(ClassMethods)
     end
@@ -38,7 +42,7 @@ module StandardAPI
 
     def json_schema
       Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = StandardAPI::Includes.normalize(params[:include] || {})
+      @includes = normalize_includes(params[:include] || {})
     end
 
     def index
@@ -238,22 +242,9 @@ module StandardAPI
       @models = ApplicationController.descendants
       @models.select! { |c| c.ancestors.include?(self.class) && c != self.class }
       @models.map!(&:model).compact!
-    end
-
-    def model_includes
-      if self.respond_to?("#{model.model_name.singular}_includes", true)
-        self.send("#{model.model_name.singular}_includes")
-      else
-        []
-      end
-    end
-
-    def model_orders
-      if self.respond_to?("#{model.model_name.singular}_orders", true)
-        self.send("#{model.model_name.singular}_orders")
-      else
-        []
-      end
+      # Several controllers can serve one model; schema.json lists it once.
+      @models.uniq!
+      @models
     end
 
     def model_params
@@ -365,7 +356,7 @@ module StandardAPI
     end
 
     def resources
-      query = self.class.model.filter(params['where']).filter(mask[self.class.model.table_name.to_sym])
+      query = self.class.model.filter(wheres).filter(mask[self.class.model.table_name.to_sym])
 
       if params[:distinct_on]
         query = query.distinct_on(params[:distinct_on])
@@ -409,8 +400,14 @@ module StandardAPI
     end
 
     def includes
+      # #model_includes was removed; raise rather than ignore an override of it
+      # TODO: Remove this check in 10.0
+      if respond_to?(:model_includes, true)
+        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, define #{ model.model_name.singular }_includes in #{ model.name }ACL instead"
+      end
+
       @includes ||= if params[:include]
-        StandardAPI::Includes.sanitize(params[:include], model_includes)
+        sanitize_includes(params[:include], includes_for(model), model)
       else
         {}
       end
@@ -428,6 +425,15 @@ module StandardAPI
 
     def default_orders
       nil
+    end
+
+    # The +where+ param, checked against the ACL's wheres. It filters
+    # #resources, ie. the controller's model even in the *_resource actions,
+    # where #model is the association's model.
+    def wheres
+      return @wheres if defined?(@wheres)
+
+      @wheres = sanitize_wheres(params['where'], wheres_for(self.class.model), self.class.model)
     end
 
     def orders
@@ -453,7 +459,15 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= StandardAPI::Orders.sanitize(params[:order] || default_orders, model_orders | required_orders)
+      @orders ||= begin
+        # #model_orders was removed; raise rather than ignore an override of it
+        # TODO: Remove this check in 10.0
+        if respond_to?(:model_orders, true)
+          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
+        end
+
+        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
+      end
     end
 
     # The maximum number of results returned by #index

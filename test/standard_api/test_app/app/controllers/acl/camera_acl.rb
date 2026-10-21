@@ -12,9 +12,14 @@ module CameraACL
     end
   end
 
+  # Filters allowed in the `where` param
+  def wheres
+    [ :id, :make, { photo_id: [:eq, :in] }, :photo ]
+  end
+
   # Sub resources allowed to be included in the response
   def includes
-    { photo: [ :account ], specs: true }
+    [ :photo, :specs ]
   end
 
   # Attributes to exclude from the response, evaluated per-record. Dedicated

@@ -16,6 +16,20 @@ class ControllerSubresourceTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#add_resource checks the where param against the ACL of the controller model' do
+    property = create(:property, photos: [])
+    photo = create(:photo)
+
+    # PhotoACL permits account_id, but the where filters properties
+    post "/properties/#{property.id}/photos/#{photo.id}", params: { where: { account_id: photo.account_id } }
+    assert_response :bad_request
+    assert_equal [], property.photos.reload.map(&:id)
+
+    post "/properties/#{property.id}/photos/#{photo.id}", params: { where: { id: property.id } }
+    assert_response :created
+    assert_equal [photo.id], property.photos.reload.map(&:id)
+  end
+
   test 'Controller#add_resource with has_and_belongs_to_many' do
     photo1 = create(:photo)
     photo2 = create(:photo)

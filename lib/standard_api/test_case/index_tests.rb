@@ -44,6 +44,7 @@ module StandardAPI
       end
 
       test '#index.json params[:where]' do
+        skip("#{model.name}ACL#wheres doesn't permit id. Skipping where tests") if !where_permitted?({ id: 1 })
         m = create_model
 
         get resource_path(:index, format: :json), params: { limit: 10, where: { id: m.id } }

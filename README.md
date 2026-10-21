@@ -73,17 +73,24 @@ inherited controllers an exposed API.
       # ensure indexes have been created on these columns. In this example the
       # response can be ordered by any permutation of `id`, `created_at`, and
       # `updated_at`.
+      #
+      # An association can be listed by name, ie. `:account`, to allow
+      # ordering by the columns the associated model's orders permit
+      # (`account_orders`). Only names can be listed here; a Hash, ie.
+      # `{ account: [:name] }`, raises.
       def photo_orders
         [:id, :created_at, :updated_at]
       end
       
       # Allowed includes
       # Similarly, the includes (including of relationships in the reponse) are
-      # whitelisted. Note how includes can also support nested includes. In this
-      # case when including the author, the photos that the author took can also
-      # be included.
+      # whitelisted. Includes nested in a relationship are permitted by the
+      # related model's includes. In this case when including the author, the
+      # photos that the author took can also be included if the author model's
+      # includes permit `:photos`. Permitting the nested includes here, ie.
+      # `{ author: [:photos] }`, raises, except for a polymorphic association.
       def photo_includes
-        { author: [:photos] }
+        [:author]
       end
     end
 
@@ -124,6 +131,20 @@ following files:
       # Allowed orders
       def orders
         [ :id, :created_at, :updated_at ]
+      end
+      
+      # Allowed filters in the `where` param
+      #
+      # A column, or a column with "*", permits any operator on it, or the
+      # operators it permits can be listed (aliases such as `greater_than` for
+      # `gt` are permitted with them). An association is permitted by name,
+      # and what is filtered on it is checked against the associated model's
+      # wheres (for a polymorphic association, those of its `as` class).
+      # Permitting an association also permits its `_ids`. A `filter_on`
+      # filter is permitted by name. Without a `wheres` method nothing can be
+      # filtered on.
+      def wheres
+        [ :id, :caption, { created_at: [:gt, :lt] }, :author ]
       end
       
       # Allowed includes
