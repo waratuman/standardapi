@@ -2,28 +2,27 @@ require 'standard_api/test_helper'
 
 class SchemasTest < ActionDispatch::IntegrationTest
 
-  KEYS = %i(name type sql_type cast_type enum default primary_key null array
-    description auto_populated read_only required validations)
+  KEYS = %i(name type enum default primary_key null array description
+    auto_populated read_only required validations)
 
-  def schemas(model_or_record, controller: PropertiesController.new)
-    controller.schemas(model_or_record)
+  def schemas(model, controller: PropertiesController.new)
+    controller.schemas_for(model)
   end
 
   def attribute(model, name, **options)
     schemas(model, **options).find { |a| a[:name] == name }
   end
 
-  test 'one definition per column, in column order, with every key' do
+  test 'one definition per attribute, in attribute order, with every key' do
     definitions = schemas(Property)
 
-    assert_equal Property.column_names, definitions.map { |a| a[:name] }
+    assert_equal Property.attribute_names, definitions.map { |a| a[:name] }
     definitions.each { |a| assert_equal KEYS, a.keys }
   end
 
   test 'types, defaults and column facts' do
     id = attribute(Property, 'id')
     assert_equal 'integer', id[:type]
-    assert_equal :integer, id[:cast_type]
     assert_equal true, id[:primary_key]
     assert_equal false, id[:null]
 
@@ -39,7 +38,6 @@ class SchemasTest < ActionDispatch::IntegrationTest
   test 'enums are strings, named by their default' do
     level = attribute(Document, 'level', controller: DocumentsController.new)
     assert_equal 'string', level[:type]
-    assert_equal :integer, level[:cast_type]
     assert_equal ['public', 'secret'], level[:enum]
     assert_equal 'public', level[:default]
 
@@ -98,28 +96,49 @@ class SchemasTest < ActionDispatch::IntegrationTest
       schemas(Property, controller: controller).first
   end
 
-  test 'a record is described by its loaded attributes' do
-    create(:property)
-    record = Property.select(:id, :name, 'LENGTH(name) AS name_length').first
-
-    definitions = schemas(record)
-    assert_equal ['id', 'name', 'name_length'], definitions.map { |a| a[:name] }
-    assert_equal KEYS, definitions.last.keys
-
-    assert_equal 'string', definitions[1][:type]
-    assert_nil definitions[1][:read_only]
-    assert_nil definitions[1][:required]
-
-    assert_nil definitions.last[:type]
-    assert_equal record.type_for_attribute('name_length').type, definitions.last[:cast_type]
+  test 'type is the ActiveModel type' do
+    assert_equal 'decimal', attribute(Property, 'size')[:type]
+    assert_equal 'text', attribute(Property, 'description')[:type]
+    assert_equal 'boolean', attribute(Property, 'active')[:type]
+    assert_equal 'binary', attribute(Reference, 'sha', controller: ReferencesController.new)[:type]
+    # an `attribute` declaration over a binary column
+    assert_equal 'lsn', attribute(Reference, 'custom_binary', controller: ReferencesController.new)[:type]
   end
 
-  test 'a record is described without consulting the ACL' do
-    create(:property)
-    controller = PropertiesController.new
-    controller.expects(:model_attributes).never
+  test 'array columns are typed by their elements' do
+    skip "Adapter does not support array columns" if !postgres?
 
-    schemas(Property.last, controller: controller)
+    aliases = attribute(Property, 'aliases')
+    assert_equal 'string', aliases[:type]
+    assert_equal true, aliases[:array]
+  end
+
+  test 'date, time and datetime stay apart' do
+    model = Class.new(Property) do
+      def self.name = 'Property'
+      attribute :opened_on, :date
+      attribute :opens_at, :time
+      attribute :inspected_at, :datetime
+    end
+
+    assert_equal %w(date time datetime), %w(opened_on opens_at inspected_at).map { |name|
+      attribute(model, name)[:type]
+    }
+  end
+
+  test 'an attribute without a column' do
+    model = Class.new(Property) do
+      def self.name = 'Property'
+      attribute :nickname, :string
+    end
+
+    definitions = schemas(model)
+    assert_equal 'nickname', definitions.last[:name]
+    assert_equal({
+      name: 'nickname', type: 'string', enum: nil, default: nil,
+      primary_key: false, null: nil, array: false, description: nil,
+      auto_populated: nil, read_only: true, required: false, validations: []
+    }, definitions.last)
   end
 
 end

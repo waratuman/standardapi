@@ -1,8 +1,8 @@
 excluded = resolve_excludes(record, local_assigns[:excludes])
-schemas(record).each do |attribute|
-  next if excluded[attribute[:name]] == true
+record.attribute_names.each do |name|
+  next if excluded[name] == true
 
-  serialize_attribute(json, record, attribute[:name], attribute[:cast_type])
+  serialize_attribute(json, record, name, record.type_for_attribute(name).type)
 end
 
 includes.each do |inc, subinc|

@@ -224,44 +224,41 @@ timestamps and cannot distinguish one requester from another.
 
 ##### Attribute schemas
 
-`schemas(model)` returns the attributes of a model as StandardAPI exposes them,
-one Hash per column. `schema.json`, `json_schema.json` and
-`application/_record` are all built from it, so other code (an MCP tool
-describing your models, for instance) can read the same definitions without
-rendering a schema view and parsing it back. It is available in controllers
-and views:
+`schemas_for(model)` returns the attributes of a model as StandardAPI exposes
+them, one Hash per entry in `model.attribute_names`. `json_schema.json` is
+built from it, so other code (an MCP tool describing your models, for
+instance) can read the same definitions without rendering a schema view and
+parsing it back. It is available in controllers and views:
 
-    schemas(Property).find { |a| a[:name] == 'name' }
-    # => { name: 'name', type: 'string', sql_type: 'character varying(255)',
-    #      cast_type: :string, enum: nil, default: nil, primary_key: false,
-    #      null: true, array: false, description: nil, auto_populated: false,
-    #      read_only: false, required: true,
+    schemas_for(Property).find { |a| a[:name] == 'name' }
+    # => { name: 'name', type: 'string', enum: nil, default: nil,
+    #      primary_key: false, null: true, array: false, description: nil,
+    #      auto_populated: false, read_only: false, required: true,
     #      validations: [{ kind: :presence, options: {} }] }
 
 | Key              | Value                                                                                                       |
 |------------------|-------------------------------------------------------------------------------------------------------------|
 | `name`           | The attribute name                                                                                          |
-| `type`           | The StandardAPI type used in `schema.json` (`string`, `integer`, `datetime`, `hash`, ...). `string` for an enum |
-| `sql_type`       | The column's SQL type                                                                                       |
-| `cast_type`      | The ActiveModel type, `type_for_attribute(name).type`                                                       |
+| `type`           | The ActiveModel type, `type_for_attribute(name).type`, as a String (`string`, `text`, `integer`, `decimal`, `date`, `time`, `datetime`, `jsonb`, ...). `string` for an enum, `nil` for a type that doesn't name itself |
 | `enum`           | The names an enum accepts, or `nil`                                                                         |
 | `default`        | The column default cast to Ruby. For an enum, the name of the default                                       |
 | `primary_key`    | Whether it is the primary key                                                                               |
 | `null`           | Whether the column allows `NULL`                                                                            |
-| `array`          | Whether the column is an array                                                                              |
+| `array`          | Whether the column is an array. `type` is then the type of its elements                                     |
 | `description`    | The column comment                                                                                          |
 | `auto_populated` | Whether the database fills it in. `nil` when the adapter can't tell                                         |
 | `read_only`      | Not in the ACL's `attributes`, or, with no ACL `attributes`, readonly on the model                          |
 | `required`       | NOT NULL and writable (not read only through the ACL, not auto populated), or validated for presence or acceptance without `allow_nil` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
-The ACL is called without a record (`attributes(nil)`), so `read_only` is the
-answer for the model as a whole.
+An attribute declared without a column (`attribute :nickname, :string`) has
+`nil` for `default`, `null`, `description` and `auto_populated`. The ACL is
+called without a record (`attributes(nil)`), so `read_only` is the answer for
+the model as a whole.
 
-`schemas(record)` describes a loaded record instead: its own
-`attribute_names`, so a partial `select` or a computed column is described as
-loaded. The ACL isn't consulted for a record, so `read_only` and `required` are
-`nil`, and an attribute without a column has only `name` and `cast_type`.
+`schema.json` is not built from `schemas_for`: its `type` still comes from the
+column's SQL type, so it reports `datetime` for date and time columns, `hash`
+for JSON and `decimal` for floats.
 
 ##### Upgrading from 8.x
 

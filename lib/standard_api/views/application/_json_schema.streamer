@@ -7,16 +7,15 @@ json.object! do
   end
   json.set! 'properties' do
     json.object! do
-      schemas(model).each do |attribute|
+      schemas_for(model).each do |attribute|
         name = attribute[:name]
         next if includes["only"]&.exclude?(name)
         next if includes["except"]&.include?(name)
-        column_schema = json_column_schema(attribute[:sql_type])
+        column_schema = json_attribute_schema(attribute[:type])
 
         column_schema[:readOnly] = true if attribute[:read_only] || attribute[:auto_populated]
         column_schema[:default] = attribute[:default] if !attribute[:default].nil?
         column_schema[:description] = attribute[:description] if attribute[:description]
-        column_schema[:type] = 'string' if attribute[:enum]
         required.add(name) if attribute[:required]
 
         attribute[:validations].each do |v|
