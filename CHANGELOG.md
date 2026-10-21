@@ -59,3 +59,13 @@
 ### Deprecated
 
 - Zero-arity ACL `excludes` methods. Accept the record argument instead.
+
+### Security
+
+- The `group_by` param was passed to `group` as a String, which Rails uses
+  as raw SQL, so a client could append SQL to the `GROUP BY` of `index`,
+  `calculate` and the other actions, ie.
+  `group_by=id HAVING (SELECT ...) = 'a'`, and read any data the database
+  user can from whether records came back. It now only accepts column names
+  of the model, passed to `group` as columns, and rejects anything else with
+  a 400.
