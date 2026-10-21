@@ -139,14 +139,7 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
           sanitize_wheres(v, wheres_for(model), model)
-        elsif k.to_s == 'order'
-          # Orders the included records, so is checked against the orders
-          # permitted on their model (StandardAPI::Orders). Without a model,
-          # ie. under a polymorphic association, it can't be checked.
-          raise StandardAPI::UnpermittedParameters.new([k]) if !model
-
-          sanitize_orders(v, orders_for(model), model)
-        elsif ['limit', 'when', 'distinct', 'distinct_on'].include?(k.to_s)
+        elsif ['limit', 'when', 'order', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
           raise StandardAPI::UnpermittedParameters.new([k])

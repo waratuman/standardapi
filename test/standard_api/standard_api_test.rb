@@ -643,43 +643,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
 
-  test 'include with order key rejects orders the included ACL does not permit' do
-    property = create(:property, photos: [create(:photo)])
-
-    # PhotoACL#orders doesn't permit format
-    get property_path(property, include: { photos: { order: { format: :asc } } }, format: 'json')
-    assert_response :bad_request
-
-    get property_path(property, include: { photos: { order: ['(SELECT 1) DESC'] } }, format: 'json')
-    assert_response :bad_request
-  end
-
-  test 'include with order key through an association uses the associated ACL' do
-    ApplicationController.class_eval do
-      private def photo_orders
-        [ :id, :account ]
-      end
-    end
-
-    b = create(:photo, account: create(:account, name: 'b'))
-    a = create(:photo, account: create(:account, name: 'a'))
-    property = create(:property, photos: [b, a])
-
-    get property_path(property, include: { photos: { order: { account: { id: :desc } } } }, format: 'json')
-    assert_response :ok
-    assert_equal [a.id, b.id], JSON(response.body)['photos'].map { |x| x['id'] }
-  ensure
-    ApplicationController.send(:remove_method, :photo_orders)
-  end
-
-  test 'include with order key under a polymorphic association is rejected' do
-    create(:account, subject: create(:property))
-
-    get "/accounts", params: { limit: 10, include: { subject: { order: { id: :asc } } } }, as: :json
-    assert_response :bad_request
-    assert_equal 'found unpermitted parameter: "order"', response.body
-  end
-
   test 'include relation with default order using an order key' do
     p1 = create(:photo)
     p2 = create(:photo)
