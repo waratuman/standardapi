@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-- Require Ruby 3.3 or later and activerecord-sort 8.0.1 or later.
+- Require Ruby 3.3 or later and activerecord-sort 8.1.0 or later.
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
 - Ordering through an association listed by name in ACL `orders`, ie.
@@ -40,6 +40,10 @@
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
   `sanitize_includes` and `normalize_includes` instead.
+- An include's `order`, ie. `include[photos][order][id]=desc`, is checked
+  against the included model's ACL `orders`, like the `order` param. Orders
+  it doesn't permit, and any under a polymorphic association, are rejected
+  with a 400; before, any column could be ordered by.
 
 ### Added
 

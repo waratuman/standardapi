@@ -11,6 +11,10 @@ module PhotoACL
     [ :account ]
   end
 
+  def orders
+    [ :id, :created_at, :account_id ]
+  end
+
   def wheres
     [ :id, :account_id, :properties ]
   end

@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'rails', '>= 8.0.0'
   spec.add_runtime_dependency 'activesupport', '>= 8.0.0'
   spec.add_runtime_dependency 'actionpack', '>= 8.0.0'
-  spec.add_runtime_dependency 'activerecord-sort', '>= 8.0.1'
+  spec.add_runtime_dependency 'activerecord-sort', '>= 8.1.0'
   spec.add_runtime_dependency 'activerecord-filter', '>= 8.1.0'
 
   spec.add_development_dependency 'pg'
