@@ -152,16 +152,20 @@ module StandardAPI
     # The index views render an include only for the records whose attributes
     # match its +when+, ie. include[photos][when][active]=true, read with
     # read_attribute, so its keys must be attributes of +model+, the model of
-    # the records the include is on. Under a polymorphic association there is
-    # no single model to check against; a +when+ there only stops preloading.
+    # the records the include is on, and are checked like a where with +eq+
+    # against the wheres permitted on it. Under a polymorphic association
+    # there is no single model to check against; a +when+ there only stops
+    # preloading.
     def check_include_when(key, conditions, model)
       return if !model
       raise StandardAPI::UnpermittedParameters.new(["#{key}[when]"]) if !conditions.is_a?(Hash)
 
       conditions.each_key do |name|
-        next if model.attribute_names.include?(name.to_s) || model.attribute_alias?(name)
+        if !model.attribute_names.include?(name.to_s) && !model.attribute_alias?(name)
+          raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
+        end
 
-        raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
+        check_wheres({ name.to_s => true }, normalize_where_permit(wheres_for(model)), model)
       end
     end
 

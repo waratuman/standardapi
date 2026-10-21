@@ -526,6 +526,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with when key renders the include only for matching records' do
+    ApplicationController.class_eval do
+      private def property_wheres
+        [ :id, :name ]
+      end
+    end
+
     photo = create(:photo)
     matching = create(:property, name: 'a', photos: [photo])
     other = create(:property, name: 'b', photos: [create(:photo)])
@@ -535,6 +541,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     json = JSON(response.body).index_by { |x| x['id'] }
     assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
     assert_not json[other.id].has_key?('photos')
+  ensure
+    ApplicationController.send(:remove_method, :property_wheres)
   end
 
   test 'include with when key only reads attributes' do
@@ -548,14 +556,21 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     # A nested when is checked against the model of the records it's on
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
     assert_response :bad_request
+
+    # An attribute PropertyACL#wheres doesn't permit
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'x' } } } }
+    assert_response :bad_request
   end
 
   test 'Includes#check_include_when permits attributes, including aliases and the attributes API' do
     klass = Class.new(Property) do
       alias_attribute :title, :name
       attribute :featured, :boolean
+      def self.name = 'Property'
     end
-    check = PropertiesController.new.method(:check_include_when)
+    controller = PropertiesController.new
+    controller.define_singleton_method(:property_wheres) { [ :name, :title, :featured ] }
+    check = controller.method(:check_include_when)
 
     assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
     assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', { 'destroy' => '1' }, klass) }
