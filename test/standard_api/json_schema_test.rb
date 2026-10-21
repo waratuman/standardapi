@@ -9,7 +9,13 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_equal true, schema.has_key?('properties')
     assert_equal true, schema['required'].include?('make')
   end
-  
+
+  test 'Controller#json_schema.json description from the ACL schemas' do
+    get json_schema_cameras_path(format: 'json')
+
+    assert_equal 'The manufacturer', JSON(response.body).dig('properties', 'make', 'description')
+  end
+
   test 'Controller#json_schema.json table description' do
     skip "Adapter does not support comments on databases" if !mariadb? && !postgres?
 

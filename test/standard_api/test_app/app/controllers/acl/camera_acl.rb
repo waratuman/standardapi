@@ -4,6 +4,14 @@ module CameraACL
     [ :make, :hidden, :retired, :photo_id ]
   end
 
+  # Adjusts the attribute definitions schemas_for(Camera) and json_schema.json
+  # are built from
+  def schemas(schemas)
+    schemas.map do |schema|
+      schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
+    end
+  end
+
   # Sub resources allowed to be included in the response
   def includes
     { photo: [ :account ], specs: true }

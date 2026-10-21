@@ -222,17 +222,32 @@ Fragment caching is disabled automatically for any response an exclude rule or
 a `mask_for` row mask could affect, since cache keys are built from record
 timestamps and cannot distinguish one requester from another.
 
-##### Attribute schemas
+##### Schemas
 
-`schemas_for(model)` returns the attributes of a model as StandardAPI exposes
-them, one Hash per entry in `model.attribute_names`. `json_schema.json` is
-built from it, so other code (an MCP tool describing your models, for
-instance) can read the same definitions without rendering a schema view and
-parsing it back. It is available in controllers and views:
+An ACL may also define `schemas(schemas)` to adjust how its model's attributes
+are described. It receives the definitions StandardAPI builds for the model and
+returns the definitions to use, so it can change, drop or add attributes:
 
-    schemas_for(Property).find { |a| a[:name] == 'name' }
+    module PhotoACL
+      def schemas(schemas)
+        schemas.map do |schema|
+          schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
+        end
+      end
+    end
+
+Like the other ACL methods it is included in ApplicationController under the
+model's name (`photo_schemas`). `schemas_for(Photo)` returns the result, and
+`json_schema.json` is built from it. `schemas_for` is available in controllers
+and views, so other code (an MCP tool describing your models, for instance) can
+read the same definitions without rendering a schema view and parsing it back.
+
+Before the ACL sees them, there is one definition per entry in
+`model.attribute_names`:
+
+    schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
-    #      primary_key: false, null: true, array: false, description: nil,
+    #      primary_key: false, null: true, array: false, comment: nil,
     #      auto_populated: false, read_only: false, required: true,
     #      validations: [{ kind: :presence, options: {} }] }
 
@@ -245,20 +260,20 @@ parsing it back. It is available in controllers and views:
 | `primary_key`    | Whether it is the primary key                                                                               |
 | `null`           | Whether the column allows `NULL`                                                                            |
 | `array`          | Whether the column is an array. `type` is then the type of its elements                                     |
-| `description`    | The column comment                                                                                          |
+| `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
 | `auto_populated` | Whether the database fills it in. `nil` when the adapter can't tell                                         |
 | `read_only`      | Not in the ACL's `attributes`, or, with no ACL `attributes`, readonly on the model                          |
 | `required`       | NOT NULL and writable (not read only through the ACL, not auto populated), or validated for presence or acceptance without `allow_nil` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
 An attribute declared without a column (`attribute :nickname, :string`) has
-`nil` for `default`, `null`, `description` and `auto_populated`. The ACL is
-called without a record (`attributes(nil)`), so `read_only` is the answer for
-the model as a whole.
+`nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
+`attributes` is called without a record (`attributes(nil)`), so `read_only` is
+the answer for the model as a whole.
 
-`schema.json` is not built from `schemas_for`: its `type` still comes from the
-column's SQL type, so it reports `datetime` for date and time columns, `hash`
-for JSON and `decimal` for floats.
+`schema.json` is not built from `schemas_for`, and the ACL's `schemas` doesn't
+affect it: its `type` still comes from the column's SQL type, so it reports
+`datetime` for date and time columns, `hash` for JSON and `decimal` for floats.
 
 ##### Upgrading from 8.x
 

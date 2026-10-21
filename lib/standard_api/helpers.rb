@@ -83,7 +83,7 @@ module StandardAPI
     #   null            Boolean  whether the column allows NULL
     #   array           Boolean  whether the column is an array; "type" is then
     #                            the type of its elements
-    #   description     String   the column comment, or nil
+    #   comment         String   the column comment, or nil
     #   auto_populated  Boolean  whether the database fills the column in
     #                            itself. nil when the adapter can't tell
     #   read_only       Boolean  true when the attribute can't be written
@@ -98,12 +98,13 @@ module StandardAPI
     #   validations     Array    the model's validations of the attribute, as
     #                            `{ kind: :length, options: { maximum: 12 } }`
     #
-    # An attribute with no column has nil `default`, `null`, `description` and
+    # An attribute with no column has nil `default`, `null`, `comment` and
     # `auto_populated`.
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. Definitions are built once per
-    # model and view context.
+    # `read_only` is the model wide answer. If the ACL defines `schemas`, the
+    # built definitions are passed through it and its return value is used.
+    # Definitions are built once per model and view context.
     def schemas_for(model)
       @schemas_for ||= {}
       @schemas_for[model] ||= begin
@@ -112,8 +113,14 @@ module StandardAPI
         end
 
         columns = model.columns_hash
-        model.attribute_names.map do |name|
+        schemas = model.attribute_names.map do |name|
           attribute_schema(model, name, columns[name], permitted)
+        end
+
+        if controller.respond_to?(:model_schemas)
+          controller.model_schemas(model, schemas)
+        else
+          schemas
         end
       end
     end
@@ -136,7 +143,7 @@ module StandardAPI
         primary_key: name == model.primary_key,
         null: column&.null,
         array: column ? column.array : false,
-        description: column&.comment,
+        comment: column&.comment,
         auto_populated: auto_populated,
         read_only: permitted ? acl_read_only : model.readonly_attribute?(name),
         required: (column&.null == false && writable) || validations.any? { |v|
@@ -433,7 +440,7 @@ module StandardAPI
 
     # The JSON Schema for a #schemas_for `type`, or an empty schema for a type
     # it doesn't know
-    def json_attribute_schema(type)
+    def json_schema_for_type(type)
       case type
       when 'string', 'text', 'citext', 'inet', 'cidr', 'macaddr', 'ltree'
         {type: 'string'}

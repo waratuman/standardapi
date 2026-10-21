@@ -39,7 +39,7 @@ module StandardAPI
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+. A module already renamed is left as it is.
     def self.include_acl(application_controller, mod, prefix)
-      [:orders, :includes, :attributes, :excludes].each do |m|
+      [:orders, :includes, :attributes, :excludes, :schemas].each do |m|
         next if !mod.instance_methods.include?(m)
         mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
         mod.send :remove_method, m
@@ -92,6 +92,16 @@ module StandardAPI
       else
         self.send(method_name, record)
       end
+    end
+
+    # Pass +schemas+, the attribute definitions built for +model+ by
+    # Helpers#schemas_for, through the ACL's +schemas+ method and return its
+    # result. Returns +schemas+ unchanged when the ACL defines no +schemas+.
+    def model_schemas(model, schemas)
+      method_name = "#{model_name(model)}_schemas"
+      return schemas if !self.respond_to?(method_name, true)
+
+      self.send(method_name, schemas)
     end
 
     def filter_model_params(resource, model_params, id: nil, allow_id: nil)

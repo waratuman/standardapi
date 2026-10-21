@@ -2,7 +2,7 @@ require 'standard_api/test_helper'
 
 class SchemasTest < ActionDispatch::IntegrationTest
 
-  KEYS = %i(name type enum default primary_key null array description
+  KEYS = %i(name type enum default primary_key null array comment
     auto_populated read_only required validations)
 
   def schemas(model, controller: PropertiesController.new)
@@ -46,11 +46,11 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_nil attribute(Document, 'type', controller: DocumentsController.new)[:enum]
   end
 
-  test 'description is the column comment' do
+  test 'comment is the column comment' do
     skip "Adapter does not support column comments" if !postgres? && !mariadb?
 
     assert_equal 'Ratings are 1-10, where 10 is great',
-      attribute(Document, 'rating', controller: DocumentsController.new)[:description]
+      attribute(Document, 'rating', controller: DocumentsController.new)[:comment]
   end
 
   test 'read_only follows the ACL attributes' do
@@ -96,6 +96,12 @@ class SchemasTest < ActionDispatch::IntegrationTest
       schemas(Property, controller: controller).first
   end
 
+  test 'the ACL schemas method transforms the definitions' do
+    # CameraACL#schemas sets a comment on make
+    assert_equal 'The manufacturer', attribute(Camera, 'make', controller: CamerasController.new)[:comment]
+    assert_nil attribute(Camera, 'hidden', controller: CamerasController.new)[:comment]
+  end
+
   test 'type is the ActiveModel type' do
     assert_equal 'decimal', attribute(Property, 'size')[:type]
     assert_equal 'text', attribute(Property, 'description')[:type]
@@ -136,7 +142,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal 'nickname', definitions.last[:name]
     assert_equal({
       name: 'nickname', type: 'string', enum: nil, default: nil,
-      primary_key: false, null: nil, array: false, description: nil,
+      primary_key: false, null: nil, array: false, comment: nil,
       auto_populated: nil, read_only: true, required: false, validations: []
     }, definitions.last)
   end

@@ -15,9 +15,12 @@
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them.
-- `schemas_for(model)` returns the attribute definitions that
-  `json_schema.json` is built from, for use without rendering a view. Each has
-  one `type`, the attribute's ActiveModel type.
+- An ACL can define `schemas(schemas)` to adjust its model's attribute
+  definitions: it receives the definitions StandardAPI builds and returns the
+  ones to use. `schemas_for(Model)` returns the result, for use without
+  rendering a view, and `json_schema.json` is built from it. Each definition
+  has one `type`, the attribute's ActiveModel type, and a `comment`, which
+  `json_schema.json` renders as `description`.
 
 ### Changed
 
