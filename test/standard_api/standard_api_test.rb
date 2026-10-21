@@ -537,13 +537,31 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_not json[other.id].has_key?('photos')
   end
 
-  test 'include with when key only reads columns' do
+  test 'include with when key only reads attributes' do
     create(:property, photos: [create(:photo)])
 
-    # A method, not a column, is never called
+    # A method, not an attribute, is never called
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { destroy: '1' } } } }
     assert_response :bad_request
     assert_equal 1, Property.count
+
+    # A nested when is checked against the model of the records it's on
+    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
+    assert_response :bad_request
+  end
+
+  test 'Includes#check_include_when permits attributes, including aliases and the attributes API' do
+    klass = Class.new(Property) do
+      alias_attribute :title, :name
+      attribute :featured, :boolean
+    end
+    check = PropertiesController.new.method(:check_include_when)
+
+    assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', { 'destroy' => '1' }, klass) }
+    assert_raises(StandardAPI::UnpermittedParameters) { check.call('photos', 'name', klass) }
+    # Under a polymorphic association there is no model to check against
+    assert_nothing_raised { check.call('photos', { 'destroy' => '1' }, nil) }
   end
 
   test 'include with where key' do
