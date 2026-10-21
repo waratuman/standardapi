@@ -262,6 +262,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
     assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
+    # ReferenceACL defines no attributes, so readonly comes from the model
+    assert_equal false, schema['models']['Reference']['attributes']['key']['readonly']
 
     assert_equal [
       {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}

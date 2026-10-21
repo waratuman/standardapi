@@ -68,6 +68,40 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal true, attribute(Reference, 'key', controller: ReferencesController.new)[:read_only]
   end
 
+  test 'an STI subclass uses the ACL of its base class' do
+    controller = DocumentsController.new
+
+    # DocumentsController::ACL permits file and type
+    assert_equal controller.model_attributes(Document), controller.model_attributes(Pdf)
+    assert_equal false, attribute(Pdf, 'type', controller: controller)[:read_only]
+    assert_equal true, attribute(Pdf, 'rating', controller: controller)[:read_only]
+
+    # and so does creating or updating one
+    params = ActionController::Parameters.new(type: 'Pdf', rating: 3)
+    assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
+
+    controller = DocumentsController.new
+    controller.define_singleton_method(:document_schemas) do |default_schema|
+      default_schema.map { |s| s[:name] == 'type' ? s.merge(comment: 'From DocumentACL') : s }
+    end
+    assert_equal 'From DocumentACL', attribute(Pdf, 'type', controller: controller)[:comment]
+  end
+
+  test 'a read only attribute is not required, without ACL attributes' do
+    # ReferenceACL defines no attributes, so read_only comes from the model
+    Reference.stubs(:readonly_attribute?).returns(false)
+    Reference.stubs(:readonly_attribute?).with('key').returns(true)
+    # Columns are frozen, so stub a NOT NULL copy of key's
+    key_column = Reference.columns_hash['key'].dup
+    key_column.stubs(:null).returns(false)
+    columns = Reference.columns_hash.merge('key' => key_column)
+    Reference.stubs(:columns_hash).returns(columns)
+
+    key = attribute(Reference, 'key', controller: ReferencesController.new)
+    assert_equal true, key[:read_only]
+    assert_equal false, key[:required]
+  end
+
   test 'required' do
     # presence validation
     assert_equal true, attribute(Property, 'name')[:required]

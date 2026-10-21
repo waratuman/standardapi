@@ -60,6 +60,11 @@
 
 ### Changed
 
+- The ACL `attributes` and `schemas` lookups fall back to the base class's
+  ACL for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+  subclass without an ACL of its own can now be created and updated with the
+  attributes its base class's ACL permits, where before it permitted none,
+  and `json_schema.json` and `schema.json` describe it the same way.
 - `json_schema.json` describes every attribute in `model.attribute_names`,
   including those declared without a column, and types each by its ActiveModel
   type rather than its column's SQL type. An `attribute` declaration that
@@ -73,6 +78,9 @@
 ### Fixed
 
 - `json_schema.json` includes `false` column defaults, and no longer sets a
-  `null` default on enums without one.
+  `null` default on enums without one. An array column's `readOnly`,
+  `default` and `description` describe the array rather than its items.
+- A NOT NULL attribute that is read only on a model without ACL
+  `attributes` is no longer `required`.
 - The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
   a model has no ACL `attributes`, instead of always `true`.

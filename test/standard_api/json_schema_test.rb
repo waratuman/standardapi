@@ -65,6 +65,10 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     schema = JSON(response.body)
     assert_equal 'array', schema.dig('properties', 'aliases', 'type')
     assert_equal 'string', schema.dig('properties', 'aliases', 'items', 'type')
+
+    # The default describes the array, not its elements
+    assert_equal [], schema.dig('properties', 'aliases', 'default')
+    assert_equal({ 'type' => 'string' }, schema.dig('properties', 'aliases', 'items'))
   end
   
   test 'Controller#json_schema.json validation:numericality' do

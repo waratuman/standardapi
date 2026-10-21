@@ -91,8 +91,8 @@ module StandardAPI
     #                            `attributes`, or, with no ACL `attributes`,
     #                            the model marks it readonly
     #   required        Boolean  true when a create must set it: the column is
-    #                            NOT NULL and writable (neither ACL read only
-    #                            nor auto populated), or it has a presence
+    #                            NOT NULL and writable (neither read only nor
+    #                            auto populated), or it has a presence
     #                            validation, or an acceptance validation
     #                            without `allow_nil`
     #   validations     Array    the model's validations of the attribute, as
@@ -108,20 +108,14 @@ module StandardAPI
     def schemas_for(model)
       @schemas_for ||= {}
       @schemas_for[model] ||= begin
-        permitted = if controller.respond_to?(:model_attributes)
-          controller.model_attributes(model)&.map(&:to_s)
-        end
+        permitted = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
         schemas = model.attribute_names.map do |name|
           attribute_schema(model, name, columns[name], permitted)
         end
 
-        if controller.respond_to?(:model_schemas)
-          controller.model_schemas(model, schemas)
-        else
-          schemas
-        end
+        controller.model_schemas(model, schemas)
       end
     end
 
@@ -132,8 +126,8 @@ module StandardAPI
       auto_populated = (!!column.auto_populated? if column.respond_to?(:auto_populated?))
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
-      acl_read_only = !permitted.nil? && permitted.exclude?(name)
-      writable = !acl_read_only && !auto_populated
+      read_only = permitted ? permitted.exclude?(name) : model.readonly_attribute?(name)
+      writable = !read_only && !auto_populated
 
       {
         name: name,
@@ -145,7 +139,7 @@ module StandardAPI
         array: column ? column.array : false,
         comment: column&.comment,
         auto_populated: auto_populated,
-        read_only: permitted ? acl_read_only : model.readonly_attribute?(name),
+        read_only: read_only,
         required: (column&.null == false && writable) || validations.any? { |v|
           v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
         },
@@ -437,6 +431,47 @@ module StandardAPI
         {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end
+
+    # The JSON Schema property for +schema+, a #schemas_for definition. For an
+    # array, `readOnly`, `default` and `description` describe the array, and
+    # the type and validations its elements.
+    def json_schema_for_attribute(schema)
+      properties = json_schema_for_type(schema[:type])
+      schema[:validations].each { |v| add_json_schema_validation(properties, v[:kind], v[:options]) }
+
+      properties = { type: 'array', items: properties } if schema[:array]
+      properties[:readOnly] = true if schema[:read_only] || schema[:auto_populated]
+      properties[:default] = schema[:default] if !schema[:default].nil?
+      properties[:description] = schema[:comment] if schema[:comment]
+      properties
+    end
+
+    # Add the JSON Schema keywords for a validation of +kind+ to +properties+
+    def add_json_schema_validation(properties, kind, options)
+      case kind
+      when :numericality
+        properties["exclusiveMinimum"] = options[:greater_than] if options[:greater_than]
+        properties["exclusiveMaximum"] = options[:less_than] if options[:less_than]
+        properties["minimum"] = options[:greater_than_or_equal_to] if options[:greater_than_or_equal_to]
+        properties["maximum"] = options[:less_than_or_equal_to] if options[:less_than_or_equal_to]
+      when :inclusion
+        properties["enum"] = options[:in] if options[:in]
+      when :acceptance
+        properties["const"] = true
+      when :format
+        properties["pattern"] = options[:with] if options[:with]
+      when :length
+        properties["minLength"] = options[:minimum] if options[:minimum]
+        properties["maxLength"] = options[:maximum] if options[:maximum]
+      when :presence
+        # Already counted in schema[:required]
+      else
+        puts "******* MISSING VALIDATOR **********"
+        puts({ kind: kind, options: options }.inspect)
+        warn "missing validator"
+      end
+    end
+    private :add_json_schema_validation
 
     # The JSON Schema for a #schemas_for `type`, or an empty schema for a type
     # it doesn't know

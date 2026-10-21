@@ -281,17 +281,24 @@ Before the ACL sees them, there is one definition per entry in
 | `default`        | The column default cast to Ruby. For an enum, the name of the default                                       |
 | `primary_key`    | Whether it is the primary key                                                                               |
 | `null`           | Whether the column allows `NULL`                                                                            |
-| `array`          | Whether the column is an array. `type` is then the type of its elements                                     |
+| `array`          | Whether the column is an array. `type` is then the type of its elements. `json_schema.json` puts `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
 | `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
 | `auto_populated` | Whether the database fills it in. `nil` when the adapter can't tell                                         |
 | `read_only`      | Not in the ACL's `attributes`, or, with no ACL `attributes`, readonly on the model                          |
-| `required`       | NOT NULL and writable (not read only through the ACL, not auto populated), or validated for presence or acceptance without `allow_nil` |
+| `required`       | NOT NULL and writable (not read only, not auto populated), or validated for presence or acceptance without `allow_nil` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
 An attribute declared without a column (`attribute :nickname, :string`) has
 `nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
 `attributes` is called without a record (`attributes(nil)`), so `read_only` is
 the answer for the model as a whole.
+
+A definition the ACL's `schemas` adds must have every key above:
+`json_schema.json` reads them all (use `[]` for no `validations`).
+
+For an STI subclass, ie. `Pdf < Document`, without an ACL of its own, the base
+class's `attributes` and `schemas` are used (`document_attributes`,
+`document_schemas`), as they are for `orders`, `includes` and `wheres`.
 
 `schema.json` is not built from `schemas_for`, and the ACL's `schemas` doesn't
 affect it: its `type` still comes from the column's SQL type, so it reports
