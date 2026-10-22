@@ -94,5 +94,10 @@
   `\A`, `\z`, inline flag groups). An `inclusion` Range was rendered as a
   String `enum`; a numeric Range is now `minimum` and `maximum`, and other
   Ranges and Procs are left out.
+- `json_schema.json` describes the records StandardAPI renders: a column that
+  allows NULL, and a singular association that is included unless its
+  presence is validated (ie. a required `belongs_to`), allow `null`; a
+  decimal is a number or a String, since a BigDecimal renders as a String; and
+  an enum lists its names.
 - The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
   a model has no ACL `attributes`, instead of always `true`.

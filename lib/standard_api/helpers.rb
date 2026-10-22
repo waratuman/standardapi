@@ -448,8 +448,11 @@ module StandardAPI
         {type: 'string', format: 'uuid'}
       when 'integer'
         {type: 'integer'}
-      when 'float', 'decimal', 'money'
+      when 'float'
         {type: 'number'}
+      when 'decimal', 'money'
+        # A BigDecimal renders as a String in JSON, and either is accepted
+        {type: ['number', 'string']}
       when 'boolean'
         {type: 'boolean'}
       when 'date'
