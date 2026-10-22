@@ -36,6 +36,19 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#json_schema.json renders a definition the ACL schemas adds with only a name and type' do
+    ApplicationController.define_method(:camera_schemas) do |default_schema|
+      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get json_schema_cameras_path(format: 'json')
+    assert_response :ok
+    assert_equal({ 'type' => 'string' }, JSON(response.body).dig('properties', 'thumbnail_url'))
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
+  end
+
   test 'Controller#json_schema.json inclusion validations' do
     inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
 

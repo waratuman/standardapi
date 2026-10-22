@@ -87,6 +87,19 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal 'From DocumentACL', attribute(Pdf, 'type', controller: controller)[:comment]
   end
 
+  test 'a definition the ACL schemas adds only needs a name' do
+    controller = CamerasController.new
+    controller.define_singleton_method(:camera_schemas) do |default_schema|
+      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+
+    thumbnail_url = attribute(Camera, 'thumbnail_url', controller: controller)
+    assert_equal KEYS, thumbnail_url.keys
+    assert_equal({ name: 'thumbnail_url', type: 'string', enum: nil, default: nil, primary_key: false,
+      null: true, array: false, comment: nil, auto_populated: nil, read_only: false,
+      required: false, validations: [] }, thumbnail_url)
+  end
+
   test 'a read only attribute is not required, without ACL attributes' do
     # ReferenceACL defines no attributes, so read_only comes from the model
     Reference.stubs(:readonly_attribute?).returns(false)
