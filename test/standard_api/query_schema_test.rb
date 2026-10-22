@@ -166,4 +166,28 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert camera
   end
 
+  test 'Controller#query_schema_for is public and gives what query_schema.json renders' do
+    schema = camera_schema
+
+    assert_equal schema, controller.query_schema_for(Camera).as_json
+  end
+
+  test 'Controller#query_schema_for with ref leaves other models to the caller' do
+    camera_schema
+    refs = []
+    schema = controller.query_schema_for(Camera, ref: ->(model, kind) {
+      refs << [model, kind]
+      { '$ref' => "test://#{model.model_name.plural}##{kind}" } if model == Photo
+    }).as_json
+
+    # Only Camera's own where and when are built
+    assert_equal ['CameraWhere', 'CameraWhen'].sort, schema['$defs'].keys.sort
+    assert_equal({ '$ref' => 'test://photos#Where' }, resolve(schema, schema.dig('properties', 'where')).dig('anyOf', 0, 'properties', 'photo', 'anyOf', 1))
+    assert_includes refs, [Photo, 'Include']
+    assert_not_includes refs.map(&:first), Camera
+
+    # Returning nil builds it, as without ref
+    assert_equal camera_schema, controller.query_schema_for(Camera, ref: ->(*) { nil }).as_json
+  end
+
 end

@@ -29,6 +29,12 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_schemas)
   end
 
+  test 'Controller#write_schema_for is public and gives what write_schema.json renders' do
+    schema = camera_schema
+
+    assert_equal schema, controller.write_schema_for(Camera).as_json.dig('properties', 'camera')
+  end
+
   test 'Controller#write_schema.json is a JSON Schema of the model param' do
     schema = write_schema(write_schema_cameras_path(format: 'json'))
 
@@ -213,13 +219,6 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
 
     post properties_path(format: 'json'), params: params, as: :json
     assert_response :created
-  end
-
-  test 'Controller#json_schema.json redirects to write_schema.json' do
-    get json_schema_properties_path(format: 'json'), params: { a: 1 }
-
-    assert_response :moved_permanently
-    assert_equal 'http://www.example.com/properties/write_schema.json?a=1', response.location
   end
 
 end

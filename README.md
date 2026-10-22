@@ -423,6 +423,10 @@ GET /records/read_schema.json   a record as #show and #index render it
 GET /records/query_schema.json  params #index and #calculate accept
 ```
 
+Each route is only drawn with the actions it describes: `write_schema` with
+`create` or `update`, `read_schema` with `show` or `index`, and `query_schema`
+with `index` or `calculate`.
+
 Attributes are described from their definitions in `schemas_for(model)` (see
 [Schemas](#schemas)), so an ACL's `schemas` changes all three.
 
@@ -438,9 +442,18 @@ Attributes are described from their definitions in `schemas_for(model)` (see
   param, which is checked against the ACL's `includes` as on `#index`. A
   singular association allows `null` unless its presence is validated.
   Columns and includes are `required`; other attributes aren't, since a
-  partial `select` can leave them out. When an ACL `excludes` rule could hide
-  attributes nothing is `required`, and a model with a custom partial is
+  partial `select` can leave them out. A model with a custom partial is
   described as any object.
+
+  What `ApplicationHelper#excludes` excludes is left out, since it is
+  excluded from every record. An ACL `excludes(record)` decides per record,
+  so what it may exclude is still described, and nothing is `required`. To
+  keep an attribute an ACL always excludes out of the schema (its name, type
+  and comment), drop its definition in the ACL's `schemas`:
+
+      def schemas(default_schema)
+        default_schema.reject { |schema| schema[:name] == 'internal_path' }
+      end
 - **`query_schema.json`** describes `where`, `order` and `include` as the
   ACL's `wheres`, `orders` and `includes` permit them, following associations
   into the associated models' ACLs through `$defs`, plus `limit`, `offset` and
@@ -453,7 +466,18 @@ Attributes are described from their definitions in `schemas_for(model)` (see
   required unless there is a `default_limit`, or the query has a `select`
   (`#calculate`).
 
-`json_schema.json` redirects (301) to `write_schema.json`.
+The schemas are built by `write_schema_for(model)`, `read_schema_for(model,
+includes)` and `query_schema_for(model)`, which are public like
+`schemas_for`. Called on a controller handling a request, they give what the
+actions render, so a caller can validate params in-process before running an
+action. `query_schema_for` builds the where, order and include of every model
+reachable through a permitted association into `$defs`; given `ref:`, it
+leaves other models to the caller:
+
+    query_schema_for(Property, ref: ->(model, kind) {
+      # kind is "Where", "Order" or "Include"; nil builds it into $defs
+      { '$ref' => "myapp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+    })
 
 # Testing
 

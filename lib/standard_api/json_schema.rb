@@ -41,7 +41,10 @@ module StandardAPI
     ARRAY_OPERATORS = %i(eq neq contains contained_by excludes overlaps not_overlaps).freeze
     RANGE_OPERATORS = %i(eq neq contains contained_by overlaps not_overlaps ends_before ends_by starts_after starts_by adjacent_to).freeze
 
-    private
+    # write_schema_for, read_schema_for and query_schema_for are public, like
+    # schemas_for, so a caller can build a schema on a controller bound to a
+    # request and validate in-process, without dispatching the action. No
+    # route maps to them.
 
     # The shape of the params #create and #update accept for +model+: the
     # attributes the ACL's +attributes+ permit, and the associations its
@@ -63,7 +66,8 @@ module StandardAPI
     end
 
     # The shape #show renders for +model+ with +includes+, ie. each record
-    # #index renders.
+    # #index renders. +includes+ are normalized and checked against the ACL,
+    # as Controller#includes gives them.
     def read_schema_for(model, includes)
       {
         '$schema' => DIALECT,
@@ -75,7 +79,19 @@ module StandardAPI
     # +where+, +order+ and +include+ the ACL permits, +limit+, +offset+ and
     # +distinct+, and the unchecked +distinct_on+, +join+, +group_by+ and
     # +select+.
-    def query_schema_for(model)
+    #
+    # The where, order and include of each other model reachable through a
+    # permitted association are built into $defs. With +ref+, they are left to
+    # the caller instead: it is called as `ref.(model, kind)`, +kind+ being
+    # "Where", "Order" or "Include", and what it returns is used in place of
+    # that model's schema, ie. a $ref to the caller's own URI. Returning nil
+    # builds it into $defs as without +ref+.
+    #
+    #   query_schema_for(Property, ref: ->(model, kind) {
+    #     { '$ref' => "standardmcp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+    #   })
+    def query_schema_for(model, ref: nil)
+      @schema_ref = ref && [model, ref]
       defs = {}
       properties = {}
 
@@ -115,6 +131,19 @@ module StandardAPI
         'anyOf' => ([{ 'required' => ['limit'] }, { 'required' => ['select'] }] if resource_limit && !default_limit),
         '$defs' => (defs if defs.any?)
       }.compact
+    ensure
+      @schema_ref = nil
+    end
+
+    private
+
+    # The schema query_schema_for's +ref+ gives for the +kind+ of +model+, or
+    # nil to build it. The model being described is always built.
+    def external_ref(model, kind)
+      root, ref = @schema_ref
+      return nil if !ref || model == root
+
+      ref.call(model, kind)
     end
 
     def model_description(model)
@@ -281,8 +310,11 @@ module StandardAPI
         }
       end
 
+      excluded = always_excluded(model)
       properties = {}
       definitions_for(model).each do |name, definition|
+        next if excluded[name] == true
+
         properties[name] = attribute_read_schema(model, definition)
       end
       # Columns are always rendered. Other attributes may not be loaded, ie.
@@ -291,6 +323,7 @@ module StandardAPI
 
       includes.each do |name, subincludes|
         next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
+        next if excluded[name.to_s] == true
 
         association = model.reflect_on_association(name)
         required << name.to_s
@@ -322,8 +355,22 @@ module StandardAPI
         'type' => 'object',
         'properties' => properties,
         'additionalProperties' => false,
-        'required' => required
+        # Left out when empty: draft-04 requires at least one
+        'required' => (required if required.any?)
       }.compact
+    end
+
+    # What is excluded from every record of +model+, so is left out of its
+    # read schema: ApplicationHelper#excludes, which takes no record. An ACL
+    # +excludes+ decides per record, so nothing it excludes is left out (its
+    # attributes are only not required); an attribute it excludes from every
+    # record can be dropped with the ACL's +schemas+. Calling it with a
+    # made-up record could drop an attribute some records render, and an ACL
+    # may expect a persisted record.
+    def always_excluded(model)
+      return {} if self.respond_to?("#{model_name(model)}_excludes", true)
+
+      StandardAPI::Excludes.normalize(application_helper_excludes[model_name(model)])
     end
 
     # The JSON Schema of the attribute a definition describes, as
@@ -356,6 +403,10 @@ module StandardAPI
 
     # A $ref to the where schema of +model+, built into +defs+ the first time
     def where_ref(model, defs)
+      if schema = external_ref(model, 'Where')
+        return schema
+      end
+
       name = schema_name(model, 'Where')
       if !defs.key?(name)
         defs[name] = nil
@@ -535,6 +586,10 @@ module StandardAPI
     end
 
     def order_ref(model, defs)
+      if schema = external_ref(model, 'Order')
+        return schema
+      end
+
       name = schema_name(model, 'Order')
       if !defs.key?(name)
         defs[name] = nil
@@ -661,6 +716,10 @@ module StandardAPI
     end
 
     def include_ref(model, defs)
+      if schema = external_ref(model, 'Include')
+        return schema
+      end
+
       include_schema(normalize_includes(includes_for(model)), model, defs, name: schema_name(model, 'Include'))
     end
 

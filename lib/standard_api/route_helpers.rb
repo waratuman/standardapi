@@ -9,7 +9,6 @@ module StandardAPI
     #   GET /write_schema
     #   GET /read_schema
     #   GET /query_schema
-    #   GET /json_schema (redirects to /write_schema)
     #   GET /calculate
     #
     # For example
@@ -24,7 +23,7 @@ module StandardAPI
     #   end
     def standard_resources(*resources, &block)
       options = resources.extract_options!.dup
-      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :json_schema, :calculate, :create_resource, :add_resource, :remove_resource ]
+      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :calculate, :create_resource, :add_resource, :remove_resource ]
 
       resources_options = options.deep_dup
 
@@ -79,7 +78,6 @@ module StandardAPI
     #   GET /write_schema
     #   GET /read_schema
     #   GET /query_schema
-    #   GET /json_schema (redirects to /write_schema)
     #   GET /calculate
     #
     # For example:
@@ -94,7 +92,7 @@ module StandardAPI
     #   end
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
-      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :json_schema, :calculate, :add_resource, :remove_resource ]
+      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :calculate, :add_resource, :remove_resource ]
 
       resource_options = options.deep_dup
 
@@ -139,20 +137,21 @@ module StandardAPI
       end
     end
 
-    # json_schema was renamed write_schema, and redirects to it
-    JSON_SCHEMA_REDIRECT = lambda do |_params, request|
-      request.fullpath.sub(%r{/json_schema(?=[.?]|\z)}, '/write_schema')
-    end
-
     private
 
+    # Each JSON Schema describes other actions, so is only drawn with them:
+    # write_schema with create or update, read_schema with show or index, and
+    # query_schema with index or calculate
     def draw_schema_routes(actions)
-      if actions.include?(:write_schema) || actions.include?(:json_schema)
+      if actions.include?(:write_schema) && (actions & [:create, :update]).any?
         get :write_schema, on: :collection
       end
-      get :read_schema, on: :collection if actions.include?(:read_schema)
-      get :query_schema, on: :collection if actions.include?(:query_schema)
-      get :json_schema, on: :collection, to: redirect(&JSON_SCHEMA_REDIRECT) if actions.include?(:json_schema)
+      if actions.include?(:read_schema) && (actions & [:show, :index]).any?
+        get :read_schema, on: :collection
+      end
+      if actions.include?(:query_schema) && (actions & [:index, :calculate]).any?
+        get :query_schema, on: :collection
+      end
     end
 
   end

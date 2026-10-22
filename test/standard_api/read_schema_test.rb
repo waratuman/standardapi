@@ -43,7 +43,32 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#read_schema.json with excludes requires nothing' do
-    assert_equal [], read_schema(read_schema_cameras_path(format: 'json'))['required']
+    schema = read_schema(read_schema_cameras_path(format: 'json'))
+
+    # Left out rather than empty
+    assert_not schema.key?('required')
+    # CameraACL#excludes hides make from hidden cameras only
+    assert_includes schema['properties'].keys, 'make'
+  end
+
+  test 'Controller#read_schema.json leaves out what ApplicationHelper#excludes excludes' do
+    ApplicationHelper.module_eval do
+      def excludes
+        { account: [:email] }
+      end
+    end
+
+    schema = read_schema(read_schema_account_path(format: 'json'))
+    assert_not_includes schema['properties'].keys, 'email'
+    assert_includes schema['properties'].keys, 'name'
+  ensure
+    ApplicationHelper.module_eval { remove_method :excludes }
+  end
+
+  test 'Controller#read_schema_for is public and gives what read_schema.json renders' do
+    schema = read_schema(read_schema_properties_path(format: 'json'), include: 'landlord')
+
+    assert_equal schema, controller.read_schema_for(Property, controller.send(:includes)).as_json
   end
 
   test 'Controller#read_schema.json include has_many' do

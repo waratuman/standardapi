@@ -40,11 +40,14 @@
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
   `sanitize_includes` and `normalize_includes` instead.
-- `json_schema.json` is renamed `write_schema.json`, and redirects to it. It
-  now lists only the attributes the ACL permits (rather than every attribute,
-  marking the rest `readOnly`) and the ACL's nested associations. Its
-  `include` param, with `only` and `except`, is gone: use
+- `json_schema.json` is removed; use `write_schema.json`. It lists only the
+  attributes the ACL permits (rather than every attribute, marking the rest
+  `readOnly`) and the ACL's nested associations. `json_schema.json`'s
+  `include` param, with `only` and `except`, has no equivalent there: use
   `read_schema.json?include=...` for the shape of a response.
+  `:json_schema` in the `only` or `except` of `standard_resources` or
+  `standard_resource` now raises Rails' `ArgumentError` for an unknown
+  action.
 
 ### Added
 
@@ -67,7 +70,13 @@
   record, and of the params `#index` and `#calculate` accept. `where`, `order`,
   `include` and an include's `when` are limited to what the ACL permits;
   params the ACL doesn't check yet are described as used and marked "Not
-  checked by the ACL."
+  checked by the ACL." Each schema's route is only drawn with the actions it
+  describes. `read_schema.json` leaves out what `ApplicationHelper#excludes`
+  excludes.
+- `write_schema_for(model)`, `read_schema_for(model, includes)` and
+  `query_schema_for(model, ref: nil)` build those schemas in-process. With
+  `ref:`, `query_schema_for` leaves the where, order and include of other
+  models to the caller instead of building them into `$defs`.
 
 ### Changed
 
