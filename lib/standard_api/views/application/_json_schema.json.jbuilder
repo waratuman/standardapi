@@ -8,8 +8,6 @@ end
 permitted = controller.model_attributes(model)&.map(&:to_s)
 json.set! 'properties' do
   schemas_for(model).each do |schema|
-    # A definition, including one the ACL's schemas adds, needs a name and a
-    # type (nil for one with no JSON Schema mapping)
     name = schema.fetch(:name)
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
