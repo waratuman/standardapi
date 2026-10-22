@@ -1,6 +1,7 @@
 required = Set.new
 json.set! 'title', model.table_name.titleize.singularize
-json.set! 'type', 'object'
+# A singular association rendered as an include may be absent
+json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
 if comment = model.connection.table_comment(model.table_name)
   json.set! 'description', comment
 end
@@ -58,9 +59,18 @@ json.set! 'properties' do
       end
     end
 
+    # Rails enums are described by their names
+    schema_properties["enum"] = schema[:enum] if schema[:enum]
+    # A column that allows NULL renders null, as does a definition that
+    # doesn't say
+    if schema.fetch(:null, true) && !schema[:array]
+      schema_properties[:type] = Array(schema_properties[:type]) + ['null'] if schema_properties[:type]
+      schema_properties["enum"] += [nil] if schema_properties["enum"]
+    end
+
     json.set! name do
       if schema[:array]
-        json.set! 'type', 'array'
+        json.set! 'type', schema.fetch(:null, true) ? ['array', 'null'] : 'array'
         json.set! 'items', schema_properties
       else
         json.merge! schema_properties
@@ -84,7 +94,7 @@ json.set! 'properties' do
             json.partial!('json_schema', model: association.klass, includes: subinc)
           end
         else
-          json.partial!('json_schema', model: association.klass, includes: subinc)
+          json.partial!('json_schema', model: association.klass, includes: subinc, nullable: true)
         end
       end
     end

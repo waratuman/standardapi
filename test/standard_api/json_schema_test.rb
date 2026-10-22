@@ -44,8 +44,9 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
 
     get json_schema_cameras_path(format: 'json')
     assert_response :ok
-    # CameraACL#attributes doesn't permit it, so it's read only
-    assert_equal({ 'type' => 'string', 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
+    # null defaults to true, and CameraACL#attributes doesn't permit it, so
+    # it's read only
+    assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
   ensure
     ApplicationController.send(:remove_method, :camera_schemas)
   end
@@ -73,13 +74,37 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_attributes)
   end
 
+  test 'records validate against their json_schema.json' do
+    property = create(:property, photos: [create(:photo)])
+    pages = {
+      property_path(property, format: 'json', include: { photos: true, landlord: true }) => json_schema_properties_path(format: 'json', include: { photos: true, landlord: true }),
+      photo_path(property.photos.first, format: 'json') => json_schema_photos_path(format: 'json'),
+      document_path(create(:document), format: 'json') => json_schema_documents_path(format: 'json'),
+      reference_path(create(:reference), format: 'json') => json_schema_references_path(format: 'json'),
+      camera_path(create(:camera), format: 'json') => json_schema_cameras_path(format: 'json')
+    }
+    # contentMediaType is only an annotation; json_schemer needs to be told so
+    media_types = { 'application/octet-stream' => ->(_) { [true, nil] } }
+
+    pages.each do |record_path, schema_path|
+      get schema_path
+      schema = JSONSchemer.schema(JSON(response.body), content_media_types: media_types)
+      get record_path
+      record = JSON(response.body)
+
+      errors = schema.validate(record).map { |e| "#{e['data_pointer']}: #{e['type']}" }
+      assert_empty errors, "#{record_path} doesn't validate against #{schema_path}"
+    end
+  end
+
   test 'Controller#json_schema.json inclusion validations' do
     inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
 
     assert_equal %w[a b], camera_attribute_schema('make', inclusion.(%w[a b]))['enum']
-    assert_equal({ 'type' => 'integer', 'minimum' => 1, 'maximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1..10)))
-    assert_equal({ 'type' => 'integer', 'minimum' => 1, 'exclusiveMaximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1...10)))
-    assert_equal({ 'type' => 'integer', 'minimum' => 5 }, camera_attribute_schema('photo_id', inclusion.(5..)))
+    # photo_id allows NULL
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1..10)))
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 1, 'exclusiveMaximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1...10)))
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 5 }, camera_attribute_schema('photo_id', inclusion.(5..)))
     # JSON Schema can't describe a Range of Strings or a Proc
     assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.('a'..'z')))
     assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.(->(_) { %w[a] })))
@@ -157,7 +182,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)
-    assert_equal 'array', schema.dig('properties', 'aliases', 'type')
+    assert_equal ['array', 'null'], schema.dig('properties', 'aliases', 'type')
     assert_equal 'string', schema.dig('properties', 'aliases', 'items', 'type')
 
     # The default describes the array, not its elements
@@ -179,7 +204,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)
-    assert_equal ['concrete', 'metal', 'brick'], schema.dig('properties', 'build_type', 'enum')
+    # build_type allows NULL
+    assert_equal ['concrete', 'metal', 'brick', nil], schema.dig('properties', 'build_type', 'enum')
   end
   
   test 'Controller#json_schema.json validation:acceptance' do
@@ -227,7 +253,9 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     schema = JSON(response.body)
 
     assert_equal true, schema.has_key?('properties')
-    assert_equal 'string', schema['properties']['rating']['type']
+    # rating allows NULL
+    assert_equal ['string', 'null'], schema['properties']['rating']['type']
+    assert_equal ['poor', 'ok', 'good', nil], schema['properties']['rating']['enum']
     assert_nil schema['properties']['rating']['default']
   end
   
@@ -250,15 +278,16 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     
     schema = JSON(response.body)
     assert_equal 'array', schema.dig('properties', 'accounts', 'type')
-    assert_equal 'string', schema.dig('properties', 'accounts', 'items', 'properties', 'email', 'type')
+    assert_equal ['string', 'null'], schema.dig('properties', 'accounts', 'items', 'properties', 'email', 'type')
   end
 
   test 'Controller#json_schema.json include belongs_to' do
     get json_schema_photos_path(format: 'json'), params: { include: 'account' }
 
     schema = JSON(response.body)
-    assert_equal 'object', schema.dig('properties', 'account', 'type')
-    assert_equal 'string', schema.dig('properties', 'account', 'properties', 'email', 'type')
+    # A photo may have no account
+    assert_equal ['object', 'null'], schema.dig('properties', 'account', 'type')
+    assert_equal ['string', 'null'], schema.dig('properties', 'account', 'properties', 'email', 'type')
   end
 
 end
