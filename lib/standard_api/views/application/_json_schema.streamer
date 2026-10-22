@@ -43,6 +43,8 @@ json.object! do
             with = options[:with]
             if with.is_a?(Regexp) && with.options == 0 && with.source !~ /\\[AzZGh]|\(\?[imx-]+[:)]/
               schema_properties["pattern"] = with.source
+            elsif with.is_a?(Regexp)
+              Rails.logger.warn("#{model.name}##{name} format #{with.inspect} isn't an ECMA 262 pattern, so it's left out of the JSON Schema")
             end
           when :length
             schema_properties["minLength"] = options[:minimum] if options[:minimum]
