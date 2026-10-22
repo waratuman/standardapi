@@ -50,6 +50,16 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_schemas)
   end
 
+  test 'Controller#json_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do
+    Camera.stubs(:readonly_attribute?).returns(false)
+    Camera.stubs(:readonly_attribute?).with('make').returns(true)
+
+    get json_schema_cameras_path(format: 'json')
+    schema = JSON(response.body)
+    assert_equal true, schema.dig('properties', 'make', 'readOnly')
+    assert_includes schema['required'], 'make'
+  end
+
   test 'Controller#json_schema.json inclusion validations' do
     inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
 

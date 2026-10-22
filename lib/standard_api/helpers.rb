@@ -86,13 +86,15 @@ module StandardAPI
     #   comment         String   the column comment, or nil
     #   auto_populated  Boolean  whether the database fills the column in
     #                            itself. nil when the adapter can't tell
-    #   read_only       Boolean  true when the attribute can't be written
+    #   read_only       Boolean  true when the attribute can't be changed
     #                            through the API: it is missing from the ACL's
-    #                            `attributes`, or, with no ACL `attributes`,
-    #                            the model marks it readonly
+    #                            `attributes`, or the model marks it readonly
+    #                            (`attr_readonly`)
     #   required        Boolean  true when a create must set it: the column is
-    #                            NOT NULL and writable (neither read only nor
-    #                            auto populated), or it has a presence
+    #                            NOT NULL and writable on create (permitted by
+    #                            the ACL, not auto populated; an
+    #                            `attr_readonly` attribute can be set on
+    #                            create), or it has a presence
     #                            validation, or an acceptance validation
     #                            without `allow_nil`
     #   validations     Array    the model's validations of the attribute, as
@@ -126,8 +128,11 @@ module StandardAPI
       auto_populated = (!!column.auto_populated? if column.respond_to?(:auto_populated?))
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
-      read_only = permitted ? permitted.exclude?(name) : model.readonly_attribute?(name)
-      writable = !read_only && !auto_populated
+      # The ACL decides what can be written; an attr_readonly attribute can be
+      # set on create but never changed, so it is read only yet can be required
+      acl_read_only = !permitted.nil? && permitted.exclude?(name)
+      read_only = acl_read_only || model.readonly_attribute?(name)
+      writable_on_create = !acl_read_only && !auto_populated
 
       {
         name: name,
@@ -140,7 +145,7 @@ module StandardAPI
         comment: column&.comment,
         auto_populated: auto_populated,
         read_only: read_only,
-        required: (column&.null == false && writable) || validations.any? { |v|
+        required: (column&.null == false && writable_on_create) || validations.any? { |v|
           v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
         },
         validations: validations

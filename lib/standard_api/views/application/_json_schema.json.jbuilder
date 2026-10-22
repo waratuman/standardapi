@@ -12,7 +12,7 @@ json.set! 'properties' do
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
     schema_properties = json_schema_for_type(schema.fetch(:type))
-    read_only = permitted ? permitted.exclude?(name) : model.readonly_attribute?(name)
+    read_only = (permitted && permitted.exclude?(name)) || model.readonly_attribute?(name)
 
     required.add(name) if schema[:required]
 

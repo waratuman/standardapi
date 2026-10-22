@@ -96,7 +96,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal({ name: 'thumbnail_url', type: 'string' }, attribute(Camera, 'thumbnail_url', controller: controller))
   end
 
-  test 'a read only attribute is not required, without ACL attributes' do
+  test 'a NOT NULL attr_readonly attribute is read only and required, without ACL attributes' do
     # ReferenceACL defines no attributes, so read_only comes from the model
     Reference.stubs(:readonly_attribute?).returns(false)
     Reference.stubs(:readonly_attribute?).with('key').returns(true)
@@ -106,9 +106,20 @@ class SchemasTest < ActionDispatch::IntegrationTest
     columns = Reference.columns_hash.merge('key' => key_column)
     Reference.stubs(:columns_hash).returns(columns)
 
+    # It can be set on create, but never changed
     key = attribute(Reference, 'key', controller: ReferencesController.new)
     assert_equal true, key[:read_only]
-    assert_equal false, key[:required]
+    assert_equal true, key[:required]
+  end
+
+  test 'an attr_readonly attribute is read only even when the ACL permits it' do
+    # CameraACL permits make, which is NOT NULL and validated for presence
+    Camera.stubs(:readonly_attribute?).returns(false)
+    Camera.stubs(:readonly_attribute?).with('make').returns(true)
+
+    make = attribute(Camera, 'make', controller: CamerasController.new)
+    assert_equal true, make[:read_only]
+    assert_equal true, make[:required]
   end
 
   test 'required' do

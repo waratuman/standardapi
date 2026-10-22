@@ -80,8 +80,10 @@
 - `json_schema.json` includes `false` column defaults, and no longer sets a
   `null` default on enums without one. An array column's `readOnly`,
   `default` and `description` describe the array rather than its items.
-- A NOT NULL attribute that is read only on a model without ACL
-  `attributes` is no longer `required`.
+- `read_only` is true for an `attr_readonly` attribute even when the ACL's
+  `attributes` permit it, since Rails won't change it after create. `required`
+  is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
+  sent on create and can't be changed after.
 - `json_schema.json` is valid JSON Schema for `format` and `inclusion`
   validations. A `format` Regexp was rendered in Ruby's syntax, ie.
   `(?-mix:\d{3})`, which isn't an ECMA 262 pattern; it is now rendered as its
