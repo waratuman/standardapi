@@ -1,6 +1,6 @@
 module PhotoACL
 
-  def attributes
+  def attributes(record = nil)
     [
       :format
     ]

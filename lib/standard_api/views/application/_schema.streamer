@@ -86,7 +86,7 @@ else
               json.set! 'comment', column.comment
               # TODO: it would be nice if rails responded with a true or false here
               # instead of the function itself
-              json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
+              json.set! 'auto_populated', !!column.auto_populated?
 
               json.set! 'readonly', (if attributes = controller.model_attributes(model)
                 !attributes.map(&:to_s).include?(column.name)

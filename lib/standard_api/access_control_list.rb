@@ -86,8 +86,7 @@ module StandardAPI
     # +nil+. A zero-arity +attributes+ definition is still supported but
     # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
     def model_attributes(model, record = nil)
-      method_name = "#{model_name(model)}_attributes"
-      return nil if !self.respond_to?(method_name, true)
+      return nil if !(method_name = acl_method_for(model, :attributes))
 
       if self.method(method_name).arity == 0
         logger.warn <<~NOTE.strip_heredoc
@@ -103,10 +102,18 @@ module StandardAPI
     # Helpers#schemas_for, through the ACL's +schemas+ method and return its
     # result. Returns +schemas+ unchanged when the ACL defines no +schemas+.
     def model_schemas(model, schemas)
-      method_name = "#{model_name(model)}_schemas"
-      return schemas if !self.respond_to?(method_name, true)
+      return schemas if !(method_name = acl_method_for(model, :schemas))
 
       self.send(method_name, schemas)
+    end
+
+    # The ACL method +name+ for +model+, ie. +property_attributes+, falling
+    # back to the one for its base class (ie. an STI subclass), or nil if
+    # there is none
+    def acl_method_for(model, name)
+      [model, model.base_class].uniq.map { |k| "#{model_name(k)}_#{name}" }.find do |method|
+        self.respond_to?(method, true)
+      end
     end
 
     def filter_model_params(resource, model_params, id: nil, allow_id: nil)

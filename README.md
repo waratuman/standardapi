@@ -281,17 +281,31 @@ Before the ACL sees them, there is one definition per entry in
 | `default`        | The column default cast to Ruby. For an enum, the name of the default                                       |
 | `primary_key`    | Whether it is the primary key                                                                               |
 | `null`           | Whether the column allows `NULL`                                                                            |
-| `array`          | Whether the column is an array. `type` is then the type of its elements                                     |
+| `array`          | Whether the column is an array. `type` is then the type of its elements. `json_schema.json` puts `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
 | `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
-| `auto_populated` | Whether the database fills it in. `nil` when the adapter can't tell                                         |
-| `read_only`      | Not in the ACL's `attributes`, or, with no ACL `attributes`, readonly on the model                          |
-| `required`       | NOT NULL and writable (not read only through the ACL, not auto populated), or validated for presence or acceptance without `allow_nil` |
+| `auto_populated` | Whether the database fills it in (a serial id, a function default), so a create needn't set it. It doesn't make it `read_only` |
+| `read_only`      | Not in the ACL's `attributes`, or readonly on the model (`attr_readonly`)                                   |
+| `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
 An attribute declared without a column (`attribute :nickname, :string`) has
 `nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
 `attributes` is called without a record (`attributes(nil)`), so `read_only` is
 the answer for the model as a whole.
+
+A definition the ACL's `schemas` returns needs a `name` and a `type` (`nil` for
+one with no JSON Schema mapping); `json_schema.json` raises without them. It
+treats any other key it leaves out as unset, and works out `readOnly` from the
+ACL's `attributes`, as `read_only` is built, so an added attribute is read only
+unless the ACL permits writing it:
+
+    def schemas(default_schema)
+      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+
+For an STI subclass, ie. `Pdf < Document`, without an ACL of its own, the base
+class's `attributes` and `schemas` are used (`document_attributes`,
+`document_schemas`), as they are for `orders`, `includes` and `wheres`.
 
 `schema.json` is not built from `schemas_for`, and the ACL's `schemas` doesn't
 affect it: its `type` still comes from the column's SQL type, so it reports

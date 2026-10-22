@@ -85,14 +85,17 @@ module StandardAPI
     #                            the type of its elements
     #   comment         String   the column comment, or nil
     #   auto_populated  Boolean  whether the database fills the column in
-    #                            itself. nil when the adapter can't tell
-    #   read_only       Boolean  true when the attribute can't be written
+    #                            itself, ie. a serial id or a column with a
+    #                            function default
+    #   read_only       Boolean  true when the attribute can't be changed
     #                            through the API: it is missing from the ACL's
-    #                            `attributes`, or, with no ACL `attributes`,
-    #                            the model marks it readonly
+    #                            `attributes`, or the model marks it readonly
+    #                            (`attr_readonly`)
     #   required        Boolean  true when a create must set it: the column is
-    #                            NOT NULL and writable (neither ACL read only
-    #                            nor auto populated), or it has a presence
+    #                            NOT NULL and writable on create (permitted by
+    #                            the ACL, not auto populated; an
+    #                            `attr_readonly` attribute can be set on
+    #                            create), or it has a presence
     #                            validation, or an acceptance validation
     #                            without `allow_nil`
     #   validations     Array    the model's validations of the attribute, as
@@ -108,20 +111,14 @@ module StandardAPI
     def schemas_for(model)
       @schemas_for ||= {}
       @schemas_for[model] ||= begin
-        permitted = if controller.respond_to?(:model_attributes)
-          controller.model_attributes(model)&.map(&:to_s)
-        end
+        permitted = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
         schemas = model.attribute_names.map do |name|
           attribute_schema(model, name, columns[name], permitted)
         end
 
-        if controller.respond_to?(:model_schemas)
-          controller.model_schemas(model, schemas)
-        else
-          schemas
-        end
+        controller.model_schemas(model, schemas)
       end
     end
 
@@ -129,11 +126,14 @@ module StandardAPI
       attribute_type = model.type_for_attribute(name)
       enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
       default = column_default_value(column, model) if column
-      auto_populated = (!!column.auto_populated? if column.respond_to?(:auto_populated?))
+      auto_populated = (!!column.auto_populated? if column)
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
+      # The ACL decides what can be written; an attr_readonly attribute can be
+      # set on create but never changed, so it is read only yet can be required
       acl_read_only = !permitted.nil? && permitted.exclude?(name)
-      writable = !acl_read_only && !auto_populated
+      read_only = acl_read_only || model.readonly_attribute?(name)
+      writable_on_create = !acl_read_only && !auto_populated
 
       {
         name: name,
@@ -145,8 +145,8 @@ module StandardAPI
         array: column ? column.array : false,
         comment: column&.comment,
         auto_populated: auto_populated,
-        read_only: permitted ? acl_read_only : model.readonly_attribute?(name),
-        required: (column&.null == false && writable) || validations.any? { |v|
+        read_only: read_only,
+        required: (column&.null == false && writable_on_create) || validations.any? { |v|
           v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
         },
         validations: validations
@@ -448,8 +448,11 @@ module StandardAPI
         {type: 'string', format: 'uuid'}
       when 'integer'
         {type: 'integer'}
-      when 'float', 'decimal', 'money'
+      when 'float'
         {type: 'number'}
+      when 'decimal', 'money'
+        # A BigDecimal renders as a String in JSON, and either is accepted
+        {type: ['number', 'string']}
       when 'boolean'
         {type: 'boolean'}
       when 'date'

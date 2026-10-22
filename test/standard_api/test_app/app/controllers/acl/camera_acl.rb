@@ -1,6 +1,6 @@
 module CameraACL
 
-  def attributes
+  def attributes(record = nil)
     [ :make, :hidden, :retired, :photo_id ]
   end
 
