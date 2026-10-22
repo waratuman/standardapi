@@ -99,5 +99,8 @@
   presence is validated (ie. a required `belongs_to`), allow `null`; a
   decimal is a number or a String, since a BigDecimal renders as a String; and
   an enum lists its names.
+- `json_schema.json` declares its dialect with
+  `"$schema": "https://json-schema.org/draft/2020-12/schema"`, and leaves out
+  the attributes and includes the ACL's `excludes` drops from a new record.
 - The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
   a model has no ACL `attributes`, instead of always `true`.
