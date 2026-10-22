@@ -16,6 +16,9 @@ end
 class Document < ActiveRecord::Base
   attr_accessor :file
 
+  # An attribute without a column, rendered with the columns
+  attribute :page_count, :integer, default: 1
+
   enum :level, { public: 0, secret: 1 }, suffix: true
   enum :rating, { poor: 0, ok: 1, good: 2 }
 end

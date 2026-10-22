@@ -61,7 +61,7 @@ else
         # Not built from schemas_for(model): `type` here comes from
         # json_column_type(column.sql_type), an older list keyed on SQL types
         # that has drifted from the ActiveModel type schemas_for and
-        # json_schema.json use. It folds date and time into "datetime", float
+        # the JSON Schemas use. It folds date and time into "datetime", float
         # into "decimal" and json into "hash", has no entry for types like
         # interval or varbinary, and describes a column by its SQL type even
         # when an `attribute` declaration casts it differently. Kept so

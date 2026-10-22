@@ -6,6 +6,9 @@ module StandardAPI
     # Includes the following routes
     #
     #   GET /schema
+    #   GET /write_schema
+    #   GET /read_schema
+    #   GET /query_schema
     #   GET /calculate
     #
     # For example
@@ -20,7 +23,7 @@ module StandardAPI
     #   end
     def standard_resources(*resources, &block)
       options = resources.extract_options!.dup
-      standard_resource_actions = [ :schema, :json_schema, :calculate, :create_resource, :add_resource, :remove_resource ]
+      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :calculate, :create_resource, :add_resource, :remove_resource ]
 
       resources_options = options.deep_dup
 
@@ -50,7 +53,7 @@ module StandardAPI
         end
 
         get :schema, on: :collection if actions.include?(:schema)
-        get :json_schema, on: :collection if actions.include?(:json_schema)
+        draw_schema_routes(actions)
         get :calculate, on: :collection if actions.include?(:calculate)
 
         if actions.include?(:add_resource)
@@ -72,6 +75,9 @@ module StandardAPI
     # Includes the following routes
     #
     #   GET /schema
+    #   GET /write_schema
+    #   GET /read_schema
+    #   GET /query_schema
     #   GET /calculate
     #
     # For example:
@@ -86,7 +92,7 @@ module StandardAPI
     #   end
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
-      standard_resource_actions = [ :schema, :json_schema, :calculate, :add_resource, :remove_resource ]
+      standard_resource_actions = [ :schema, :write_schema, :read_schema, :query_schema, :calculate, :add_resource, :remove_resource ]
 
       resource_options = options.deep_dup
 
@@ -116,7 +122,7 @@ module StandardAPI
         end
 
         get :schema, on: :collection if actions.include?(:schema)
-        get :json_schema, on: :collection if actions.include?(:json_schema)
+        draw_schema_routes(actions)
         get :calculate, on: :collection if actions.include?(:calculate)
 
         if actions.include?(:add_resource)
@@ -128,6 +134,23 @@ module StandardAPI
         end
 
         block.call if block
+      end
+    end
+
+    private
+
+    # Each JSON Schema describes other actions, so is only drawn with them:
+    # write_schema with create or update, read_schema with show or index, and
+    # query_schema with index or calculate
+    def draw_schema_routes(actions)
+      if actions.include?(:write_schema) && (actions & [:create, :update]).any?
+        get :write_schema, on: :collection
+      end
+      if actions.include?(:read_schema) && (actions & [:show, :index]).any?
+        get :read_schema, on: :collection
+      end
+      if actions.include?(:query_schema) && (actions & [:index, :calculate]).any?
+        get :query_schema, on: :collection
       end
     end
 

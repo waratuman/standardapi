@@ -7,6 +7,7 @@ require 'faker'
 require 'standard_api/test_case'
 require 'byebug'
 require 'mocha/minitest'
+require 'json_schemer'
 require 'minitest/reporters'
 
 
