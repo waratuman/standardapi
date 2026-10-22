@@ -1,4 +1,5 @@
 required = Set.new
+json.set! '$schema', 'https://json-schema.org/draft/2020-12/schema' if local_assigns[:root]
 json.set! 'title', model.table_name.titleize.singularize
 # A singular association rendered as an include may be absent
 json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
@@ -7,11 +8,14 @@ if comment = model.connection.table_comment(model.table_name)
 end
 # The attributes the ACL lets a client write; any other is read only
 permitted = controller.model_attributes(model)&.map(&:to_s)
+# What the ACL excludes from a new record, as application/_record does
+excluded = resolve_excludes(model.new, local_assigns[:excludes])
 json.set! 'properties' do
   schemas_for(model).each do |schema|
     name = schema.fetch(:name)
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
+    next if excluded[name] == true
     schema_properties = json_schema_for_type(schema.fetch(:type))
 
     required.add(name) if schema[:required]
@@ -85,22 +89,23 @@ json.set! 'properties' do
     next if %w(only except).include?(inc)
     next if includes["only"]&.exclude?(inc)
     next if includes["except"]&.include?(inc)
+    next if excluded[inc] == true
     case association = model.reflect_on_association(inc)
     when ::ActiveRecord::Reflection::AbstractReflection
       json.set! inc do
         if association.collection?
           json.set! 'type', 'array'
           json.set! 'items' do
-            json.partial!('json_schema', model: association.klass, includes: subinc)
+            json.partial!('json_schema', model: association.klass, includes: subinc, excludes: sub_excludes(excluded, inc))
           end
         else
           # A required belongs_to (or a has_one validated for presence) has a
           # presence validation; any other may be absent
-          json.partial!('json_schema', model: association.klass, includes: subinc,
+          json.partial!('json_schema', model: association.klass, includes: subinc, excludes: sub_excludes(excluded, inc),
             nullable: model.validators_on(association.name).none? { |v| v.kind == :presence })
         end
       end
     end
   end
 end
-json.set! 'required', required.to_a
+json.set! 'required', required.to_a if required.any?
