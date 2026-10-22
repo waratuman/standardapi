@@ -58,11 +58,6 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_not schema.dig('properties', 'landlord').key?('$schema')
   end
 
-  test 'Controller#json_schema.json leaves out required when nothing is' do
-    get json_schema_references_path(format: 'json')
-    assert_not JSON(response.body).key?('required')
-  end
-
   test 'Controller#json_schema.json leaves out what the ACL excludes' do
     # CameraACL#excludes drops make from a hidden camera
     Camera.any_instance.stubs(:hidden?).returns(true)
@@ -70,7 +65,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_cameras_path(format: 'json')
     schema = JSON(response.body)
     assert_not schema['properties'].key?('make')
-    assert_not_includes schema.fetch('required', []), 'make'
+    assert_not_includes schema['required'], 'make'
   end
 
   test 'Controller#json_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do

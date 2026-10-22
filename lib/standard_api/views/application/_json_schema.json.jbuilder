@@ -1,5 +1,4 @@
 required = Set.new
-json.set! '$schema', 'https://json-schema.org/draft/2020-12/schema' if local_assigns[:root]
 json.set! 'title', model.table_name.titleize.singularize
 # A singular association rendered as an include may be absent
 json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
@@ -108,4 +107,4 @@ json.set! 'properties' do
     end
   end
 end
-json.set! 'required', required.to_a if required.any?
+json.set! 'required', required.to_a
