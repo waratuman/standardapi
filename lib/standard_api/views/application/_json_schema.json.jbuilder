@@ -11,12 +11,6 @@ json.set! 'properties' do
     next if includes["except"]&.include?(name)
     schema_properties = json_schema_for_type(schema[:type])
 
-    # For an array these describe the array, and the type and validations its
-    # elements
-    attribute_properties = {}
-    attribute_properties[:readOnly] = true if schema[:read_only] || schema[:auto_populated]
-    attribute_properties[:default] = schema[:default] if !schema[:default].nil?
-    attribute_properties[:description] = schema[:comment] if schema[:comment]
     required.add(name) if schema[:required]
 
     schema[:validations].each do |v|
@@ -52,7 +46,10 @@ json.set! 'properties' do
       else
         json.merge! schema_properties
       end
-      json.merge! attribute_properties
+      # For an array these describe the array, not its items
+      json.set! 'readOnly', true if schema[:read_only] || schema[:auto_populated]
+      json.set! 'default', schema[:default] if !schema[:default].nil?
+      json.set! 'description', schema[:comment] if schema[:comment]
     end
   end
   includes.each do |inc, subinc|
