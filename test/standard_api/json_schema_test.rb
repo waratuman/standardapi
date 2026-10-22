@@ -97,6 +97,23 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#json_schema.json an included association is nullable unless its presence is validated' do
+    # Photo's belongs_to :account is optional in the test app
+    get json_schema_photos_path(format: 'json'), params: { include: 'account' }
+    assert_equal ['object', 'null'], JSON(response.body).dig('properties', 'account', 'type')
+
+    # A required belongs_to (optional: false, or belongs_to_required_by_default)
+    # validates its presence
+    Photo.stubs(:validators_on).returns([])
+    Photo.stubs(:validators_on).with(:account).returns([ActiveRecord::Validations::PresenceValidator.new(attributes: [:account])])
+    get json_schema_photos_path(format: 'json'), params: { include: 'account' }
+    assert_equal 'object', JSON(response.body).dig('properties', 'account', 'type')
+
+    # A has_one may have no record
+    get json_schema_properties_path(format: 'json'), params: { include: 'landlord' }
+    assert_equal ['object', 'null'], JSON(response.body).dig('properties', 'landlord', 'type')
+  end
+
   test 'Controller#json_schema.json inclusion validations' do
     inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
 

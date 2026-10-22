@@ -94,7 +94,10 @@ json.set! 'properties' do
             json.partial!('json_schema', model: association.klass, includes: subinc)
           end
         else
-          json.partial!('json_schema', model: association.klass, includes: subinc, nullable: true)
+          # A required belongs_to (or a has_one validated for presence) has a
+          # presence validation; any other may be absent
+          json.partial!('json_schema', model: association.klass, includes: subinc,
+            nullable: model.validators_on(association.name).none? { |v| v.kind == :presence })
         end
       end
     end
