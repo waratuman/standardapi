@@ -60,6 +60,19 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_includes schema['required'], 'make'
   end
 
+  test 'Controller#json_schema.json an auto populated attribute the ACL permits is not readOnly or required' do
+    ApplicationController.define_method(:camera_attributes) { |record = nil| [:id, :make] }
+    ApplicationController.send(:private, :camera_attributes)
+
+    get json_schema_cameras_path(format: 'json')
+    schema = JSON(response.body)
+    # id is filled in by the database, but can be given
+    assert_nil schema.dig('properties', 'id', 'readOnly')
+    assert_not_includes schema['required'], 'id'
+  ensure
+    ApplicationController.send(:remove_method, :camera_attributes)
+  end
+
   test 'Controller#json_schema.json inclusion validations' do
     inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
 

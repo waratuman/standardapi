@@ -85,7 +85,8 @@ module StandardAPI
     #                            the type of its elements
     #   comment         String   the column comment, or nil
     #   auto_populated  Boolean  whether the database fills the column in
-    #                            itself. nil when the adapter can't tell
+    #                            itself, ie. a serial id or a column with a
+    #                            function default
     #   read_only       Boolean  true when the attribute can't be changed
     #                            through the API: it is missing from the ACL's
     #                            `attributes`, or the model marks it readonly
@@ -125,7 +126,7 @@ module StandardAPI
       attribute_type = model.type_for_attribute(name)
       enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
       default = column_default_value(column, model) if column
-      auto_populated = (!!column.auto_populated? if column.respond_to?(:auto_populated?))
+      auto_populated = (!!column.auto_populated? if column)
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
       # The ACL decides what can be written; an attr_readonly attribute can be

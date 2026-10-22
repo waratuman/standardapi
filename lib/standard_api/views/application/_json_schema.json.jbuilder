@@ -67,7 +67,7 @@ json.set! 'properties' do
         json.merge! schema_properties
       end
       # For an array these describe the array, not its items
-      json.set! 'readOnly', true if read_only || schema[:auto_populated]
+      json.set! 'readOnly', true if read_only
       json.set! 'default', schema[:default] if !schema[:default].nil?
       json.set! 'description', schema[:comment] if schema[:comment]
     end

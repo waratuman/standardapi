@@ -84,6 +84,9 @@
   `attributes` permit it, since Rails won't change it after create. `required`
   is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
   sent on create and can't be changed after.
+- `json_schema.json` no longer marks an auto populated column `readOnly`: the
+  database only fills it in when a create doesn't give one, so whether it can
+  be written is up to the ACL. It still isn't `required`.
 - `json_schema.json` is valid JSON Schema for `format` and `inclusion`
   validations. A `format` Regexp was rendered in Ruby's syntax, ie.
   `(?-mix:\d{3})`, which isn't an ECMA 262 pattern; it is now rendered as its

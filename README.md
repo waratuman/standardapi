@@ -283,7 +283,7 @@ Before the ACL sees them, there is one definition per entry in
 | `null`           | Whether the column allows `NULL`                                                                            |
 | `array`          | Whether the column is an array. `type` is then the type of its elements. `json_schema.json` puts `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
 | `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
-| `auto_populated` | Whether the database fills it in. `nil` when the adapter can't tell                                         |
+| `auto_populated` | Whether the database fills it in (a serial id, a function default), so a create needn't set it. It doesn't make it `read_only` |
 | `read_only`      | Not in the ACL's `attributes`, or readonly on the model (`attr_readonly`)                                   |
 | `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
