@@ -1198,6 +1198,25 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal ({'png' => 1, 'jpg' => 2}), JSON(response.body)
   end
 
+  test 'group_by only accepts columns of the model' do
+    create(:photo, format: 'jpg')
+    injection = 'id HAVING (SELECT COUNT(*) FROM accounts) >= 0'
+
+    get '/photos/calculate', params: { select: { count: '*' }, group_by: injection }
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "group_by"', response.body
+
+    get '/photos', params: { limit: 10, group_by: injection }, as: :json
+    assert_response :bad_request
+    assert_equal 'found unpermitted parameter: "group_by"', response.body
+
+    get '/photos/calculate', params: { select: { count: '*' }, group_by: 'nonexistent' }
+    assert_response :bad_request
+
+    get '/photos/calculate', params: { select: { count: '*' }, group_by: { 'format' => 'x' } }
+    assert_response :bad_request
+  end
+
   test 'calculate join' do
     p1 = create(:property)
     p2 = create(:property)
