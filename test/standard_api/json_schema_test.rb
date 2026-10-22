@@ -1,7 +1,64 @@
 require 'standard_api/test_helper'
+require 'json_schemer'
 
 class JSONSchemaTest < ActionDispatch::IntegrationTest
-  
+
+  # The JSON Schema of +attribute+ in cameras' json_schema.json, with the
+  # +validations+ given to it through the ACL's schemas
+  def camera_attribute_schema(attribute, validations)
+    ApplicationController.define_method(:camera_schemas) do |default_schema|
+      default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get json_schema_cameras_path(format: 'json')
+    assert_response :ok
+    JSON(response.body).dig('properties', attribute)
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
+  end
+
+  test 'Controller#json_schema.json is a valid JSON Schema' do
+    paths = [
+      json_schema_properties_path(format: 'json'),
+      json_schema_properties_path(format: 'json', include: { photos: true, landlord: true }),
+      json_schema_photos_path(format: 'json'),
+      json_schema_documents_path(format: 'json'),
+      json_schema_references_path(format: 'json'),
+      json_schema_cameras_path(format: 'json')
+    ]
+
+    paths.each do |path|
+      get path
+      assert_response :ok
+      errors = JSONSchemer.draft202012.validate(JSON(response.body)).map { |e| "#{e['data_pointer']}: #{e['type']}" }
+      assert_empty errors, "#{path} isn't a valid JSON Schema"
+    end
+  end
+
+  test 'Controller#json_schema.json inclusion validations' do
+    inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
+
+    assert_equal %w[a b], camera_attribute_schema('make', inclusion.(%w[a b]))['enum']
+    assert_equal({ 'type' => 'integer', 'minimum' => 1, 'maximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1..10)))
+    assert_equal({ 'type' => 'integer', 'minimum' => 1, 'exclusiveMaximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1...10)))
+    assert_equal({ 'type' => 'integer', 'minimum' => 5 }, camera_attribute_schema('photo_id', inclusion.(5..)))
+    # JSON Schema can't describe a Range of Strings or a Proc
+    assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.('a'..'z')))
+    assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.(->(_) { %w[a] })))
+  end
+
+  test 'Controller#json_schema.json format validations' do
+    format = ->(with) { [{ kind: :format, options: { with: with } }] }
+
+    assert_equal '\\d{3}-\\d{4}', camera_attribute_schema('make', format.(/\d{3}-\d{4}/))['pattern']
+    assert_equal '(?:a|b)c', camera_attribute_schema('make', format.(/(?:a|b)c/))['pattern']
+    # JavaScript doesn't read these the way Ruby does
+    [/\A\d+\z/, /(?i)abc/, /abc/i, /\h+/, ->(_) { /x/ }].each do |with|
+      assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', format.(with)), with.inspect)
+    end
+  end
+
   test 'Controller#json_schema.json' do
     get json_schema_cameras_path(format: 'json')
 
@@ -99,7 +156,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     get json_schema_properties_path(format: 'json')
 
     schema = JSON(response.body)
-    assert_equal "(?-mix:\\d{3}-\\d{3}-\\d{4})", schema.dig('properties', 'phone_number', 'pattern')
+    assert_equal "\\d{3}-\\d{3}-\\d{4}", schema.dig('properties', 'phone_number', 'pattern')
   end
   
   test 'Controller#json_schema.json validation:length' do

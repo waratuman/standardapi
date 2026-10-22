@@ -24,11 +24,26 @@ json.object! do
             schema_properties["minimum"] = options[:greater_than_or_equal_to] if options[:greater_than_or_equal_to]
             schema_properties["maximum"] = options[:less_than_or_equal_to] if options[:less_than_or_equal_to]
           when :inclusion
-            schema_properties["enum"] = options[:in] if options[:in]
+            case options[:in]
+            when Array
+              schema_properties["enum"] = options[:in]
+            when Range
+              # A Range of numbers bounds the value; JSON Schema can't describe others
+              range = options[:in]
+              if [range.begin, range.end].compact.all?(Numeric)
+                schema_properties["minimum"] = range.begin if range.begin
+                schema_properties[range.exclude_end? ? "exclusiveMaximum" : "maximum"] = range.end if range.end
+              end
+            end
           when :acceptance
             schema_properties["const"] = true
           when :format
-            schema_properties["pattern"] = options[:with] if options[:with]
+            # JSON Schema patterns are ECMA 262, so only a Regexp JavaScript reads the
+            # same way: no flags, inline flag groups like (?i), \A, \z, \Z, \G or \h
+            with = options[:with]
+            if with.is_a?(Regexp) && with.options == 0 && with.source !~ /\\[AzZGh]|\(\?[imx-]+[:)]/
+              schema_properties["pattern"] = with.source
+            end
           when :length
             schema_properties["minLength"] = options[:minimum] if options[:minimum]
             schema_properties["maxLength"] = options[:maximum] if options[:maximum]

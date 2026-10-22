@@ -82,5 +82,12 @@
   `default` and `description` describe the array rather than its items.
 - A NOT NULL attribute that is read only on a model without ACL
   `attributes` is no longer `required`.
+- `json_schema.json` is valid JSON Schema for `format` and `inclusion`
+  validations. A `format` Regexp was rendered in Ruby's syntax, ie.
+  `(?-mix:\d{3})`, which isn't an ECMA 262 pattern; it is now rendered as its
+  source, and left out when JavaScript wouldn't read it the same way (flags,
+  `\A`, `\z`, inline flag groups). An `inclusion` Range was rendered as a
+  String `enum`; a numeric Range is now `minimum` and `maximum`, and other
+  Ranges and Procs are left out.
 - The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
   a model has no ACL `attributes`, instead of always `true`.
