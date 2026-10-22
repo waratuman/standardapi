@@ -293,12 +293,14 @@ An attribute declared without a column (`attribute :nickname, :string`) has
 `attributes` is called without a record (`attributes(nil)`), so `read_only` is
 the answer for the model as a whole.
 
-A definition the ACL's `schemas` returns only needs a `name`; a key it leaves
-out defaults to `nil`, except `null` (`true`), `primary_key`, `array`,
-`read_only` and `required` (`false`) and `validations` (`[]`):
+A definition the ACL's `schemas` returns needs a `name` and a `type` (`nil` for
+one with no JSON Schema mapping); `json_schema.json` raises without them. It
+treats any other key it leaves out as unset, and works out `readOnly` from the
+ACL's `attributes`, as `read_only` is built, so an added attribute is read only
+unless the ACL permits writing it:
 
     def schemas(default_schema)
-      default_schema + [{ name: 'thumbnail_url', type: 'string', read_only: true }]
+      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL of its own, the base

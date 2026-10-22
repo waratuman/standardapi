@@ -103,10 +103,8 @@ module StandardAPI
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
     # `read_only` is the model wide answer. If the ACL defines `schemas`, the
-    # built definitions are passed through it and its return value is used;
-    # a key a definition leaves out takes its value from SCHEMA_DEFAULTS, so
-    # a definition the ACL adds only needs a `name`. Definitions are built
-    # once per model and view context.
+    # built definitions are passed through it and its return value is used.
+    # Definitions are built once per model and view context.
     def schemas_for(model)
       @schemas_for ||= {}
       @schemas_for[model] ||= begin
@@ -117,16 +115,9 @@ module StandardAPI
           attribute_schema(model, name, columns[name], permitted)
         end
 
-        controller.model_schemas(model, schemas).map { |schema| SCHEMA_DEFAULTS.merge(schema) }
+        controller.model_schemas(model, schemas)
       end
     end
-
-    # The value of each key a definition from the ACL's `schemas` leaves out
-    SCHEMA_DEFAULTS = {
-      name: nil, type: nil, enum: nil, default: nil, primary_key: false,
-      null: true, array: false, comment: nil, auto_populated: nil,
-      read_only: false, required: false, validations: []
-    }.freeze
 
     def attribute_schema(model, name, column, permitted)
       attribute_type = model.type_for_attribute(name)

@@ -44,7 +44,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
 
     get json_schema_cameras_path(format: 'json')
     assert_response :ok
-    assert_equal({ 'type' => 'string' }, JSON(response.body).dig('properties', 'thumbnail_url'))
+    # CameraACL#attributes doesn't permit it, so it's read only
+    assert_equal({ 'type' => 'string', 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
   ensure
     ApplicationController.send(:remove_method, :camera_schemas)
   end
