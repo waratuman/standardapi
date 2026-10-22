@@ -4,7 +4,7 @@ module CameraACL
     [ :make, :hidden, :retired, :photo_id ]
   end
 
-  # Adjusts the attribute definitions schemas_for(Camera) and json_schema.json
+  # Adjusts the attribute definitions schemas_for(Camera) and the JSON Schemas
   # are built from
   def schemas(default_schema)
     default_schema.map do |schema|

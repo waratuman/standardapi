@@ -3,6 +3,7 @@ module StandardAPI
     include StandardAPI::Orders
     include StandardAPI::Includes
     include StandardAPI::Wheres
+    include StandardAPI::JSONSchema
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -40,9 +41,19 @@ module StandardAPI
       end
     end
 
-    def json_schema
-      Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = normalize_includes(params[:include] || {})
+    # JSON Schema of the params #create and #update accept
+    def write_schema
+      render json: write_schema_for(model)
+    end
+
+    # JSON Schema of the record #show renders, with the +include+ param
+    def read_schema
+      render json: read_schema_for(model, includes)
+    end
+
+    # JSON Schema of the params #index and #calculate accept
+    def query_schema
+      render json: query_schema_for(model)
     end
 
     def index
