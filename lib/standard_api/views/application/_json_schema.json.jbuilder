@@ -12,7 +12,6 @@ json.set! 'properties' do
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
     schema_properties = json_schema_for_type(schema.fetch(:type))
-    read_only = (permitted && permitted.exclude?(name)) || model.readonly_attribute?(name)
 
     required.add(name) if schema[:required]
 
@@ -67,7 +66,7 @@ json.set! 'properties' do
         json.merge! schema_properties
       end
       # For an array these describe the array, not its items
-      json.set! 'readOnly', true if read_only
+      json.set! 'readOnly', true if (permitted && permitted.exclude?(name)) || model.readonly_attribute?(name)
       json.set! 'default', schema[:default] if !schema[:default].nil?
       json.set! 'description', schema[:comment] if schema[:comment]
     end
