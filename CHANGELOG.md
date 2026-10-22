@@ -55,7 +55,53 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
+- An ACL can define `schemas(default_schema)` to adjust its model's attribute
+  definitions: it receives the definitions StandardAPI builds and returns the
+  ones to use. `schemas_for(Model)` returns the result, for use without
+  rendering a view, and `json_schema.json` is built from it. Each definition
+  has one `type`, the attribute's ActiveModel type, and a `comment`, which
+  `json_schema.json` renders as `description`.
+
+### Changed
+
+- The ACL `attributes` and `schemas` lookups fall back to the base class's
+  ACL for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+  subclass without an ACL of its own can now be created and updated with the
+  attributes its base class's ACL permits, where before it permitted none,
+  and `json_schema.json` and `schema.json` describe it the same way.
+- `json_schema.json` describes every attribute in `model.attribute_names`,
+  including those declared without a column, and types each by its ActiveModel
+  type rather than its column's SQL type. An `attribute` declaration that
+  casts a column differently is described by its cast, and a type with no JSON
+  Schema mapping gets an empty schema.
 
 ### Deprecated
 
 - Zero-arity ACL `excludes` methods. Accept the record argument instead.
+
+### Fixed
+
+- `json_schema.json` includes `false` column defaults, and no longer sets a
+  `null` default on enums without one. An array column's `readOnly`,
+  `default` and `description` describe the array rather than its items.
+- `read_only` is true for an `attr_readonly` attribute even when the ACL's
+  `attributes` permit it, since Rails won't change it after create. `required`
+  is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
+  sent on create and can't be changed after.
+- `json_schema.json` no longer marks an auto populated column `readOnly`: the
+  database only fills it in when a create doesn't give one, so whether it can
+  be written is up to the ACL. It still isn't `required`.
+- `json_schema.json` is valid JSON Schema for `format` and `inclusion`
+  validations. A `format` Regexp was rendered in Ruby's syntax, ie.
+  `(?-mix:\d{3})`, which isn't an ECMA 262 pattern; it is now rendered as its
+  source, and left out when JavaScript wouldn't read it the same way (flags,
+  `\A`, `\z`, inline flag groups). An `inclusion` Range was rendered as a
+  String `enum`; a numeric Range is now `minimum` and `maximum`, and other
+  Ranges and Procs are left out.
+- `json_schema.json` describes the records StandardAPI renders: a column that
+  allows NULL, and a singular association that is included unless its
+  presence is validated (ie. a required `belongs_to`), allow `null`; a
+  decimal is a number or a String, since a BigDecimal renders as a String; and
+  an enum lists its names.
+- The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
+  a model has no ACL `attributes`, instead of always `true`.

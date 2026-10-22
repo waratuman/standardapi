@@ -61,6 +61,99 @@ module StandardAPI
       end
     end
 
+    # The attributes of +model+ as StandardAPI exposes them. `json_schema.json`
+    # is built from this, so code that needs the same information (an MCP tool
+    # describing a model, say) can read it directly instead of rendering a
+    # schema view and parsing it back.
+    #
+    # Returns an Array of Hashes, one per attribute in `model.attribute_names`
+    # order: the columns, then any attributes declared without one.
+    #
+    #   name            String   the attribute name
+    #   type            String   the ActiveModel type,
+    #                            `type_for_attribute(name).type`, so it is the
+    #                            same on every adapter and keeps "date", "time"
+    #                            and "datetime" apart. "string" for an enum. nil
+    #                            for a type that doesn't name itself
+    #   enum            Array    the names an enum accepts, or nil if the
+    #                            attribute isn't an enum
+    #   default         Object   the column default, cast to Ruby. For an enum,
+    #                            the name of the default value
+    #   primary_key     Boolean
+    #   null            Boolean  whether the column allows NULL
+    #   array           Boolean  whether the column is an array; "type" is then
+    #                            the type of its elements
+    #   comment         String   the column comment, or nil
+    #   auto_populated  Boolean  whether the database fills the column in
+    #                            itself, ie. a serial id or a column with a
+    #                            function default
+    #   read_only       Boolean  true when the attribute can't be changed
+    #                            through the API: it is missing from the ACL's
+    #                            `attributes`, or the model marks it readonly
+    #                            (`attr_readonly`)
+    #   required        Boolean  true when a create must set it: the column is
+    #                            NOT NULL and writable on create (permitted by
+    #                            the ACL, not auto populated; an
+    #                            `attr_readonly` attribute can be set on
+    #                            create), or it has a presence
+    #                            validation, or an acceptance validation
+    #                            without `allow_nil`
+    #   validations     Array    the model's validations of the attribute, as
+    #                            `{ kind: :length, options: { maximum: 12 } }`
+    #
+    # An attribute with no column has nil `default`, `null`, `comment` and
+    # `auto_populated`.
+    #
+    # The ACL is consulted without a record, as `attributes(nil)`, so
+    # `read_only` is the model wide answer. If the ACL defines `schemas`, the
+    # built definitions are passed through it and its return value is used.
+    # Definitions are built once per model and view context.
+    def schemas_for(model)
+      @schemas_for ||= {}
+      @schemas_for[model] ||= begin
+        permitted = controller.model_attributes(model)&.map(&:to_s)
+
+        columns = model.columns_hash
+        schemas = model.attribute_names.map do |name|
+          attribute_schema(model, name, columns[name], permitted)
+        end
+
+        controller.model_schemas(model, schemas)
+      end
+    end
+
+    def attribute_schema(model, name, column, permitted)
+      attribute_type = model.type_for_attribute(name)
+      enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
+      default = column_default_value(column, model) if column
+      auto_populated = (!!column.auto_populated? if column)
+      validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
+
+      # The ACL decides what can be written; an attr_readonly attribute can be
+      # set on create but never changed, so it is read only yet can be required
+      acl_read_only = !permitted.nil? && permitted.exclude?(name)
+      read_only = acl_read_only || model.readonly_attribute?(name)
+      writable_on_create = !acl_read_only && !auto_populated
+
+      {
+        name: name,
+        type: enum ? 'string' : attribute_type.type&.to_s,
+        enum: enum&.keys,
+        default: enum ? enum.key(default) : default,
+        primary_key: name == model.primary_key,
+        null: column&.null,
+        array: column ? column.array : false,
+        comment: column&.comment,
+        auto_populated: auto_populated,
+        read_only: read_only,
+        required: (column&.null == false && writable_on_create) || validations.any? { |v|
+          v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
+        },
+        validations: validations
+      }
+    end
+    private :attribute_schema
+
     # The excludes that apply to +record+ inside a partial: the record's own
     # ACL excludes deep-merged with whatever the parent partial passed down as
     # the `excludes` local.
@@ -342,6 +435,39 @@ module StandardAPI
         {type: 'string'}
       when /\Ageometry/
         {type: 'string', contentMediaType: 'application/octet-stream'}
+      end
+    end
+
+    # The JSON Schema for a #schemas_for `type`, or an empty schema for a type
+    # it doesn't know
+    def json_schema_for_type(type)
+      case type
+      when 'string', 'text', 'citext', 'inet', 'cidr', 'macaddr', 'ltree'
+        {type: 'string'}
+      when 'uuid'
+        {type: 'string', format: 'uuid'}
+      when 'integer'
+        {type: 'integer'}
+      when 'float'
+        {type: 'number'}
+      when 'decimal', 'money'
+        # A BigDecimal renders as a String in JSON, and either is accepted
+        {type: ['number', 'string']}
+      when 'boolean'
+        {type: 'boolean'}
+      when 'date'
+        {type: 'string', format: 'date'}
+      when 'datetime', 'timestamp', 'timestamptz', 'time'
+        # A time column renders as a full timestamp, not "HH:MM:SS"
+        {type: 'string', format: 'date-time'}
+      when 'interval'
+        {type: 'string', format: 'duration'}
+      when 'json', 'jsonb', 'hstore'
+        {type: 'object'}
+      when 'binary'
+        {type: 'string', contentMediaType: 'application/octet-stream'}
+      else
+        {}
       end
     end
 

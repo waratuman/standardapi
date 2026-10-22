@@ -58,7 +58,7 @@ end
 
 class PhotosController < ApplicationController
 
-  def photo_attributes
+  def photo_attributes(record = nil)
     [ :id, :account_id, :property_id, :format ]
   end
 

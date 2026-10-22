@@ -1,6 +1,6 @@
 module AccountACL
 
-  def attributes
+  def attributes(record = nil)
     [ "property_id", "name" ]
   end
 
