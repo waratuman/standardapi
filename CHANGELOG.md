@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-- Require Ruby 3.3 or later and activerecord-sort 8.1.0 or later.
+- Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
 - Replace `Controller#excludes_for(klass)` with per-record ACL
   `excludes(record)` rules.
 - Ordering through an association listed by name in ACL `orders`, ie.
