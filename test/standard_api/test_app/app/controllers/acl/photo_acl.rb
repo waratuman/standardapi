@@ -20,7 +20,7 @@ module PhotoACL
   end
 
   def nested
-    [ :account, :camera ]
+    { account: true, camera: true }
   end
 
 end

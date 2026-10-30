@@ -8,7 +8,7 @@ module NestedAttributes
 
     # = Create Test
 
-    test 'create record and create nested record' do
+    test 'create record when the ACL declares nested relations as a hash' do
       @controller = PhotosController.new
       post photos_path, params: { photo: { account: {name: 'Big Ben'}} }, as: :json
 
