@@ -136,8 +136,16 @@ module StandardAPI
       if includes.empty?
         record.cache_key(*timestamp_keys)
       else
-        timestamp = timestamp_keys.map { |attr| record[attr]&.to_time }.compact.max
-        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
+        # A maximum timestamp alone is ambiguous: another cache column can
+        # change to an equal or older value without changing the maximum.
+        # Fingerprint every value so any serialized cache timestamp blows the
+        # eager-loaded collection fragment.
+        timestamp_values = timestamp_keys.to_h do |attr|
+          value = record[attr]&.to_time
+          [attr, value&.utc&.to_fs(record.cache_timestamp_format)]
+        end
+
+        "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{digest_hash(timestamp_values)}"
       end
     end
 

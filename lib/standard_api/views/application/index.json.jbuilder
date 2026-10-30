@@ -6,9 +6,11 @@ partial = model_partial(model)
 partial_record_name = partial.split('/').last.to_sym
 
 if !includes.empty? && can_cache?(model, includes)
-  json.cache_collection! records, key: proc { |record| cache_key(record, includes) } do |record|
-    json.partial!(partial, includes: includes, partial_record_name => record)
-  end
+  json.array! records,
+    partial: partial,
+    as: partial_record_name,
+    locals: { includes: includes },
+    cached: proc { |record| cache_key(record, includes) }
 else
   json.array!(records) do |record|
     sub_includes = includes.select do |key, value|
