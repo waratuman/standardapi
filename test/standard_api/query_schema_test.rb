@@ -114,16 +114,42 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'properties' => true } }, 'limit' => 1 })
     assert schemer.valid?({ 'include' => { 'photo' => { 'when' => { 'make' => 'Canon' } } }, 'limit' => 1 })
     # Not ACL checked, but used
-    assert schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'id' => 'desc' }, 'distinct_on' => 'id' } }, 'limit' => 1 })
+    assert schemer.valid?({ 'include' => { 'photo' => { 'distinct_on' => 'id' } }, 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'offset' => 1 } }, 'limit' => 1 })
+  end
+
+  test 'Controller#query_schema.json include order is checked against the included model ACL orders' do
+    schema = camera_schema
+    schemer = schemer(schema)
+
+    # PhotoACL orders permit id, created_at and account_id
+    assert_equal ['id', 'created_at', 'account_id'], schema.dig('$defs', 'PhotoOrder', 'anyOf', 0, 'enum')
+    assert schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'id' => 'desc' } } }, 'limit' => 1 })
+    assert_not schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'format' => 'asc' } } }, 'limit' => 1 })
+
+    get cameras_path(format: 'json'), params: { include: { photo: { order: { format: 'asc' } } }, limit: 1 }
+    assert_response :bad_request
+  end
+
+  test 'Controller#query_schema.json group_by lists the model columns' do
+    schema = camera_schema
+    schemer = schemer(schema)
+
+    assert_equal Camera.column_names, schema.dig('properties', 'group_by', 'anyOf', 0, 'enum')
+    assert schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => ['make', 'hidden'] })
+    assert_not schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => 'cameras.make' })
+
+    get calculate_cameras_path(format: 'json'), params: { select: { count: '*' }, group_by: 'cameras.make' }
+    assert_response :bad_request
   end
 
   test 'Controller#query_schema.json params the ACL does not check' do
     properties = camera_schema['properties']
 
-    %w(distinct_on join group_by select).each do |name|
+    %w(distinct_on join select).each do |name|
       assert_match 'Not checked by the ACL.', properties.dig(name, 'description'), name
     end
+    assert_no_match 'Not checked by the ACL.', properties.dig('group_by', 'description')
     assert_equal ['photo'], properties.dig('join', 'enum')
   end
 

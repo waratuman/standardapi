@@ -76,9 +76,9 @@ module StandardAPI
     end
 
     # The shape of the params #index and #calculate accept for +model+: the
-    # +where+, +order+ and +include+ the ACL permits, +limit+, +offset+ and
-    # +distinct+, and the unchecked +distinct_on+, +join+, +group_by+ and
-    # +select+.
+    # +where+, +order+ and +include+ the ACL permits, +limit+, +offset+,
+    # +distinct+, the model's columns to +group_by+, and the unchecked
+    # +distinct_on+, +join+ and +select+.
     #
     # The where, order and include of each other model reachable through a
     # permitted association are built into $defs. With +ref+, they are left to
@@ -112,13 +112,19 @@ module StandardAPI
       properties['offset'] = { 'type' => 'integer', 'minimum' => 0 }
       properties['distinct'] = { 'type' => 'boolean' }
 
+      # Mirrors Controller#group_by, which only accepts the model's columns
+      column_name = { 'type' => 'string', 'enum' => model.column_names }
+      properties['group_by'] = {
+        'anyOf' => [column_name, { 'type' => 'array', 'items' => column_name }],
+        'description' => 'Columns of the model to group by. #calculate returns an object keyed by group.'
+      }
+
       # Used by #resources and #calculate_selects, but not checked by the ACL
       properties['distinct_on'] = unchecked(columns_schema, 'Columns to select distinct rows on, passed to `distinct_on`. Takes precedence over `distinct`.')
       properties['join'] = unchecked(
         { 'type' => 'string', 'enum' => model.reflect_on_all_associations.map { |a| a.name.to_s } },
         'An association to inner join, passed to `joins`.'
       )
-      properties['group_by'] = unchecked(columns_schema, 'Columns to group by, passed to `group`. #calculate returns an object keyed by group.')
       properties['select'] = unchecked(select_schema, 'The calculations #calculate returns.')
 
       {
@@ -618,7 +624,7 @@ module StandardAPI
     # polymorphic association, where a +where+ can't be checked.
     #
     # The include of an association is an object built into +defs+ as +name+,
-    # with the options (+where+, +limit+, +distinct+, +order+, +distinct_on+,
+    # with the options (+where+, +order+, +limit+, +distinct+, +distinct_on+,
     # +when+) that apply to included records. The top level, without a
     # +name+, has no options and is inline.
     def include_schema(permit, model, defs, name: nil)
@@ -673,14 +679,11 @@ module StandardAPI
 
       if options
         properties['where'] = where_ref(model, defs) if model && normalize_where_permit(wheres_for(model)).any?
+        properties['order'] = order_ref(model, defs) if model && Array(orders_for(model)).flatten.any?
         properties['limit'] = { 'type' => 'integer', 'minimum' => 0 }
         properties['distinct'] = { 'type' => 'boolean' }
 
         # Passed through by #sanitize_includes, but not checked by the ACL
-        properties['order'] = unchecked(
-          { 'anyOf' => [{ 'type' => 'object' }, { 'type' => 'array' }] },
-          'The order of the included records, passed to `reorder`.'
-        )
         properties['distinct_on'] = unchecked(columns_schema, 'Columns to select distinct included records on, passed to `distinct_on`.')
         properties['when'] = {
           'type' => 'object',

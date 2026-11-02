@@ -456,13 +456,14 @@ Attributes are described from their definitions in `schemas_for(model)` (see
       end
 - **`query_schema.json`** describes `where`, `order` and `include` as the
   ACL's `wheres`, `orders` and `includes` permit them, following associations
-  into the associated models' ACLs through `$defs`, plus `limit`, `offset` and
-  `distinct`. A column permitted with any operator lists the operators that
-  apply to its type. An include's `when` lists the attributes of the model
-  it's on that its ACL `wheres` permit an `eq` on. It also describes the
-  params no ACL checks yet, as they're used, with a description ending "Not
-  checked by the ACL.": `distinct_on`, `join`, `group_by`, `#calculate`'s
-  `select`, and `order` and `distinct_on` within an include. `limit` is
+  into the associated models' ACLs through `$defs`, plus `limit`, `offset`,
+  `distinct`, and `group_by` as the model's columns. An include's `where` and
+  `order` are those the included model's ACL permits. A column permitted with
+  any operator lists the operators that apply to its type. An include's `when`
+  lists the attributes of the model it's on that its ACL `wheres` permit an
+  `eq` on. It also describes the params no ACL checks yet, as they're used,
+  with a description ending "Not checked by the ACL.": `distinct_on`, `join`,
+  `#calculate`'s `select`, and `distinct_on` within an include. `limit` is
   required unless there is a `default_limit`, or the query has a `select`
   (`#calculate`).
 
