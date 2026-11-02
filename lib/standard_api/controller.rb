@@ -58,7 +58,7 @@ module StandardAPI
           c.is_a?(BigDecimal) ? c.to_f : c
         end
       end
-      @calculations = Hash[@calculations] if @calculations[0].is_a?(Array) && params[:group_by]
+      @calculations = Hash[@calculations] if @calculations[0].is_a?(Array) && group_by.any?
 
       render json: @calculations
     end
@@ -368,9 +368,7 @@ module StandardAPI
         query = query.joins(params[:join].to_sym)
       end
 
-      if params[:group_by]
-        query = query.group(params[:group_by])
-      end
+      query = query.group(*group_by) if group_by.any?
 
       query
     end
@@ -434,6 +432,21 @@ module StandardAPI
       return @wheres if defined?(@wheres)
 
       @wheres = sanitize_wheres(params['where'], wheres_for(self.class.model), self.class.model)
+    end
+
+    # The +group_by+ param as columns of the controller's model, which
+    # #resources groups by and #calculate selects. Only column names are
+    # accepted; a String passed to +group+ would be used as raw SQL.
+    def group_by
+      return @group_by if defined?(@group_by)
+
+      @group_by = Array.wrap(params[:group_by]).map do |name|
+        if !name.is_a?(String) || !self.class.model.columns_hash.has_key?(name)
+          raise StandardAPI::UnpermittedParameters.new(["group_by"])
+        end
+
+        self.class.model.arel_table[name]
+      end
     end
 
     def orders
@@ -509,7 +522,7 @@ module StandardAPI
 
       functions = ['minimum', 'maximum', 'average', 'sum', 'count']
       @selects = []
-      @selects << params[:group_by] if params[:group_by]
+      @selects.concat(group_by)
       Array(params[:select]).each do |select|
         select.each do |func, value|
           distinct = false
