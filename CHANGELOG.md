@@ -86,9 +86,8 @@
   receives the definitions StandardAPI builds and returns the ones to use.
   `schemas(default_schema, record = nil)` is also given the record being
   rendered, or `nil` for a model, and is then called once per record.
-  `schemas` isn't an ACL method; an ACL defining it raises
-  `StandardAPI::InvalidConfiguration`, as do two `Schema` modules of one
-  model. `schemas_for(record_or_model)` returns the result, for use
+  `schemas` isn't an ACL method. Two `Schema` modules of one model raise
+  `StandardAPI::InvalidConfiguration`. `schemas_for(record_or_model)` returns the result, for use
   without rendering a view, and `json_schema.json` and `application/_record`
   are built from it: a record renders the attributes in
   `schemas_for(record)`, one per entry in `record.attribute_names`, so an

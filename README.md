@@ -270,8 +270,8 @@ drop or add attributes:
       end
     end
 
-The ACL is about access, so `schemas` isn't an ACL method: an ACL that defines
-it raises `StandardAPI::InvalidConfiguration`. A `Schema` module is found and
+The ACL is about access, so `schemas` isn't an ACL method, and one an ACL
+defines isn't renamed or used. A `Schema` module is found and
 included in ApplicationController the same way as a nested `ACL`, under the
 model's name (`photo_schemas`), so every controller describes and renders a
 Photo the same way, including as an include of a property. Two controllers of

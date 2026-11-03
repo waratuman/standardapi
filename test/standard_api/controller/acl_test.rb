@@ -125,15 +125,6 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_match(/both define attachment_orders/, error.message)
   end
 
-  test "an ACL defining schemas raises" do
-    acl_controller(Attachment) do
-      def schemas(default_schema) = default_schema
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/defines schemas, which isn't an ACL method/, error.message)
-  end
-
   test "load! can be repeated" do
     acl_controller(Attachment) do
       def orders
