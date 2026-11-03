@@ -1,5 +1,49 @@
 module StandardAPI
   module Helpers
+    include StandardAPI::Helpers::JSONSchemaHelper
+
+    # Yield the base controller (the topmost class including +owner+), the
+    # +const+ module nested in it (ie. PhotosController::ACL) and the model's
+    # prefix for each controller with one, so AccessControlList and Schemas
+    # can include it into the base controller for every controller to use.
+    def self.each_nested(owner, const)
+      ActionController::Metal.descendants.each do |controller|
+        next if !controller.const_defined?(const, false)
+
+        # Only a controller using StandardAPI has a model; any other
+        # controller's constant is none of our business
+        base = controller.ancestors.grep(Class).select { |c| c.include?(owner) }.last
+        next if !base || !controller.model
+
+        yield base, controller.const_get(const, false), controller.model.model_name.singular
+      end
+    end
+
+    # Rename the methods of +mod+ in +renames+ (+{ attributes:
+    # 'photo_attributes' }+) and include it into +application_controller+. A
+    # module already renamed is left as it is. Raises if another module
+    # included this way defines any of the same methods, as one would silently
+    # override the other.
+    def self.include_renamed(application_controller, mod, renames)
+      renames.each do |from, to|
+        next if !mod.instance_methods.include?(from)
+        mod.send :alias_method, to.to_sym, from
+        mod.send :remove_method, from
+      end
+      mod.instance_variable_set(:@standard_api_model_module, true)
+
+      others = application_controller.ancestors.select { |m|
+        m != mod && m.instance_variable_get(:@standard_api_model_module)
+      }
+      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
+        other = others.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
+        next if !other
+
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs and Schemas of one model are shared by all of its controllers, so define them once"
+      end
+
+      application_controller.include mod
+    end
 
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
@@ -60,6 +104,129 @@ module StandardAPI
         'application/record'
       end
     end
+
+    # The attributes of +model+ as StandardAPI exposes them. `json_schema.json`
+    # is built from this, so code that needs the same information (an MCP tool
+    # describing a model, say) can read it directly instead of rendering a
+    # schema view and parsing it back.
+    #
+    # application/_record renders a record from `schemas_for(record)`, so the
+    # definitions are also what a record is rendered with: an attribute
+    # `Schema#schemas` leaves out isn't rendered, and one it adds is read from
+    # the record by name.
+    #
+    # Given a model, returns an Array of Hashes, one per attribute in
+    # `model.attribute_names` order: the columns, then any attributes declared
+    # without one. Given a record, one per attribute in
+    # `record.attribute_names`, which is what its query selected: a record
+    # loaded with `select(:id)` has only `id`, and one loaded with
+    # `select('*, 1 AS rank')` also has `rank`. The model types every
+    # attribute, so one it doesn't have, like `rank`, has a nil `type`.
+    #
+    #   name            String   the attribute name
+    #   type            String   the ActiveModel type,
+    #                            `type_for_attribute(name).type`, so it is the
+    #                            same on every adapter and keeps "date", "time"
+    #                            and "datetime" apart. "string" for an enum. nil
+    #                            for a type that doesn't name itself
+    #   enum            Array    the names an enum accepts, or nil if the
+    #                            attribute isn't an enum
+    #   default         Object   the column default, cast to Ruby. For an enum,
+    #                            the name of the default value
+    #   primary_key     Boolean
+    #   null            Boolean  whether the column allows NULL
+    #   array           Boolean  whether the column is an array; "type" is then
+    #                            the type of its elements
+    #   comment         String   the column comment, or nil
+    #   auto_populated  Boolean  whether the database fills the column in
+    #                            itself, ie. a serial id or a column with a
+    #                            function default
+    #   read_only       Boolean  true when the attribute can't be changed
+    #                            through the API: it is missing from the ACL's
+    #                            `attributes`, or the model marks it readonly
+    #                            (`attr_readonly`)
+    #   required        Boolean  true when a create must set it: the column is
+    #                            NOT NULL and writable on create (permitted by
+    #                            the ACL, not auto populated; an
+    #                            `attr_readonly` attribute can be set on
+    #                            create), or it has a presence
+    #                            validation, or an acceptance validation
+    #                            without `allow_nil`
+    #   validations     Array    the model's validations of the attribute, as
+    #                            `{ kind: :length, options: { maximum: 12 } }`
+    #
+    # An attribute with no column has nil `default`, `null`, `comment` and
+    # `auto_populated`.
+    #
+    # The ACL is consulted without a record, as `attributes(nil)`, so
+    # `read_only` is the model wide answer. If the model's controller nests a
+    # `Schema` module, the built definitions and the record (nil for a model)
+    # are passed through its `schemas(default_schema, record)` and its return
+    # value is used.
+    #
+    # Definitions are built once per model and set of attribute names in a
+    # view context, so records loaded by the same query share them. `schemas`
+    # is called once per model and once per record, with those shared
+    # definitions, so it must return new Hashes rather than change the ones
+    # it is given.
+    def schemas_for(record_or_model)
+      if record_or_model.is_a?(Class)
+        model = record_or_model
+        names = model.attribute_names
+      else
+        record = record_or_model
+        model = record.class
+        names = record.attribute_names
+      end
+
+      @default_schemas_for ||= {}
+      schemas = @default_schemas_for[[model, names]] ||= begin
+        writeable_attributes = controller.model_attributes(model)&.map(&:to_s)
+
+        columns = model.columns_hash
+        names.map do |name|
+          attribute_schema(model, name, columns[name], writeable_attributes&.exclude?(name))
+        end
+      end
+      return schemas if !controller.respond_to?(:model_schemas)
+
+      if record
+        @record_schemas_for ||= {}.compare_by_identity
+        @record_schemas_for[record] ||= controller.model_schemas(model, schemas, record)
+      else
+        @schemas_for ||= {}
+        @schemas_for[model] ||= controller.model_schemas(model, schemas)
+      end
+    end
+
+    def attribute_schema(model, name, column, writable)
+      attribute_type = model.type_for_attribute(name)
+      enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
+      default = column_default_value(column, model) if column
+      auto_populated = (!!column.auto_populated? if column)
+      validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
+
+      read_only = writable || model.readonly_attribute?(name)
+      writable_on_create = !writable && !auto_populated
+
+      {
+        name: name,
+        type: enum ? 'string' : attribute_type.type&.to_s,
+        enum: enum&.keys,
+        default: enum ? enum.key(default) : default,
+        primary_key: name == model.primary_key,
+        null: column&.null,
+        array: column ? column.array : false,
+        comment: column&.comment,
+        auto_populated: auto_populated,
+        read_only: read_only,
+        required: (column&.null == false && writable_on_create) || validations.any? { |v|
+          v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
+        },
+        validations: validations
+      }
+    end
+    private :attribute_schema
 
     # The excludes that apply to +record+ inside a partial: the record's own
     # ACL excludes deep-merged with whatever the parent partial passed down as

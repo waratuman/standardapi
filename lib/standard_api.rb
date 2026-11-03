@@ -15,6 +15,7 @@ require 'standard_api/includes'
 require 'standard_api/wheres'
 require 'standard_api/excludes'
 require 'standard_api/controller'
+require 'standard_api/helpers/json_schema_helper'
 require 'standard_api/helpers'
 require 'standard_api/route_helpers'
 require 'standard_api/active_record/connection_adapters/column'
@@ -23,11 +24,13 @@ require 'standard_api/railtie'
 
 module StandardAPI
   autoload :AccessControlList, 'standard_api/access_control_list'
+  autoload :Schemas, 'standard_api/schemas'
   autoload :Middleware, 'standard_api/middleware'
 
   def self.included(base)
     base.include StandardAPI::Controller
     base.include StandardAPI::AccessControlList
+    base.include StandardAPI::Schemas
   end
 end
 

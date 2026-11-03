@@ -243,6 +243,119 @@ Fragment caching is disabled automatically for any response an exclude rule or
 a `mask_for` row mask could affect, since cache keys are built from record
 timestamps and cannot distinguish one requester from another.
 
+##### Schemas
+
+A model's controller can declare how its attributes are described with a
+`Schema` module, nested in it like an `ACL`. `StandardAPI::Schemas` is the
+sibling of `StandardAPI::AccessControlList` that finds them; include it in
+your base controller (`include StandardAPI` includes both):
+
+    class ApplicationController
+      include StandardAPI::Controller
+      include StandardAPI::AccessControlList
+      include StandardAPI::Schemas
+    end
+
+The `Schema`'s `schemas(default_schema, record)` receives the definitions
+StandardAPI builds for the model and the record being rendered (`nil` for
+`schemas_for(Photo)` and `json_schema.json`), and returns the definitions to
+use, so it can change, drop or add attributes:
+
+    class PhotosController < ApplicationController
+      module Schema
+        def schemas(default_schema, record)
+          default_schema.map do |schema|
+            schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
+          end
+        end
+      end
+    end
+
+The ACL is about access, so `schemas` isn't an ACL method, and one an ACL
+defines isn't renamed or used. A `Schema` module is found and
+included in ApplicationController the same way as a nested `ACL`, under the
+model's name (`photo_schemas`), so every controller describes and renders a
+Photo the same way, including as an include of a property. Two controllers of
+one model with a `Schema`, or a `Schema` and an ACL defining the same method,
+raise `StandardAPI::InvalidConfiguration`. Without `StandardAPI::Schemas` in
+the base controller, `Schema` modules are ignored and the definitions are
+used as StandardAPI builds them.
+
+`schemas_for(Photo)` returns the result, and `json_schema.json` is built from
+it. Records are rendered from it too: `application/_record` renders the
+attributes in `schemas_for(record)`, so an attribute `Schema#schemas` leaves
+out isn't rendered, and one it adds is
+read from the record by name (`record.thumbnail_url`). `schemas_for` is
+available in controllers and views, so other code (an MCP tool describing your
+models, for instance) can read the same definitions without rendering a schema
+view and parsing it back.
+
+Before `Schema#schemas` sees them, there is one definition per entry in
+`model.attribute_names`, or, given a record, in `record.attribute_names`: the
+attributes its query selected. A record loaded with `select(:id)` has only
+`id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
+`nil` type since the model doesn't have it. Records of a model with the same
+attributes share their definitions before `Schema#schemas` sees them.
+
+The record lets the definitions vary by record:
+
+    module Schema
+      def schemas(default_schema, record)
+        return default_schema if !record&.private?
+        default_schema.reject { |schema| schema[:name] == 'location' }
+      end
+    end
+
+`schemas` is called once per record rendered, with the definitions the
+records share, so return new Hashes (`merge`, `reject`, `map`) rather than
+changing the ones it is given.
+
+    schemas_for(Property).find { |s| s[:name] == 'name' }
+    # => { name: 'name', type: 'string', enum: nil, default: nil,
+    #      primary_key: false, null: true, array: false, comment: nil,
+    #      auto_populated: false, read_only: false, required: true,
+    #      validations: [{ kind: :presence, options: {} }] }
+
+| Key              | Value                                                                                                       |
+|------------------|-------------------------------------------------------------------------------------------------------------|
+| `name`           | The attribute name                                                                                          |
+| `type`           | The ActiveModel type, `type_for_attribute(name).type`, as a String (`string`, `text`, `integer`, `decimal`, `date`, `time`, `datetime`, `jsonb`, ...). `string` for an enum, `nil` for a type that doesn't name itself |
+| `enum`           | The names an enum accepts, or `nil`                                                                         |
+| `default`        | The column default cast to Ruby. For an enum, the name of the default                                       |
+| `primary_key`    | Whether it is the primary key                                                                               |
+| `null`           | Whether the column allows `NULL`                                                                            |
+| `array`          | Whether the column is an array. `type` is then the type of its elements. `json_schema.json` puts `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
+| `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
+| `auto_populated` | Whether the database fills it in (a serial id, a function default), so a create needn't set it. It doesn't make it `read_only` |
+| `read_only`      | Not in the ACL's `attributes`, or readonly on the model (`attr_readonly`)                                   |
+| `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
+| `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
+
+An attribute declared without a column (`attribute :nickname, :string`) has
+`nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
+`attributes` is called without a record (`attributes(nil)`), so `read_only` is
+the answer for the model as a whole.
+
+A definition `Schema#schemas` returns needs a `name` and a `type` (`nil` for
+one with no JSON Schema mapping); `json_schema.json` raises without them. It
+treats any other key it leaves out as unset, and works out `readOnly` from the
+ACL's `attributes`, as `read_only` is built, so an added attribute is read only
+unless the ACL permits writing it. Records are rendered with it, so the record
+must respond to it:
+
+    def schemas(default_schema, record)
+      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+
+For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
+own, the base class's `attributes` and `schemas` are used
+(`document_attributes`, `document_schemas`), as they are for `orders`,
+`includes` and `wheres`.
+
+`schema.json` is not built from `schemas_for`, and `Schema#schemas` doesn't
+affect it: its `type` still comes from the column's SQL type, so it reports
+`datetime` for date and time columns, `hash` for JSON and `decimal` for floats.
+
 ##### Upgrading from 8.x
 
 `Controller#excludes_for(klass)` has been replaced by `excludes(record)`, so

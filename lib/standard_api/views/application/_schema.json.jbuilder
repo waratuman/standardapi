@@ -49,6 +49,13 @@ if model.nil? && controller_name == "application"
 else
 
   json.set! 'attributes' do
+    # Not built from schemas_for(model): `type` here comes from
+    # json_column_type(column.sql_type), an older list keyed on SQL types that
+    # has drifted from the ActiveModel type schemas_for and json_schema.json
+    # use. It folds date and time into "datetime", float into "decimal" and
+    # json into "hash", has no entry for types like interval or varbinary, and
+    # describes a column by its SQL type even when an `attribute` declaration
+    # casts it differently. Kept so schema.json's output doesn't change.
     model.columns.each do |column|
       default = column_default_value(column, model)
       type = case model.type_for_attribute(column.name)
@@ -68,7 +75,7 @@ else
         json.set! 'comment', column.comment
         # TODO: it would be nice if rails responded with a true or false here
         # instead of the function itself
-        json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
+        json.set! 'auto_populated', !!column.auto_populated?
 
         json.set! 'readonly', (if attributes = controller.model_attributes(model)
           !attributes.map(&:to_s).include?(column.name)

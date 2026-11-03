@@ -1,5 +1,6 @@
 module StandardAPI
   module AccessControlList
+    ACL_METHODS = [:orders, :includes, :wheres, :attributes, :excludes]
 
     def self.traverse(path, prefix: nil, &block)
       path.children.each do |child|
@@ -20,55 +21,22 @@ module StandardAPI
       end
     end
 
-    # Include the +ACL+ module nested in a controller into its base controller
-    # (the topmost class that includes AccessControlList), the same way
-    # #included does for app/controllers/acl. Controllers must already be
-    # loaded for their ACL to be found, so the Railtie calls this once they
-    # are, at boot and after each reload.
+    # Include the +ACL+ module nested in each controller into its base
+    # controller (the topmost class that includes AccessControlList), the
+    # same way #included does for app/controllers/acl
     def self.load!
-      ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(:ACL, false)
-
-        # Only a controller using StandardAPI has a model; any other
-        # controller's ACL constant is none of our business
-        base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
-        next if !base || !controller.model
-
-        include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
+      Helpers.each_nested(self, :ACL) do |base, mod, prefix|
+        include_acl(base, mod, prefix)
       end
     end
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
-    # +application_controller+. A module already renamed is left as it is.
-    # Raises if another ACL included into +application_controller+ defines
-    # any of the same methods, as one would silently override the other.
+    # +application_controller+, as Helpers.include_renamed does
     def self.include_acl(application_controller, mod, prefix)
-      [:orders, :includes, :wheres, :attributes, :excludes].each do |m|
-        next if !mod.instance_methods.include?(m)
-        mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
-        mod.send :remove_method, m
-      end
-
-      if mod.instance_methods.include?(:nested)
-        mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
-        mod.send :remove_method, :nested
-      end
-
-      if mod.instance_methods.include?(:filter)
-        mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
-        mod.send :remove_method, :filter
-      end
-
-      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
-      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
-      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
-        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
-        next if !other
-
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
-      end
-
-      application_controller.include mod
+      renames = ACL_METHODS.to_h { |m| [m, "#{prefix}_#{m}"] }
+      renames[:nested] = "nested_#{prefix}_attributes"
+      renames[:filter] = "filter_#{prefix}_params"
+      Helpers.include_renamed(application_controller, mod, renames)
     end
 
     def model_params
@@ -86,8 +54,7 @@ module StandardAPI
     # +nil+. A zero-arity +attributes+ definition is still supported but
     # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
     def model_attributes(model, record = nil)
-      method_name = "#{model_name(model)}_attributes"
-      return nil if !self.respond_to?(method_name, true)
+      return nil if !(method_name = model_method_for(model, :attributes))
 
       if self.method(method_name).arity == 0
         logger.warn <<~NOTE.strip_heredoc
@@ -168,14 +135,6 @@ module StandardAPI
       end
 
       permitted_params
-    end
-
-    def model_name(model)
-      if model.model_name.singular.starts_with?('habtm_')
-        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
-      else
-        model.model_name.singular
-      end
     end
 
   end
