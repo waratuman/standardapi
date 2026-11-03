@@ -81,7 +81,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
 
     controller = DocumentsController.new
-    controller.define_singleton_method(:document_schemas) do |default_schema|
+    controller.define_singleton_method(:document_schemas) do |default_schema, record|
       default_schema.map { |s| s[:name] == 'type' ? s.merge(comment: 'From DocumentACL') : s }
     end
     assert_equal 'From DocumentACL', attribute(Pdf, 'type', controller: controller)[:comment]
@@ -89,7 +89,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
 
   test 'a definition Schema#schemas adds is returned as it is' do
     controller = CamerasController.new
-    controller.define_singleton_method(:camera_schemas) do |default_schema|
+    controller.define_singleton_method(:camera_schemas) do |default_schema, record|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
 
@@ -215,7 +215,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
   test 'records are rendered from Schema#schemas' do
     camera = create(:camera)
     Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
-    ApplicationController.define_method(:camera_schemas) do |default_schema|
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       default_schema.reject { |s| s[:name] == 'retired' } + [{ name: 'thumbnail_url', type: 'string' }]
     end
     ApplicationController.send(:private, :camera_schemas)
@@ -230,11 +230,11 @@ class SchemasTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_schemas)
   end
 
-  test 'Schema#schemas accepting a record is given it' do
+  test 'Schema#schemas is given the record' do
     sony = create(:camera, make: 'Sony')
     leica = create(:camera, make: 'Leica')
     controller = CamerasController.new
-    controller.define_singleton_method(:camera_schemas) do |default_schema, record = nil|
+    controller.define_singleton_method(:camera_schemas) do |default_schema, record|
       default_schema.map { |s| s[:name] == 'make' ? s.merge(comment: record&.make) : s }
     end
 
@@ -246,24 +246,10 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_same controller.schemas_for(sony), controller.schemas_for(sony)
   end
 
-  test 'Schema#schemas without a record argument is not given one' do
-    camera = create(:camera)
-    controller = CamerasController.new
-    calls = []
-    controller.define_singleton_method(:camera_schemas) do |default_schema|
-      calls << default_schema
-      default_schema
-    end
-
-    controller.schemas_for(camera)
-    controller.schemas_for(Camera.find(camera.id))
-    assert_equal 1, calls.size
-  end
-
   test 'records are rendered from the Schema#schemas for each record' do
     create(:camera, retired: false)
     create(:camera, retired: true)
-    ApplicationController.define_method(:camera_schemas) do |default_schema, record = nil|
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       record&.retired? ? default_schema.reject { |s| s[:name] == 'make' } : default_schema
     end
     ApplicationController.send(:private, :camera_schemas)

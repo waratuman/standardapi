@@ -1,5 +1,6 @@
 module StandardAPI
   module Helpers
+    include StandardAPI::JSONSchemaHelpers
 
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
@@ -159,15 +160,15 @@ module StandardAPI
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
     # `read_only` is the model wide answer. If the model's controller nests a
-    # `Schema` module, the built definitions are passed through its `schemas`
-    # and its return value is used. A `schemas(default_schema, record = nil)`
-    # that accepts a record is given it (nil for a model).
+    # `Schema` module, the built definitions and the record (nil for a model)
+    # are passed through its `schemas(default_schema, record)` and its return
+    # value is used.
     #
     # Definitions are built once per model and set of attribute names in a
-    # view context, so records loaded by the same query share them. A
-    # `schemas` that accepts a record is called once per record instead,
-    # with those shared definitions, so it must return new Hashes rather than
-    # change the ones it is given.
+    # view context, so records loaded by the same query share them. `schemas`
+    # is called once per model and once per record, with those shared
+    # definitions, so it must return new Hashes rather than change the ones
+    # it is given.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model
@@ -189,12 +190,12 @@ module StandardAPI
       end
       return schemas if !controller.respond_to?(:model_schemas)
 
-      if record && controller.model_schemas_take_record?(model)
+      if record
         @record_schemas_for ||= {}.compare_by_identity
         @record_schemas_for[record] ||= controller.model_schemas(model, schemas, record)
       else
         @schemas_for ||= {}
-        @schemas_for[[model, names]] ||= controller.model_schemas(model, schemas)
+        @schemas_for[model] ||= controller.model_schemas(model, schemas)
       end
     end
 
@@ -508,39 +509,6 @@ module StandardAPI
         {type: 'string'}
       when /\Ageometry/
         {type: 'string', contentMediaType: 'application/octet-stream'}
-      end
-    end
-
-    # The JSON Schema for a #schemas_for `type`, or an empty schema for a type
-    # it doesn't know
-    def json_schema_for_type(type)
-      case type
-      when 'string', 'text', 'citext', 'inet', 'cidr', 'macaddr', 'ltree'
-        {type: 'string'}
-      when 'uuid'
-        {type: 'string', format: 'uuid'}
-      when 'integer'
-        {type: 'integer'}
-      when 'float'
-        {type: 'number'}
-      when 'decimal', 'money'
-        # A BigDecimal renders as a String in JSON, and either is accepted
-        {type: ['number', 'string']}
-      when 'boolean'
-        {type: 'boolean'}
-      when 'date'
-        {type: 'string', format: 'date'}
-      when 'datetime', 'timestamp', 'timestamptz', 'time'
-        # A time column renders as a full timestamp, not "HH:MM:SS"
-        {type: 'string', format: 'date-time'}
-      when 'interval'
-        {type: 'string', format: 'duration'}
-      when 'json', 'jsonb', 'hstore'
-        {type: 'object'}
-      when 'binary'
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      else
-        {}
       end
     end
 

@@ -256,13 +256,14 @@ your base controller (`include StandardAPI` includes both):
       include StandardAPI::Schemas
     end
 
-The `Schema`'s `schemas(default_schema)` receives the definitions StandardAPI
-builds for the model and returns the definitions to use, so it can change,
-drop or add attributes:
+The `Schema`'s `schemas(default_schema, record)` receives the definitions
+StandardAPI builds for the model and the record being rendered (`nil` for
+`schemas_for(Photo)` and `json_schema.json`), and returns the definitions to
+use, so it can change, drop or add attributes:
 
     class PhotosController < ApplicationController
       module Schema
-        def schemas(default_schema)
+        def schemas(default_schema, record)
           default_schema.map do |schema|
             schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
           end
@@ -294,23 +295,20 @@ Before `Schema#schemas` sees them, there is one definition per entry in
 attributes its query selected. A record loaded with `select(:id)` has only
 `id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
 `nil` type since the model doesn't have it. Records of a model with the same
-attributes share their definitions, so `Schema#schemas` runs once per
-model and query for a render, not once per record.
+attributes share their definitions before `Schema#schemas` sees them.
 
-To vary the definitions by record, accept it as a second argument. It is the
-record being rendered, or `nil` for `schemas_for(Photo)` and
-`json_schema.json`:
+The record lets the definitions vary by record:
 
     module Schema
-      def schemas(default_schema, record = nil)
+      def schemas(default_schema, record)
         return default_schema if !record&.private?
         default_schema.reject { |schema| schema[:name] == 'location' }
       end
     end
 
-A `schemas` that accepts a record is called once per record rendered, with
-the definitions the records share, so return new Hashes (`merge`, `reject`,
-`map`) rather than changing the ones it is given.
+`schemas` is called once per record rendered, with the definitions the
+records share, so return new Hashes (`merge`, `reject`, `map`) rather than
+changing the ones it is given.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
@@ -345,7 +343,7 @@ ACL's `attributes`, as `read_only` is built, so an added attribute is read only
 unless the ACL permits writing it. Records are rendered with it, so the record
 must respond to it:
 
-    def schemas(default_schema)
+    def schemas(default_schema, record)
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
 

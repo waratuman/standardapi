@@ -6,7 +6,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   # The JSON Schema of +attribute+ in cameras' json_schema.json, with the
   # +validations+ given to it through Schema#schemas
   def camera_attribute_schema(attribute, validations)
-    ApplicationController.define_method(:camera_schemas) do |default_schema|
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
     end
     ApplicationController.send(:private, :camera_schemas)
@@ -37,7 +37,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#json_schema.json renders a definition Schema#schemas adds with only a name and type' do
-    ApplicationController.define_method(:camera_schemas) do |default_schema|
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
     ApplicationController.send(:private, :camera_schemas)

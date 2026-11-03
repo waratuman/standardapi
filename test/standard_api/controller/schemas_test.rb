@@ -35,12 +35,12 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test "Schemas.load! includes a Schema and leaves the ACL to AccessControlList.load!" do
     controller = schema_controller(Attachment) do
-      def schemas(default_schema) = default_schema.first(1)
+      def schemas(default_schema, record) = default_schema.first(1)
     end
     controller.const_set(:ACL, Module.new { def orders = [ :id ] })
 
     StandardAPI::Schemas.load!
-    assert_equal [:a], @schema_base.new.attachment_schemas([:a, :b])
+    assert_equal [:a], @schema_base.new.attachment_schemas([:a, :b], nil)
     assert_not @schema_base.method_defined?(:attachment_orders)
 
     StandardAPI::AccessControlList.load!
@@ -54,7 +54,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
     end
     controller = Class.new(base)
     controller.define_singleton_method(:model) { Attachment }
-    controller.const_set(:Schema, Module.new { def schemas(default_schema) = default_schema })
+    controller.const_set(:Schema, Module.new { def schemas(default_schema, record) = default_schema })
     (@schema_controllers ||= []) << controller
 
     StandardAPI::Schemas.load!
@@ -63,7 +63,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test "a nested Schema on a controller without a model is skipped" do
     controller = schema_controller(nil) do
-      def schemas(default_schema) = default_schema
+      def schemas(default_schema, record) = default_schema
     end
     StandardAPI::Schemas.load!
 
@@ -72,10 +72,10 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test "two nested Schemas of one model raise" do
     schema_controller(Attachment) do
-      def schemas(default_schema) = default_schema
+      def schemas(default_schema, record) = default_schema
     end
     schema_controller(Attachment) do
-      def schemas(default_schema) = default_schema.first(1)
+      def schemas(default_schema, record) = default_schema.first(1)
     end
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::Schemas.load! }
@@ -84,7 +84,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test "a Schema and an ACL defining the same helper raise" do
     controller = schema_controller(Attachment) do
-      def schemas(default_schema) = default_schema
+      def schemas(default_schema, record) = default_schema
       private def shared_helper = nil
     end
     controller.const_set(:ACL, Module.new { private def shared_helper = nil })
@@ -96,7 +96,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test "load! can be repeated" do
     controller = schema_controller(Attachment) do
-      def schemas(default_schema) = default_schema.first(1)
+      def schemas(default_schema, record) = default_schema.first(1)
     end
     StandardAPI::Schemas.load!
     StandardAPI::Schemas.load!

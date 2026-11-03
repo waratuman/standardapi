@@ -1,12 +1,13 @@
 module StandardAPI
   # The sibling of AccessControlList for declaring how a model's attributes
   # are described. A controller nests a +Schema+ module whose
-  # +schemas(default_schema)+ adjusts the definitions Helpers#schemas_for
-  # builds for its model:
+  # +schemas(default_schema, record)+ adjusts the definitions
+  # Helpers#schemas_for builds for its model, given the record being rendered
+  # (nil for a model):
   #
   #   class PhotosController < ApplicationController
   #     module Schema
-  #       def schemas(default_schema)
+  #       def schemas(default_schema, record)
   #         default_schema.map { |s| s[:name] == 'caption' ? s.merge(comment: '...') : s }
   #       end
   #     end
@@ -31,27 +32,13 @@ module StandardAPI
     end
 
     # Pass +schemas+, the attribute definitions built for +model+ by
-    # Helpers#schemas_for, through the +schemas+ method of its controller's
-    # Schema module (+<model>_schemas+) and return its result. +record+ is
-    # passed along to a +schemas(default_schema, record = nil)+ that accepts
-    # it. Returns +schemas+ unchanged when there is none.
+    # Helpers#schemas_for, and +record+ (nil for a model) through the
+    # +schemas+ method of its controller's Schema module (+<model>_schemas+)
+    # and return its result. Returns +schemas+ unchanged when there is none.
     def model_schemas(model, schemas, record = nil)
       return schemas if !(method_name = model_method_for(model, :schemas))
 
-      if model_schemas_take_record?(model)
-        self.send(method_name, schemas, record)
-      else
-        self.send(method_name, schemas)
-      end
-    end
-
-    # Whether +model+'s +schemas+ accepts a record, ie.
-    # +schemas(default_schema, record = nil)+, so its definitions can vary by
-    # record
-    def model_schemas_take_record?(model)
-      return false if !(method_name = model_method_for(model, :schemas))
-
-      self.method(method_name).arity != 1
+      self.send(method_name, schemas, record)
     end
 
   end

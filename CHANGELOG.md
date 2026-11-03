@@ -82,10 +82,10 @@
   `ACL` (`PhotosController::Schema` as `photo_schemas`) by
   `StandardAPI::Schemas`, the sibling of `StandardAPI::AccessControlList`
   (`include StandardAPI` includes both), whose
-  `schemas(default_schema)` adjusts its model's attribute definitions: it
-  receives the definitions StandardAPI builds and returns the ones to use.
-  `schemas(default_schema, record = nil)` is also given the record being
-  rendered, or `nil` for a model, and is then called once per record.
+  `schemas(default_schema, record)` adjusts its model's attribute
+  definitions: it receives the definitions StandardAPI builds and the record
+  being rendered (`nil` for a model), and returns the ones to use. It is
+  called once per record.
   `schemas` isn't an ACL method. Two `Schema` modules of one model raise
   `StandardAPI::InvalidConfiguration`. `schemas_for(record_or_model)` returns the result, for use
   without rendering a view, and `json_schema.json` and `application/_record`

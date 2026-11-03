@@ -114,7 +114,7 @@ class CamerasController < ApplicationController
 
     # Adjusts the attribute definitions schemas_for(Camera), json_schema.json
     # and rendered cameras are built from
-    def schemas(default_schema)
+    def schemas(default_schema, record)
       default_schema.map do |schema|
         schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
       end
