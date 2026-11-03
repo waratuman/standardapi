@@ -180,11 +180,11 @@ module StandardAPI
 
       @default_schemas_for ||= {}
       schemas = @default_schemas_for[[model, names]] ||= begin
-        permitted = controller.model_attributes(model)&.map(&:to_s)
+        writeable_attributes = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
         names.map do |name|
-          attribute_schema(model, name, columns[name], permitted)
+          attribute_schema(model, name, columns[name], writeable_attributes&.exclude?(name))
         end
       end
       return schemas if !controller.respond_to?(:model_schemas)
@@ -198,18 +198,15 @@ module StandardAPI
       end
     end
 
-    def attribute_schema(model, name, column, permitted)
+    def attribute_schema(model, name, column, writable)
       attribute_type = model.type_for_attribute(name)
       enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
       default = column_default_value(column, model) if column
       auto_populated = (!!column.auto_populated? if column)
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
-      # The ACL decides what can be written; an attr_readonly attribute can be
-      # set on create but never changed, so it is read only yet can be required
-      acl_read_only = !permitted.nil? && permitted.exclude?(name)
-      read_only = acl_read_only || model.readonly_attribute?(name)
-      writable_on_create = !acl_read_only && !auto_populated
+      read_only = writable || model.readonly_attribute?(name)
+      writable_on_create = !writable && !auto_populated
 
       {
         name: name,
