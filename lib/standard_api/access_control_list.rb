@@ -1,7 +1,5 @@
 module StandardAPI
   module AccessControlList
-    include ModelModules
-
     ACL_METHODS = [:orders, :includes, :wheres, :attributes, :excludes]
 
     def self.traverse(path, prefix: nil, &block)
@@ -27,18 +25,18 @@ module StandardAPI
     # controller (the topmost class that includes AccessControlList), the
     # same way #included does for app/controllers/acl
     def self.load!
-      ModelModules.each_nested(self, :ACL) do |base, mod, prefix|
+      Helpers.each_nested(self, :ACL) do |base, mod, prefix|
         include_acl(base, mod, prefix)
       end
     end
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
-    # +application_controller+, as ModelModules.include_renamed does
+    # +application_controller+, as Helpers.include_renamed does
     def self.include_acl(application_controller, mod, prefix)
       renames = ACL_METHODS.to_h { |m| [m, "#{prefix}_#{m}"] }
       renames[:nested] = "nested_#{prefix}_attributes"
       renames[:filter] = "filter_#{prefix}_params"
-      ModelModules.include_renamed(application_controller, mod, renames)
+      Helpers.include_renamed(application_controller, mod, renames)
     end
 
     def model_params

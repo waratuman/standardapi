@@ -15,12 +15,11 @@ module StandardAPI
   # Include this in the base controller, as AccessControlList; the Schema is
   # included into it as +photo_schemas+.
   module Schemas
-    include ModelModules
 
     # Include the +Schema+ module nested in each controller into its base
     # controller (the topmost class that includes Schemas)
     def self.load!
-      ModelModules.each_nested(self, :Schema) do |base, mod, prefix|
+      Helpers.each_nested(self, :Schema) do |base, mod, prefix|
         include_schema(base, mod, prefix)
       end
     end
@@ -28,7 +27,7 @@ module StandardAPI
     # Rename the +schemas+ method of +mod+ to +<prefix>_schemas+ and include
     # it into +application_controller+
     def self.include_schema(application_controller, mod, prefix)
-      ModelModules.include_renamed(application_controller, mod, schemas: "#{prefix}_schemas")
+      Helpers.include_renamed(application_controller, mod, schemas: "#{prefix}_schemas")
     end
 
     # Pass +schemas+, the attribute definitions built for +model+ by
