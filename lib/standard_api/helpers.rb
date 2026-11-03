@@ -1,19 +1,10 @@
 module StandardAPI
   module Helpers
 
-    # What AccessControlList and Schemas share for loading: a module of
-    # methods for one model (an ACL, or a controller's Schema) is included
-    # into the base controller with its methods renamed under the model's
-    # name, ie. +attributes+ as +photo_attributes+, so every controller can
-    # call them for any model. Controller#model_method_for looks them up by
-    # that name. These are module functions, so they aren't mixed into views.
-
-    # Yield the base controller, the +const+ module nested in it and the
-    # model's prefix for each controller with a +const+ module, ie.
-    # PhotosController::ACL. The base controller is the topmost class that
-    # includes +owner+ (AccessControlList or Schemas). Controllers must
-    # already be loaded for their modules to be found, so the Railtie calls
-    # this once they are, at boot and after each reload.
+    # Yield the base controller (the topmost class including +owner+), the
+    # +const+ module nested in it (ie. PhotosController::ACL) and the model's
+    # prefix for each controller with one, so AccessControlList and Schemas
+    # can include it into the base controller for every controller to use.
     def self.each_nested(owner, const)
       ActionController::Metal.descendants.each do |controller|
         next if !controller.const_defined?(const, false)
