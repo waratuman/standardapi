@@ -230,6 +230,53 @@ class SchemasTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_schemas)
   end
 
+  test 'Schema#schemas accepting a record is given it' do
+    sony = create(:camera, make: 'Sony')
+    leica = create(:camera, make: 'Leica')
+    controller = CamerasController.new
+    controller.define_singleton_method(:camera_schemas) do |default_schema, record = nil|
+      default_schema.map { |s| s[:name] == 'make' ? s.merge(comment: record&.make) : s }
+    end
+
+    assert_nil attribute(Camera, 'make', controller: controller)[:comment]
+    make = ->(record) { controller.schemas_for(record).find { |s| s[:name] == 'make' } }
+    assert_equal 'Sony', make.(sony)[:comment]
+    assert_equal 'Leica', make.(leica)[:comment]
+    # and once per record
+    assert_same controller.schemas_for(sony), controller.schemas_for(sony)
+  end
+
+  test 'Schema#schemas without a record argument is not given one' do
+    camera = create(:camera)
+    controller = CamerasController.new
+    calls = []
+    controller.define_singleton_method(:camera_schemas) do |default_schema|
+      calls << default_schema
+      default_schema
+    end
+
+    controller.schemas_for(camera)
+    controller.schemas_for(Camera.find(camera.id))
+    assert_equal 1, calls.size
+  end
+
+  test 'records are rendered from the Schema#schemas for each record' do
+    create(:camera, retired: false)
+    create(:camera, retired: true)
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record = nil|
+      record&.retired? ? default_schema.reject { |s| s[:name] == 'make' } : default_schema
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get cameras_path(format: 'json'), params: { limit: 10 }
+    assert_response :ok
+    retired, active = JSON(response.body).partition { |c| c['retired'] }
+    assert_not retired.first.key?('make')
+    assert active.first.key?('make')
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
+  end
+
   test 'an attribute without a column' do
     model = Class.new(Property) do
       def self.name = 'Property'

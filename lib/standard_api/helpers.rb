@@ -117,28 +117,41 @@ module StandardAPI
     # The ACL is consulted without a record, as `attributes(nil)`, so
     # `read_only` is the model wide answer. If the model's controller nests a
     # `Schema` module, the built definitions are passed through its `schemas`
-    # and its return value is used.
+    # and its return value is used. A `schemas(default_schema, record = nil)`
+    # that accepts a record is given it (nil for a model).
+    #
     # Definitions are built once per model and set of attribute names in a
-    # view context, so records loaded by the same query share them.
+    # view context, so records loaded by the same query share them. A
+    # `schemas` that accepts a record is called once per record instead,
+    # with those shared definitions, so it must return new Hashes rather than
+    # change the ones it is given.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model
         names = model.attribute_names
       else
-        model = record_or_model.class
-        names = record_or_model.attribute_names
+        record = record_or_model
+        model = record.class
+        names = record.attribute_names
       end
 
-      @schemas_for ||= {}
-      @schemas_for[[model, names]] ||= begin
+      @default_schemas_for ||= {}
+      schemas = @default_schemas_for[[model, names]] ||= begin
         permitted = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
-        schemas = names.map do |name|
+        names.map do |name|
           attribute_schema(model, name, columns[name], permitted)
         end
+      end
+      return schemas if !controller.respond_to?(:model_schemas)
 
-        controller.respond_to?(:model_schemas) ? controller.model_schemas(model, schemas) : schemas
+      if record && controller.model_schemas_take_record?(model)
+        @record_schemas_for ||= {}.compare_by_identity
+        @record_schemas_for[record] ||= controller.model_schemas(model, schemas, record)
+      else
+        @schemas_for ||= {}
+        @schemas_for[[model, names]] ||= controller.model_schemas(model, schemas)
       end
     end
 

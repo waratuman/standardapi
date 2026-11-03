@@ -84,6 +84,8 @@
   (`include StandardAPI` includes both), whose
   `schemas(default_schema)` adjusts its model's attribute definitions: it
   receives the definitions StandardAPI builds and returns the ones to use.
+  `schemas(default_schema, record = nil)` is also given the record being
+  rendered, or `nil` for a model, and is then called once per record.
   `schemas` isn't an ACL method; an ACL defining it raises
   `StandardAPI::InvalidConfiguration`, as do two `Schema` modules of one
   model. `schemas_for(record_or_model)` returns the result, for use

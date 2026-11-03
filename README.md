@@ -289,13 +289,28 @@ available in controllers and views, so other code (an MCP tool describing your
 models, for instance) can read the same definitions without rendering a schema
 view and parsing it back.
 
-Before the ACL sees them, there is one definition per entry in
+Before `Schema#schemas` sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
 attributes its query selected. A record loaded with `select(:id)` has only
 `id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
 `nil` type since the model doesn't have it. Records of a model with the same
 attributes share their definitions, so `Schema#schemas` runs once per
 model and query for a render, not once per record.
+
+To vary the definitions by record, accept it as a second argument. It is the
+record being rendered, or `nil` for `schemas_for(Photo)` and
+`json_schema.json`:
+
+    module Schema
+      def schemas(default_schema, record = nil)
+        return default_schema if !record&.private?
+        default_schema.reject { |schema| schema[:name] == 'location' }
+      end
+    end
+
+A `schemas` that accepts a record is called once per record rendered, with
+the definitions the records share, so return new Hashes (`merge`, `reject`,
+`map`) rather than changing the ones it is given.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
