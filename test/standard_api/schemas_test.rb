@@ -186,6 +186,50 @@ class SchemasTest < ActionDispatch::IntegrationTest
     }
   end
 
+  test 'given a record, one definition per attribute its query selected' do
+    create(:property)
+    controller = PropertiesController.new
+
+    record = Property.select(:id, :name).first
+    assert_equal %w(id name), controller.schemas_for(record).map { |a| a[:name] }
+    assert_equal attribute(Property, 'name'), controller.schemas_for(record).last
+
+    record = Property.select('properties.*, 1 AS rank').first
+    rank = controller.schemas_for(record).last
+    assert_equal 'rank', rank[:name]
+    # the model types attributes, and has no type for rank
+    assert_nil rank[:type]
+    assert_nil rank[:null]
+  end
+
+  test 'records with the same attributes share definitions' do
+    create(:property)
+    create(:property)
+    controller = PropertiesController.new
+    first, second = Property.limit(2).to_a
+
+    assert_same controller.schemas_for(first), controller.schemas_for(second)
+    assert_same controller.schemas_for(Property), controller.schemas_for(first)
+  end
+
+  test 'records are rendered from the ACL schemas' do
+    camera = create(:camera)
+    Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
+    ApplicationController.define_method(:camera_schemas) do |default_schema|
+      default_schema.reject { |s| s[:name] == 'retired' } + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get camera_path(camera, format: 'json')
+    assert_response :ok
+    body = JSON(response.body)
+    assert_equal '/thumb.png', body['thumbnail_url']
+    assert_not body.key?('retired')
+    assert_equal camera.make, body['make']
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
+  end
+
   test 'an attribute without a column' do
     model = Class.new(Property) do
       def self.name = 'Property'

@@ -80,10 +80,14 @@
   model, raise `StandardAPI::InvalidConfiguration`.
 - An ACL can define `schemas(default_schema)` to adjust its model's attribute
   definitions: it receives the definitions StandardAPI builds and returns the
-  ones to use. `schemas_for(Model)` returns the result, for use without
-  rendering a view, and `json_schema.json` is built from it. Each definition
-  has one `type`, the attribute's ActiveModel type, and a `comment`, which
-  `json_schema.json` renders as `description`.
+  ones to use. `schemas_for(record_or_model)` returns the result, for use
+  without rendering a view, and `json_schema.json` and `application/_record`
+  are built from it: a record renders the attributes in
+  `schemas_for(record)`, one per entry in `record.attribute_names`, so an
+  attribute the ACL's `schemas` removes isn't rendered and one it adds is
+  read from the record. Each definition has one `type`, the attribute's
+  ActiveModel type, and a `comment`, which `json_schema.json` renders as
+  `description`.
 
 ### Changed
 

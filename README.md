@@ -260,12 +260,21 @@ attributes:
 
 Like the other ACL methods it is included in ApplicationController under the
 model's name (`photo_schemas`). `schemas_for(Photo)` returns the result, and
-`json_schema.json` is built from it. `schemas_for` is available in controllers
-and views, so other code (an MCP tool describing your models, for instance) can
-read the same definitions without rendering a schema view and parsing it back.
+`json_schema.json` is built from it. Records are rendered from it too:
+`application/_record` renders the attributes in `schemas_for(record)`, so an
+attribute the ACL's `schemas` leaves out isn't rendered, and one it adds is
+read from the record by name (`record.thumbnail_url`). `schemas_for` is
+available in controllers and views, so other code (an MCP tool describing your
+models, for instance) can read the same definitions without rendering a schema
+view and parsing it back.
 
 Before the ACL sees them, there is one definition per entry in
-`model.attribute_names`:
+`model.attribute_names`, or, given a record, in `record.attribute_names`: the
+attributes its query selected. A record loaded with `select(:id)` has only
+`id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
+`nil` type since the model doesn't have it. Records of a model with the same
+attributes share their definitions, so the ACL's `schemas` runs once per
+model and query for a render, not once per record.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
@@ -297,7 +306,8 @@ A definition the ACL's `schemas` returns needs a `name` and a `type` (`nil` for
 one with no JSON Schema mapping); `json_schema.json` raises without them. It
 treats any other key it leaves out as unset, and works out `readOnly` from the
 ACL's `attributes`, as `read_only` is built, so an added attribute is read only
-unless the ACL permits writing it:
+unless the ACL permits writing it. Records are rendered with it, so the record
+must respond to it:
 
     def schemas(default_schema)
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]

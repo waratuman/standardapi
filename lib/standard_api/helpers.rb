@@ -66,8 +66,18 @@ module StandardAPI
     # describing a model, say) can read it directly instead of rendering a
     # schema view and parsing it back.
     #
-    # Returns an Array of Hashes, one per attribute in `model.attribute_names`
-    # order: the columns, then any attributes declared without one.
+    # application/_record renders a record from `schemas_for(record)`, so the
+    # definitions are also what a record is rendered with: an attribute the
+    # ACL's `schemas` leaves out isn't rendered, and one it adds is read from
+    # the record by name.
+    #
+    # Given a model, returns an Array of Hashes, one per attribute in
+    # `model.attribute_names` order: the columns, then any attributes declared
+    # without one. Given a record, one per attribute in
+    # `record.attribute_names`, which is what its query selected: a record
+    # loaded with `select(:id)` has only `id`, and one loaded with
+    # `select('*, 1 AS rank')` also has `rank`. The model types every
+    # attribute, so one it doesn't have, like `rank`, has a nil `type`.
     #
     #   name            String   the attribute name
     #   type            String   the ActiveModel type,
@@ -107,14 +117,23 @@ module StandardAPI
     # The ACL is consulted without a record, as `attributes(nil)`, so
     # `read_only` is the model wide answer. If the ACL defines `schemas`, the
     # built definitions are passed through it and its return value is used.
-    # Definitions are built once per model and view context.
-    def schemas_for(model)
+    # Definitions are built once per model and set of attribute names in a
+    # view context, so records loaded by the same query share them.
+    def schemas_for(record_or_model)
+      if record_or_model.is_a?(Class)
+        model = record_or_model
+        names = model.attribute_names
+      else
+        model = record_or_model.class
+        names = record_or_model.attribute_names
+      end
+
       @schemas_for ||= {}
-      @schemas_for[model] ||= begin
+      @schemas_for[[model, names]] ||= begin
         permitted = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
-        schemas = model.attribute_names.map do |name|
+        schemas = names.map do |name|
           attribute_schema(model, name, columns[name], permitted)
         end
 
