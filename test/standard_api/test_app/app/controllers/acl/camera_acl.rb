@@ -4,14 +4,6 @@ module CameraACL
     [ :make, :hidden, :retired, :photo_id ]
   end
 
-  # Adjusts the attribute definitions schemas_for(Camera) and the JSON Schemas
-  # are built from
-  def schemas(default_schema)
-    default_schema.map do |schema|
-      schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
-    end
-  end
-
   # Filters allowed in the `where` param
   def wheres
     [ :id, :make, { photo_id: [:eq, :in] }, :photo ]

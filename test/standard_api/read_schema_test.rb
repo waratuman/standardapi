@@ -139,14 +139,14 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_empty schemer.validate(JSON(response.body)).map { |e| e['error'] }
   end
 
-  test 'Controller#read_schema.json description from the ACL schemas' do
+  test 'Controller#read_schema.json description from Schema#schemas' do
     schema = read_schema(read_schema_cameras_path(format: 'json'))
 
     assert_equal 'The manufacturer', schema.dig('properties', 'make', 'description')
   end
 
-  test 'Controller#read_schema.json describes a definition the ACL schemas adds' do
-    ApplicationController.define_method(:account_schemas) do |default_schema|
+  test 'Controller#read_schema.json describes a definition Schema#schemas adds' do
+    ApplicationController.define_method(:account_schemas) do |default_schema, record|
       default_schema + [{ name: 'nickname', type: 'string' }]
     end
     ApplicationController.send(:private, :account_schemas)
@@ -160,8 +160,8 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :account_schemas)
   end
 
-  test 'Controller#read_schema.json leaves out a definition the ACL schemas drops' do
-    ApplicationController.define_method(:property_schemas) do |default_schema|
+  test 'Controller#read_schema.json leaves out a definition Schema#schemas drops' do
+    ApplicationController.define_method(:property_schemas) do |default_schema, record|
       default_schema.select { |s| ['id', 'name'].include?(s[:name]) }
     end
     ApplicationController.send(:private, :property_schemas)
@@ -173,8 +173,8 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :property_schemas)
   end
 
-  test 'Controller#read_schema.json the ACL schemas apply to included models' do
-    ApplicationController.define_method(:account_schemas) do |default_schema|
+  test 'Controller#read_schema.json Schema#schemas applies to included models' do
+    ApplicationController.define_method(:account_schemas) do |default_schema, record|
       default_schema + [{ name: 'nickname', type: 'string' }]
     end
     ApplicationController.send(:private, :account_schemas)

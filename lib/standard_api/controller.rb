@@ -219,6 +219,25 @@ module StandardAPI
       # end
     end
 
+    # The method +name+ an ACL or Schema defines for +model+ once
+    # Helpers.include_renamed has renamed it, ie. +property_attributes+,
+    # falling back to the one for its base class (ie. an STI subclass), or nil
+    # if there is none
+    def model_method_for(model, name)
+      [model, model.base_class].uniq.map { |k| "#{model_name(k)}_#{name}" }.find do |method|
+        self.respond_to?(method, true)
+      end
+    end
+
+    # The prefix +model+'s ACL and Schema methods are renamed under
+    def model_name(model)
+      if model.model_name.singular.starts_with?('habtm_')
+        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
+      else
+        model.model_name.singular
+      end
+    end
+
     module ClassMethods
 
       def model

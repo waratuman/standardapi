@@ -3,7 +3,7 @@ module StandardAPI
   # write_schema, read_schema and query_schema actions from the ACL, so each
   # only describes what the ACL permits. Params the ACL doesn't check yet are
   # described as they're used, and say so. Attributes are described from
-  # their definitions in schemas_for(model), after the ACL's +schemas+.
+  # their definitions in schemas_for(model), after the Schema's +schemas+.
   module JSONSchema
 
     DIALECT = 'https://json-schema.org/draft/2020-12/schema'.freeze
@@ -324,7 +324,7 @@ module StandardAPI
         properties[name] = attribute_read_schema(model, definition)
       end
       # Columns are always rendered. Other attributes may not be loaded, ie.
-      # under a partial select, or may be ones the ACL's schemas adds.
+      # under a partial select, or may be ones Schema#schemas adds.
       required = properties.keys & model.column_names
 
       includes.each do |name, subincludes|
@@ -370,7 +370,7 @@ module StandardAPI
     # read schema: ApplicationHelper#excludes, which takes no record. An ACL
     # +excludes+ decides per record, so nothing it excludes is left out (its
     # attributes are only not required); an attribute it excludes from every
-    # record can be dropped with the ACL's +schemas+. Calling it with a
+    # record can be dropped with the Schema's +schemas+. Calling it with a
     # made-up record could drop an attribute some records render, and an ACL
     # may expect a persisted record.
     def always_excluded(model)

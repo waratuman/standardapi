@@ -245,29 +245,72 @@ timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
-An ACL may also define `schemas(default_schema)` to adjust how its model's
-attributes are described. It receives the definitions StandardAPI builds for
-the model and returns the definitions to use, so it can change, drop or add
-attributes:
+A model's controller can declare how its attributes are described with a
+`Schema` module, nested in it like an `ACL`. `StandardAPI::Schemas` is the
+sibling of `StandardAPI::AccessControlList` that finds them; include it in
+your base controller (`include StandardAPI` includes both):
 
-    module PhotoACL
-      def schemas(default_schema)
-        default_schema.map do |schema|
-          schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
+    class ApplicationController
+      include StandardAPI::Controller
+      include StandardAPI::AccessControlList
+      include StandardAPI::Schemas
+    end
+
+The `Schema`'s `schemas(default_schema, record)` receives the definitions
+StandardAPI builds for the model and the record being rendered (`nil` for
+`schemas_for(Photo)` and the JSON Schemas), and returns the definitions to
+use, so it can change, drop or add attributes:
+
+    class PhotosController < ApplicationController
+      module Schema
+        def schemas(default_schema, record)
+          default_schema.map do |schema|
+            schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
+          end
         end
       end
     end
 
-Like the other ACL methods it is included in ApplicationController under the
-model's name (`photo_schemas`). `schemas_for(Photo)` returns the result, and
-`write_schema.json`, `read_schema.json` and `query_schema.json` (see
-[Schema Discovery](#schema-discovery)) describe attributes from it.
-`schemas_for` is available in controllers
-and views, so other code (an MCP tool describing your models, for instance) can
-read the same definitions without rendering a schema view and parsing it back.
+The ACL is about access, so `schemas` isn't an ACL method, and one an ACL
+defines isn't renamed or used. A `Schema` module is found and
+included in ApplicationController the same way as a nested `ACL`, under the
+model's name (`photo_schemas`), so every controller describes and renders a
+Photo the same way, including as an include of a property. Two controllers of
+one model with a `Schema`, or a `Schema` and an ACL defining the same method,
+raise `StandardAPI::InvalidConfiguration`. Without `StandardAPI::Schemas` in
+the base controller, `Schema` modules are ignored and the definitions are
+used as StandardAPI builds them.
 
-Before the ACL sees them, there is one definition per entry in
-`model.attribute_names`:
+`schemas_for(Photo)` returns the result, and `write_schema.json`,
+`read_schema.json` and `query_schema.json` (see
+[Schema Discovery](#schema-discovery)) describe attributes from it. Records
+are rendered from it too: `application/_record` renders the
+attributes in `schemas_for(record)`, so an attribute `Schema#schemas` leaves
+out isn't rendered, and one it adds is
+read from the record by name (`record.thumbnail_url`). `schemas_for` is
+available in controllers and views, so other code (an MCP tool describing your
+models, for instance) can read the same definitions without rendering a schema
+view and parsing it back.
+
+Before `Schema#schemas` sees them, there is one definition per entry in
+`model.attribute_names`, or, given a record, in `record.attribute_names`: the
+attributes its query selected. A record loaded with `select(:id)` has only
+`id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
+`nil` type since the model doesn't have it. Records of a model with the same
+attributes share their definitions before `Schema#schemas` sees them.
+
+The record lets the definitions vary by record:
+
+    module Schema
+      def schemas(default_schema, record)
+        return default_schema if !record&.private?
+        default_schema.reject { |schema| schema[:name] == 'location' }
+      end
+    end
+
+`schemas` is called once per record rendered, with the definitions the
+records share, so return new Hashes (`merge`, `reject`, `map`) rather than
+changing the ones it is given.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
@@ -295,27 +338,24 @@ An attribute declared without a column (`attribute :nickname, :string`) has
 `attributes` is called without a record (`attributes(nil)`), so `read_only` is
 the answer for the model as a whole.
 
-A definition the ACL's `schemas` returns needs a `name` and a `type` (`nil` for
+A definition `Schema#schemas` returns needs a `name` and a `type` (`nil` for
 one with no JSON Schema mapping); the JSON Schemas raise without them. They
 treat any other key it leaves out as unset, so an added attribute allows
 `null`. `read_schema.json` describes every definition, and `write_schema.json`
 only those the ACL's `attributes` permit, so an added attribute is only
-writable if the ACL permits it:
+writable if the ACL permits it. Records are rendered with it, so the record
+must respond to it:
 
-    def schemas(default_schema)
+    def schemas(default_schema, record)
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
 
-The definitions change the JSON Schemas, not the response:
-`application/_record` still renders the record's own attributes. Use `schemas`
-to describe what a custom partial or serializer adds, or a type more exactly,
-and `excludes` to hide an attribute from responses.
+For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
+own, the base class's `attributes` and `schemas` are used
+(`document_attributes`, `document_schemas`), as they are for `orders`,
+`includes` and `wheres`.
 
-For an STI subclass, ie. `Pdf < Document`, without an ACL of its own, the base
-class's `attributes` and `schemas` are used (`document_attributes`,
-`document_schemas`), as they are for `orders`, `includes` and `wheres`.
-
-`schema.json` is not built from `schemas_for`, and the ACL's `schemas` doesn't
+`schema.json` is not built from `schemas_for`, and `Schema#schemas` doesn't
 affect it: its `type` still comes from the column's SQL type, so it reports
 `datetime` for date and time columns, `hash` for JSON and `decimal` for floats.
 
@@ -428,7 +468,7 @@ Each route is only drawn with the actions it describes: `write_schema` with
 with `index` or `calculate`.
 
 Attributes are described from their definitions in `schemas_for(model)` (see
-[Schemas](#schemas)), so an ACL's `schemas` changes all three.
+[Schemas](#schemas)), so a controller's `Schema#schemas` changes all three.
 
 - **`write_schema.json`** describes `{ "record": { ... } }` with only the
   attributes the ACL's `attributes(nil)` permit, with their validations, and
@@ -449,9 +489,9 @@ Attributes are described from their definitions in `schemas_for(model)` (see
   excluded from every record. An ACL `excludes(record)` decides per record,
   so what it may exclude is still described, and nothing is `required`. To
   keep an attribute an ACL always excludes out of the schema (its name, type
-  and comment), drop its definition in the ACL's `schemas`:
+  and comment), drop its definition in `Schema#schemas`:
 
-      def schemas(default_schema)
+      def schemas(default_schema, record)
         default_schema.reject { |schema| schema[:name] == 'internal_path' }
       end
 - **`query_schema.json`** describes `where`, `order` and `include` as the

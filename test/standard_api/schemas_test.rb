@@ -81,15 +81,15 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
 
     controller = DocumentsController.new
-    controller.define_singleton_method(:document_schemas) do |default_schema|
+    controller.define_singleton_method(:document_schemas) do |default_schema, record|
       default_schema.map { |s| s[:name] == 'type' ? s.merge(comment: 'From DocumentACL') : s }
     end
     assert_equal 'From DocumentACL', attribute(Pdf, 'type', controller: controller)[:comment]
   end
 
-  test 'a definition the ACL schemas adds is returned as it is' do
+  test 'a definition Schema#schemas adds is returned as it is' do
     controller = CamerasController.new
-    controller.define_singleton_method(:camera_schemas) do |default_schema|
+    controller.define_singleton_method(:camera_schemas) do |default_schema, record|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
 
@@ -150,8 +150,8 @@ class SchemasTest < ActionDispatch::IntegrationTest
       schemas(Property, controller: controller).first
   end
 
-  test 'the ACL schemas method transforms the definitions' do
-    # CameraACL#schemas sets a comment on make
+  test 'Schema#schemas method transforms the definitions' do
+    # CamerasController::Schema#schemas sets a comment on make
     assert_equal 'The manufacturer', attribute(Camera, 'make', controller: CamerasController.new)[:comment]
     assert_nil attribute(Camera, 'hidden', controller: CamerasController.new)[:comment]
   end
@@ -184,6 +184,83 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal %w(date time datetime), %w(opened_on opens_at inspected_at).map { |name|
       attribute(model, name)[:type]
     }
+  end
+
+  test 'given a record, one definition per attribute its query selected' do
+    create(:property)
+    controller = PropertiesController.new
+
+    record = Property.select(:id, :name).first
+    assert_equal %w(id name), controller.schemas_for(record).map { |a| a[:name] }
+    assert_equal attribute(Property, 'name'), controller.schemas_for(record).last
+
+    record = Property.select('properties.*, 1 AS rank').first
+    rank = controller.schemas_for(record).last
+    assert_equal 'rank', rank[:name]
+    # the model types attributes, and has no type for rank
+    assert_nil rank[:type]
+    assert_nil rank[:null]
+  end
+
+  test 'records with the same attributes share definitions' do
+    create(:property)
+    create(:property)
+    controller = PropertiesController.new
+    first, second = Property.limit(2).to_a
+
+    assert_same controller.schemas_for(first), controller.schemas_for(second)
+    assert_same controller.schemas_for(Property), controller.schemas_for(first)
+  end
+
+  test 'records are rendered from Schema#schemas' do
+    camera = create(:camera)
+    Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
+      default_schema.reject { |s| s[:name] == 'retired' } + [{ name: 'thumbnail_url', type: 'string' }]
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get camera_path(camera, format: 'json')
+    assert_response :ok
+    body = JSON(response.body)
+    assert_equal '/thumb.png', body['thumbnail_url']
+    assert_not body.key?('retired')
+    assert_equal camera.make, body['make']
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
+  end
+
+  test 'Schema#schemas is given the record' do
+    sony = create(:camera, make: 'Sony')
+    leica = create(:camera, make: 'Leica')
+    controller = CamerasController.new
+    controller.define_singleton_method(:camera_schemas) do |default_schema, record|
+      default_schema.map { |s| s[:name] == 'make' ? s.merge(comment: record&.make) : s }
+    end
+
+    assert_nil attribute(Camera, 'make', controller: controller)[:comment]
+    make = ->(record) { controller.schemas_for(record).find { |s| s[:name] == 'make' } }
+    assert_equal 'Sony', make.(sony)[:comment]
+    assert_equal 'Leica', make.(leica)[:comment]
+    # and once per record
+    assert_same controller.schemas_for(sony), controller.schemas_for(sony)
+  end
+
+  test 'records are rendered from the Schema#schemas for each record' do
+    create(:camera, retired: false)
+    create(:camera, retired: true)
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
+      record&.retired? ? default_schema.reject { |s| s[:name] == 'make' } : default_schema
+    end
+    ApplicationController.send(:private, :camera_schemas)
+
+    get cameras_path(format: 'json'), params: { limit: 10 }
+    assert_response :ok
+    retired, active = JSON(response.body).partition { |c| c['retired'] }
+    assert_not retired.first.key?('make')
+    assert active.first.key?('make')
+  ensure
+    ApplicationController.send(:remove_method, :camera_schemas)
   end
 
   test 'an attribute without a column' do

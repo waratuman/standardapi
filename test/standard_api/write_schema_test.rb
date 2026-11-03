@@ -17,9 +17,9 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
   end
 
   # The JSON Schema of +attribute+ in cameras' write_schema.json, with the
-  # +validations+ given to it through the ACL's schemas
+  # +validations+ given to it through Schema#schemas
   def camera_attribute_schema(attribute, validations)
-    ApplicationController.define_method(:camera_schemas) do |default_schema|
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
     end
     ApplicationController.send(:private, :camera_schemas)
@@ -90,12 +90,12 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal({ 'type' => 'string' }, aliases['items'])
   end
 
-  test 'Controller#write_schema.json description from the ACL schemas' do
+  test 'Controller#write_schema.json description from Schema#schemas' do
     assert_equal 'The manufacturer', camera_schema.dig('properties', 'make', 'description')
   end
 
-  test 'Controller#write_schema.json lists a definition the ACL schemas adds when the ACL permits it' do
-    ApplicationController.define_method(:camera_schemas) do |default_schema|
+  test 'Controller#write_schema.json lists a definition Schema#schemas adds when the ACL permits it' do
+    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
     ApplicationController.send(:private, :camera_schemas)

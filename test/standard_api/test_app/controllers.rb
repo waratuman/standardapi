@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::Base
   include StandardAPI::Controller
   include StandardAPI::AccessControlList
+  include StandardAPI::Schemas
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
   
   helper_method :serialize_attribute
@@ -108,4 +109,17 @@ class UuidModelController < ApplicationController
 end
 
 class CamerasController < ApplicationController
+
+  module Schema
+
+    # Adjusts the attribute definitions schemas_for(Camera), the JSON Schemas
+    # and rendered cameras are built from
+    def schemas(default_schema, record)
+      default_schema.map do |schema|
+        schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
+      end
+    end
+
+  end
+
 end

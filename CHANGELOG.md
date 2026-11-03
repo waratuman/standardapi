@@ -86,13 +86,23 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
-- An ACL can define `schemas(default_schema)` to adjust its model's attribute
-  definitions: it receives the definitions StandardAPI builds and returns the
-  ones to use. `schemas_for(Model)` returns the result, for use without
-  rendering a view, and `write_schema.json`, `read_schema.json` and
-  `query_schema.json` are built from it. Each definition has one `type`, the
-  attribute's ActiveModel type, and a `comment`, which the JSON Schemas render
-  as `description`.
+- A controller can nest a `Schema` module, found and included like a nested
+  `ACL` (`PhotosController::Schema` as `photo_schemas`) by
+  `StandardAPI::Schemas`, the sibling of `StandardAPI::AccessControlList`
+  (`include StandardAPI` includes both), whose
+  `schemas(default_schema, record)` adjusts its model's attribute
+  definitions: it receives the definitions StandardAPI builds and the record
+  being rendered (`nil` for a model), and returns the ones to use. It is
+  called once per record.
+  `schemas` isn't an ACL method. Two `Schema` modules of one model raise
+  `StandardAPI::InvalidConfiguration`. `schemas_for(record_or_model)` returns
+  the result, for use without rendering a view, and `write_schema.json`,
+  `read_schema.json`, `query_schema.json` and `application/_record` are built
+  from it: a record renders the attributes in `schemas_for(record)`, one per
+  entry in `record.attribute_names`, so an attribute `Schema#schemas` removes
+  isn't rendered and one it adds is read from the record. Each definition has
+  one `type`, the attribute's ActiveModel type, and a `comment`, which the
+  JSON Schemas render as `description`.
 - `read_schema.json` and `query_schema.json`: JSON Schemas of a rendered
   record, and of the params `#index` and `#calculate` accept. `where`, `order`,
   `include` and an include's `when` are limited to what the ACL permits;
@@ -107,8 +117,8 @@
 
 ### Changed
 
-- The ACL `attributes` and `schemas` lookups fall back to the base class's
-  ACL for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+- The ACL `attributes` and `Schema#schemas` lookups fall back to the base
+  class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and `write_schema.json` and `schema.json` describe it the same way.
