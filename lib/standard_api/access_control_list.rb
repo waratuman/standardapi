@@ -20,30 +20,39 @@ module StandardAPI
       end
     end
 
-    # Include the +ACL+ module nested in a controller into its base controller
-    # (the topmost class that includes AccessControlList), the same way
-    # #included does for app/controllers/acl. Controllers must already be
-    # loaded for their ACL to be found, so the Railtie calls this once they
-    # are, at boot and after each reload.
+    # Include the +ACL+ and +Schema+ modules nested in a controller into its
+    # base controller (the topmost class that includes AccessControlList), the
+    # same way #included does for app/controllers/acl. Controllers must
+    # already be loaded for their modules to be found, so the Railtie calls
+    # this once they are, at boot and after each reload.
     def self.load!
       ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(:ACL, false)
+        acl = controller.const_get(:ACL, false) if controller.const_defined?(:ACL, false)
+        schema = controller.const_get(:Schema, false) if controller.const_defined?(:Schema, false)
+        next if !acl && !schema
 
         # Only a controller using StandardAPI has a model; any other
-        # controller's ACL constant is none of our business
+        # controller's ACL or Schema constant is none of our business
         base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
         next if !base || !controller.model
 
-        include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
+        prefix = controller.model.model_name.singular
+        include_acl(base, acl, prefix) if acl
+        include_schema(base, schema, prefix) if schema
       end
     end
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+. A module already renamed is left as it is.
-    # Raises if another ACL included into +application_controller+ defines
-    # any of the same methods, as one would silently override the other.
+    # Raises if another ACL or Schema included into +application_controller+
+    # defines any of the same methods, as one would silently override the
+    # other.
     def self.include_acl(application_controller, mod, prefix)
-      [:orders, :includes, :wheres, :attributes, :excludes, :schemas].each do |m|
+      if mod.instance_methods.include?(:schemas)
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } defines schemas, which isn't an ACL method; define it in a Schema module nested in the model's controller instead, ie. PhotosController::Schema"
+      end
+
+      [:orders, :includes, :wheres, :attributes, :excludes].each do |m|
         next if !mod.instance_methods.include?(m)
         mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
         mod.send :remove_method, m
@@ -59,13 +68,35 @@ module StandardAPI
         mod.send :remove_method, :filter
       end
 
-      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
-      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
+      include_renamed(application_controller, mod)
+    end
+
+    # Rename the +schemas+ method of +mod+, a controller's nested Schema
+    # module, to +<prefix>_schemas+ and include it into
+    # +application_controller+, as #include_acl does for an ACL
+    def self.include_schema(application_controller, mod, prefix)
+      if mod.instance_methods.include?(:schemas)
+        mod.send :alias_method, "#{prefix}_schemas".to_sym, :schemas
+        mod.send :remove_method, :schemas
+      end
+
+      include_renamed(application_controller, mod)
+    end
+
+    # Include +mod+, an ACL or Schema module whose methods are already
+    # renamed, into +application_controller+, raising if another one defines
+    # any of the same methods
+    def self.include_renamed(application_controller, mod)
+      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL, and
+      # Schema modules PhotosController::Schema
+      others = application_controller.ancestors.select { |m|
+        m != mod && (m.name&.end_with?('ACL') || m.name&.end_with?('::Schema'))
+      }
       (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
-        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
+        other = others.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
         next if !other
 
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs and Schemas of one model are shared by all of its controllers, so define them once"
       end
 
       application_controller.include mod
@@ -99,8 +130,9 @@ module StandardAPI
     end
 
     # Pass +schemas+, the attribute definitions built for +model+ by
-    # Helpers#schemas_for, through the ACL's +schemas+ method and return its
-    # result. Returns +schemas+ unchanged when the ACL defines no +schemas+.
+    # Helpers#schemas_for, through the +schemas+ method of its controller's
+    # Schema module (+<model>_schemas+) and return its result. Returns
+    # +schemas+ unchanged when there is none.
     def model_schemas(model, schemas)
       return schemas if !(method_name = acl_method_for(model, :schemas))
 

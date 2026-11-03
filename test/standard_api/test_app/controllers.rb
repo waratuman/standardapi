@@ -108,4 +108,17 @@ class UuidModelController < ApplicationController
 end
 
 class CamerasController < ApplicationController
+
+  module Schema
+
+    # Adjusts the attribute definitions schemas_for(Camera), json_schema.json
+    # and rendered cameras are built from
+    def schemas(default_schema)
+      default_schema.map do |schema|
+        schema[:name] == 'make' ? schema.merge(comment: 'The manufacturer') : schema
+      end
+    end
+
+  end
+
 end

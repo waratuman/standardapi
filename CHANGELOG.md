@@ -78,21 +78,25 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
-- An ACL can define `schemas(default_schema)` to adjust its model's attribute
-  definitions: it receives the definitions StandardAPI builds and returns the
-  ones to use. `schemas_for(record_or_model)` returns the result, for use
+- A controller can nest a `Schema` module, found and included like a nested
+  `ACL` (`PhotosController::Schema` as `photo_schemas`), whose
+  `schemas(default_schema)` adjusts its model's attribute definitions: it
+  receives the definitions StandardAPI builds and returns the ones to use.
+  `schemas` isn't an ACL method; an ACL defining it raises
+  `StandardAPI::InvalidConfiguration`, as do two `Schema` modules of one
+  model. `schemas_for(record_or_model)` returns the result, for use
   without rendering a view, and `json_schema.json` and `application/_record`
   are built from it: a record renders the attributes in
   `schemas_for(record)`, one per entry in `record.attribute_names`, so an
-  attribute the ACL's `schemas` removes isn't rendered and one it adds is
+  attribute `Schema#schemas` removes isn't rendered and one it adds is
   read from the record. Each definition has one `type`, the attribute's
   ActiveModel type, and a `comment`, which `json_schema.json` renders as
   `description`.
 
 ### Changed
 
-- The ACL `attributes` and `schemas` lookups fall back to the base class's
-  ACL for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+- The ACL `attributes` and `Schema#schemas` lookups fall back to the base
+  class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and `json_schema.json` and `schema.json` describe it the same way.

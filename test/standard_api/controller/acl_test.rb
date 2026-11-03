@@ -8,7 +8,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
   # controllers are kept in @acl_controllers to stop them being collected
   # before load! finds them; teardown removes their ACL so later calls to
   # load! skip them.
-  def acl_controller(model, &acl)
+  def acl_controller(model, name: :ACL, &acl)
     @acl_base ||= Class.new(ActionController::Base) do
       include StandardAPI::Controller
       include StandardAPI::AccessControlList
@@ -16,13 +16,21 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
     @acl_controller = Class.new(@acl_base)
     @acl_controller.define_singleton_method(:model) { model }
-    @acl_controller.const_set(:ACL, Module.new(&acl))
+    @acl_controller.const_set(name, Module.new(&acl))
     (@acl_controllers ||= []) << @acl_controller
     @acl_controller
   end
 
+  # A throwaway controller with a nested Schema module, as #acl_controller
+  def schema_controller(model, &schema)
+    acl_controller(model, name: :Schema, &schema)
+  end
+
   teardown do
-    @acl_controllers&.each { |c| c.send(:remove_const, :ACL) }
+    @acl_controllers&.each do |c|
+      c.send(:remove_const, :ACL) if c.const_defined?(:ACL, false)
+      c.send(:remove_const, :Schema) if c.const_defined?(:Schema, false)
+    end
   end
 
   test "a nested ACL is renamed under the model's prefix and included into the base controller" do
@@ -123,6 +131,55 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
     assert_match(/both define attachment_orders/, error.message)
+  end
+
+  test "a nested Schema is renamed under the model's prefix and included into the base controller" do
+    assert_includes ApplicationController.ancestors, CamerasController::Schema
+    assert_equal [:camera_schemas], CamerasController::Schema.instance_methods(false)
+    assert_equal CamerasController::Schema, PropertiesController.instance_method(:camera_schemas).owner
+  end
+
+  test "a nested Schema is found alongside a nested ACL" do
+    controller = acl_controller(Attachment) do
+      def orders
+        [ :id ]
+      end
+    end
+    controller.const_set(:Schema, Module.new { def schemas(default_schema) = default_schema.first(1) })
+    StandardAPI::AccessControlList.load!
+
+    assert_equal [:id], @acl_base.new.attachment_orders
+    assert_equal [:a], @acl_base.new.attachment_schemas([:a, :b])
+  end
+
+  test "a nested Schema on a controller without a model is skipped" do
+    controller = schema_controller(nil) do
+      def schemas(default_schema) = default_schema
+    end
+    StandardAPI::AccessControlList.load!
+
+    assert_not_includes @acl_base.ancestors, controller::Schema
+  end
+
+  test "an ACL defining schemas raises" do
+    acl_controller(Attachment) do
+      def schemas(default_schema) = default_schema
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
+    assert_match(/defines schemas, which isn't an ACL method/, error.message)
+  end
+
+  test "two nested Schemas of one model raise" do
+    schema_controller(Attachment) do
+      def schemas(default_schema) = default_schema
+    end
+    schema_controller(Attachment) do
+      def schemas(default_schema) = default_schema.first(1)
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
+    assert_match(/both define attachment_schemas/, error.message)
   end
 
   test "load! can be repeated" do

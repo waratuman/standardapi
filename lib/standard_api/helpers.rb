@@ -67,8 +67,8 @@ module StandardAPI
     # schema view and parsing it back.
     #
     # application/_record renders a record from `schemas_for(record)`, so the
-    # definitions are also what a record is rendered with: an attribute the
-    # ACL's `schemas` leaves out isn't rendered, and one it adds is read from
+    # definitions are also what a record is rendered with: an attribute
+    # `Schema#schemas` leaves out isn't rendered, and one it adds is read from
     # the record by name.
     #
     # Given a model, returns an Array of Hashes, one per attribute in
@@ -115,8 +115,9 @@ module StandardAPI
     # `auto_populated`.
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. If the ACL defines `schemas`, the
-    # built definitions are passed through it and its return value is used.
+    # `read_only` is the model wide answer. If the model's controller nests a
+    # `Schema` module, the built definitions are passed through its `schemas`
+    # and its return value is used.
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them.
     def schemas_for(record_or_model)

@@ -87,7 +87,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal 'From DocumentACL', attribute(Pdf, 'type', controller: controller)[:comment]
   end
 
-  test 'a definition the ACL schemas adds is returned as it is' do
+  test 'a definition Schema#schemas adds is returned as it is' do
     controller = CamerasController.new
     controller.define_singleton_method(:camera_schemas) do |default_schema|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
@@ -150,8 +150,8 @@ class SchemasTest < ActionDispatch::IntegrationTest
       schemas(Property, controller: controller).first
   end
 
-  test 'the ACL schemas method transforms the definitions' do
-    # CameraACL#schemas sets a comment on make
+  test 'Schema#schemas method transforms the definitions' do
+    # CamerasController::Schema#schemas sets a comment on make
     assert_equal 'The manufacturer', attribute(Camera, 'make', controller: CamerasController.new)[:comment]
     assert_nil attribute(Camera, 'hidden', controller: CamerasController.new)[:comment]
   end
@@ -212,7 +212,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_same controller.schemas_for(Property), controller.schemas_for(first)
   end
 
-  test 'records are rendered from the ACL schemas' do
+  test 'records are rendered from Schema#schemas' do
     camera = create(:camera)
     Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
     ApplicationController.define_method(:camera_schemas) do |default_schema|

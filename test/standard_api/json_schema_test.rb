@@ -4,7 +4,7 @@ require 'json_schemer'
 class JSONSchemaTest < ActionDispatch::IntegrationTest
 
   # The JSON Schema of +attribute+ in cameras' json_schema.json, with the
-  # +validations+ given to it through the ACL's schemas
+  # +validations+ given to it through Schema#schemas
   def camera_attribute_schema(attribute, validations)
     ApplicationController.define_method(:camera_schemas) do |default_schema|
       default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
@@ -36,7 +36,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Controller#json_schema.json renders a definition the ACL schemas adds with only a name and type' do
+  test 'Controller#json_schema.json renders a definition Schema#schemas adds with only a name and type' do
     ApplicationController.define_method(:camera_schemas) do |default_schema|
       default_schema + [{ name: 'thumbnail_url', type: 'string' }]
     end
@@ -146,7 +146,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_equal true, schema['required'].include?('make')
   end
 
-  test 'Controller#json_schema.json description from the ACL schemas' do
+  test 'Controller#json_schema.json description from Schema#schemas' do
     get json_schema_cameras_path(format: 'json')
 
     assert_equal 'The manufacturer', JSON(response.body).dig('properties', 'make', 'description')
