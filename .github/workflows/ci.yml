@@ -46,13 +46,9 @@ jobs:
           sudo -u postgres psql -c "ALTER USER runner WITH PASSWORD 'runner';"
 
       - name: Install YAJL
-        env:
-          CMAKE_POLICY_VERSION_MINIMUM: 3.5
         run: |
-          wget 'https://github.com/lloyd/yajl/archive/refs/tags/2.1.0.tar.gz'
-          tar -xvf '2.1.0.tar.gz'
-          cd 'yajl-2.1.0' && ./configure && make && sudo make install
-          sudo ldconfig
+          sudo apt-get update
+          sudo apt-get -y install libyajl-dev
 
       - uses: actions/checkout@v4
 
