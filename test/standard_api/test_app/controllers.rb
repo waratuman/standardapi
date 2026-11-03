@@ -112,7 +112,7 @@ class CamerasController < ApplicationController
 
   module Schema
 
-    # Adjusts the attribute definitions schemas_for(Camera), json_schema.json
+    # Adjusts the attribute definitions schemas_for(Camera), the JSON Schemas
     # and rendered cameras are built from
     def schemas(default_schema, record)
       default_schema.map do |schema|
