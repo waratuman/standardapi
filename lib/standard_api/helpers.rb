@@ -1,6 +1,6 @@
 module StandardAPI
   module Helpers
-    include StandardAPI::JSONSchemaHelpers
+    include StandardAPI::Helpers::JSONSchemaHelper
 
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
