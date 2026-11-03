@@ -246,9 +246,19 @@ timestamps and cannot distinguish one requester from another.
 ##### Schemas
 
 A model's controller can declare how its attributes are described with a
-`Schema` module, nested in it like an `ACL`. Its `schemas(default_schema)`
-receives the definitions StandardAPI builds for the model and returns the
-definitions to use, so it can change, drop or add attributes:
+`Schema` module, nested in it like an `ACL`. `StandardAPI::Schemas` is the
+sibling of `StandardAPI::AccessControlList` that finds them; include it in
+your base controller (`include StandardAPI` includes both):
+
+    class ApplicationController
+      include StandardAPI::Controller
+      include StandardAPI::AccessControlList
+      include StandardAPI::Schemas
+    end
+
+The `Schema`'s `schemas(default_schema)` receives the definitions StandardAPI
+builds for the model and returns the definitions to use, so it can change,
+drop or add attributes:
 
     class PhotosController < ApplicationController
       module Schema
@@ -264,8 +274,11 @@ The ACL is about access, so `schemas` isn't an ACL method: an ACL that defines
 it raises `StandardAPI::InvalidConfiguration`. A `Schema` module is found and
 included in ApplicationController the same way as a nested `ACL`, under the
 model's name (`photo_schemas`), so every controller describes and renders a
-Photo the same way, including as an include of a property. Two controllers of one
-model with a `Schema` raise `StandardAPI::InvalidConfiguration`.
+Photo the same way, including as an include of a property. Two controllers of
+one model with a `Schema`, or a `Schema` and an ACL defining the same method,
+raise `StandardAPI::InvalidConfiguration`. Without `StandardAPI::Schemas` in
+the base controller, `Schema` modules are ignored and the definitions are
+used as StandardAPI builds them.
 
 `schemas_for(Photo)` returns the result, and `json_schema.json` is built from
 it. Records are rendered from it too: `application/_record` renders the

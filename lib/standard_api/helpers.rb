@@ -138,7 +138,7 @@ module StandardAPI
           attribute_schema(model, name, columns[name], permitted)
         end
 
-        controller.model_schemas(model, schemas)
+        controller.respond_to?(:model_schemas) ? controller.model_schemas(model, schemas) : schemas
       end
     end
 

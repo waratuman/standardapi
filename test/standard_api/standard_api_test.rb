@@ -67,12 +67,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'include StandardAPI includes Controller and AccessControlList' do
+  test 'include StandardAPI includes Controller, AccessControlList and Schemas' do
     klass = Class.new(ActionController::Base) do
       include StandardAPI
     end
     assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
     assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
+    assert klass.ancestors.include?(StandardAPI::Schemas), "Expected StandardAPI::Schemas to be included"
   end
 
   test 'StandardAPI-Version' do

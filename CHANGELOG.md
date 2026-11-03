@@ -79,7 +79,9 @@
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
 - A controller can nest a `Schema` module, found and included like a nested
-  `ACL` (`PhotosController::Schema` as `photo_schemas`), whose
+  `ACL` (`PhotosController::Schema` as `photo_schemas`) by
+  `StandardAPI::Schemas`, the sibling of `StandardAPI::AccessControlList`
+  (`include StandardAPI` includes both), whose
   `schemas(default_schema)` adjusts its model's attribute definitions: it
   receives the definitions StandardAPI builds and returns the ones to use.
   `schemas` isn't an ACL method; an ACL defining it raises
