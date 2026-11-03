@@ -35,10 +35,6 @@ module StandardAPI
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+, as ModelModules.include_renamed does
     def self.include_acl(application_controller, mod, prefix)
-      if mod.instance_methods.include?(:schemas)
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } defines schemas, which isn't an ACL method; define it in a Schema module nested in the model's controller instead, ie. PhotosController::Schema"
-      end
-
       renames = ACL_METHODS.to_h { |m| [m, "#{prefix}_#{m}"] }
       renames[:nested] = "nested_#{prefix}_attributes"
       renames[:filter] = "filter_#{prefix}_params"
