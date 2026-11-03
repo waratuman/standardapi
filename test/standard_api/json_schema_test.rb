@@ -51,6 +51,23 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.send(:remove_method, :camera_schemas)
   end
 
+  test 'Controller#json_schema.json declares the 2020-12 dialect at the top only' do
+    get json_schema_properties_path(format: 'json', include: { landlord: true })
+    schema = JSON(response.body)
+    assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
+    assert_not schema.dig('properties', 'landlord').key?('$schema')
+  end
+
+  test 'Controller#json_schema.json leaves out what the ACL excludes' do
+    # CameraACL#excludes drops make from a hidden camera
+    Camera.any_instance.stubs(:hidden?).returns(true)
+
+    get json_schema_cameras_path(format: 'json')
+    schema = JSON(response.body)
+    assert_not schema['properties'].key?('make')
+    assert_not_includes schema['required'], 'make'
+  end
+
   test 'Controller#json_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do
     Camera.stubs(:readonly_attribute?).returns(false)
     Camera.stubs(:readonly_attribute?).with('make').returns(true)
