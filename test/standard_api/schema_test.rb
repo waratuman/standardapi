@@ -13,7 +13,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
   # Most declarations are simplest to check against the whole model
   def schema_class(&block)
-    Class.new(StandardAPI::ImplicitSchema, &block)
+    Class.new(StandardAPI::Schema[:implicit], &block)
   end
 
   def explicit_schema_class(&block)
@@ -109,13 +109,13 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['thumbnail_url'], names(explicit_schema_class { dynamic_attributes { |builder, _| builder.add(:thumbnail_url, :string) } })
   end
 
-  test 'ImplicitSchema starts from every attribute, and a subclass can opt back out' do
+  test 'Schema[:implicit] starts from every attribute, and a subclass can opt back out' do
     assert_equal Camera.attribute_names, names(schema_class)
     assert_equal Camera.attribute_names, names(Class.new(schema_class))
     assert_equal ['id'], names(Class.new(schema_class) { implicit_attributes false; attributes :id })
   end
 
-  test 'implicit_attributes opts in without inheriting ImplicitSchema' do
+  test 'implicit_attributes opts in without inheriting Schema[:implicit]' do
     assert_equal Camera.attribute_names, names(explicit_schema_class { implicit_attributes })
     assert_not explicit_schema_class.schema_implicit
   end
@@ -126,6 +126,48 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['id'], names(explicit_schema_class { implicit_attributes false; attributes :id })
   ensure
     StandardAPI::Schema.implicit_attributes false
+  end
+
+  test 'StandardAPI::Schema and Schema[:explicit] are both explicit' do
+    assert_equal ['id'], names(Class.new(StandardAPI::Schema) { attributes :id })
+    assert_equal ['id'], names(Class.new(StandardAPI::Schema[:explicit]) { attributes :id })
+  end
+
+  test "Schema[:explicit] and Schema[:implicit] don't follow the application's default" do
+    StandardAPI::Schema.implicit_attributes
+    assert_equal ['id'], names(Class.new(StandardAPI::Schema[:explicit]) { attributes :id })
+
+    StandardAPI::Schema.implicit_attributes false
+    assert_equal Camera.attribute_names, names(Class.new(StandardAPI::Schema[:implicit]))
+  ensure
+    StandardAPI::Schema.implicit_attributes false
+  end
+
+  test 'Schema[] is always the same named class, so a class body can run again' do
+    assert_same StandardAPI::Schema[:implicit], StandardAPI::Schema[:implicit]
+    assert_same StandardAPI::Schema[:explicit], StandardAPI::Schema[:explicit]
+    assert_equal 'StandardAPI::Schema::Implicit', StandardAPI::Schema[:implicit].name
+    assert_equal 'StandardAPI::Schema::Explicit', StandardAPI::Schema[:explicit].name
+
+    2.times { Object.class_eval('class SchemaReopenedTwice < StandardAPI::Schema[:implicit]; end') }
+  ensure
+    Object.send(:remove_const, :SchemaReopenedTwice)
+  end
+
+  test 'Schema[] raises for an unknown mode' do
+    error = assert_raises(ArgumentError) { StandardAPI::Schema[:strict] }
+    assert_match(/unknown Schema mode: :strict/, error.message)
+  end
+
+  test 'Schema[] only works on StandardAPI::Schema itself' do
+    assert_raises(ArgumentError) { CamerasController::Schema[:explicit] }
+    assert_raises(ArgumentError) { StandardAPI::Schema[:implicit][:explicit] }
+  end
+
+  test 'a Schema inheriting a mode is registered and cached like any other' do
+    assert CamerasController::Schema < StandardAPI::Schema
+    assert_not StandardAPI::Schema[:implicit].varies_by_requester?
+    assert_not StandardAPI::Schema[:explicit].varies_by_requester?
   end
 
   test 'attribute changes a definition in place' do

@@ -80,7 +80,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     params = ActionController::Parameters.new(type: 'Pdf', rating: 3)
     assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
 
-    schema = Class.new(StandardAPI::ImplicitSchema) { attribute :type, comment: 'From the Schema of Document' }
+    schema = Class.new(StandardAPI::Schema[:implicit]) { attribute :type, comment: 'From the Schema of Document' }
     DocumentsController.stubs(:standard_api_schemas).returns('document' => schema)
     assert_equal 'From the Schema of Document', attribute(Pdf, 'type', controller: DocumentsController.new)[:comment]
   end

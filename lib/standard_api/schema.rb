@@ -17,8 +17,9 @@ module StandardAPI
   #       attribute :location, if: :admin?
   #
   # To start from every attribute of the model instead, inherit from
-  # StandardAPI::ImplicitSchema or call +implicit_attributes+. Calling it on
-  # StandardAPI::Schema itself makes that the default for an application.
+  # StandardAPI::Schema[:implicit] or call +implicit_attributes+. Calling it on
+  # StandardAPI::Schema itself makes that the default for an application, which
+  # StandardAPI::Schema[:explicit] isn't affected by.
   #
   #       dynamic_attributes by: ->(record) { record&.account_id } do |schema, account_id|
   #         Field.where(account_id: account_id).each do |field|
@@ -115,6 +116,21 @@ module StandardAPI
     class_attribute :schema_implicit, instance_accessor: false, default: false
 
     class << self
+      # The Schema to inherit from for +mode+, :explicit or :implicit, whatever
+      # the application's default. Always the same class, as reopening a class
+      # with a different superclass raises.
+      def [](mode)
+        if !equal?(StandardAPI::Schema)
+          raise ArgumentError, "#{name}[#{mode.inspect}] isn't supported, use StandardAPI::Schema[#{mode.inspect}]"
+        end
+
+        case mode
+        when :explicit then Explicit
+        when :implicit then Implicit
+        else raise ArgumentError, "unknown Schema mode: #{mode.inspect}, expected :explicit or :implicit"
+        end
+      end
+
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
       # Proc. Both run on the Schema instance and are given the record, or nil
       # for a model, when they take an argument.
@@ -227,6 +243,14 @@ module StandardAPI
       callable = method(callable) if callable.is_a?(Symbol)
       args = callable.arity > 0 ? [record] : []
       callable.is_a?(Proc) ? instance_exec(*args, &callable) : callable.call(*args)
+    end
+
+    class Explicit < self
+      implicit_attributes false
+    end
+
+    class Implicit < self
+      implicit_attributes
     end
 
   end

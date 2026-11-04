@@ -274,9 +274,9 @@ the model. Undeclared attributes are added to the record's excludes too, so they
 aren't named in validation errors.
 
 To start from every attribute of the model instead, inherit from
-`StandardAPI::ImplicitSchema` and take out what shouldn't show with `remove`:
+`StandardAPI::Schema[:implicit]` and take out what shouldn't show with `remove`:
 
-    class Schema < StandardAPI::ImplicitSchema
+    class Schema < StandardAPI::Schema[:implicit]
       add :thumbnail_url, :string
       remove :internal_notes
     end
@@ -285,6 +285,10 @@ To start from every attribute of the model instead, inherit from
 class can opt in. Called on `StandardAPI::Schema` itself, in an initializer, it
 makes implicit the default for the application, and `implicit_attributes false`
 opts a Schema back out.
+
+`StandardAPI::Schema[:explicit]` is always explicit, whatever the application's
+default, so a model with sensitive columns can say so. Without that default
+set, plain `StandardAPI::Schema` is explicit as well.
 
 A model with no Schema is rendered as StandardAPI builds it, with every
 attribute.
