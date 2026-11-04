@@ -90,6 +90,9 @@
   and a Schema that could vary by requester turns off fragment caching for its
   model. `schemas(default_schema, record)` can be overridden for anything else.
   Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
+  Rendering or describing a model with no Schema raises
+  `StandardAPI::MissingSchema`; a model with no controller declares one by name,
+  `ToolCallSchema` for `ToolCall`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a
   view, and `json_schema.json` and `application/_record` are built from it: a
   record renders the attributes in `schemas_for(record)`, one per entry in

@@ -275,8 +275,17 @@ aren't named in validation errors.
 
 `remove` takes back a declaration, such as one inherited from a parent Schema.
 
-A model with no Schema is rendered as StandardAPI builds it, with every
-attribute.
+Every model that's rendered or described needs a Schema, including one only
+rendered as an include, or `StandardAPI::MissingSchema` is raised, so nothing is
+exposed that no one chose to. A model with no controller of its own declares
+its Schema by name, `ToolCallSchema` for `ToolCall`:
+
+    class ToolCallSchema < StandardAPI::Schema
+      attributes :id, :name, :arguments
+    end
+
+An STI subclass uses the Schema of its base class if it has none of its own.
+A custom partial that doesn't use `schemas_for` isn't checked.
 
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
@@ -296,7 +305,7 @@ Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
 raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
 a `StandardAPI::Schema`. Without `StandardAPI::Schemas` in the base controller,
-they are ignored and the definitions are used as StandardAPI builds them.
+they are ignored and every attribute is used as StandardAPI builds them.
 
 `dynamic_attributes` declares attributes only known at runtime. The block runs
 on the instance and is given a builder with `attribute` and `remove`, and the

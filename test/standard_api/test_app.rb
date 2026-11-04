@@ -66,6 +66,13 @@ require 'standard_api/test_app/controllers'
 StandardAPI::AccessControlList.load!
 StandardAPI::Schemas.load!
 
+# Every model the tests render declares all of its attributes, by name, as most
+# tests aren't about Schemas.
+[Account, Photo, Property, Reference, Document, Attachment, UuidModel].each do |model|
+  names = model.attribute_names
+  Object.const_set("#{model.name}Schema", Class.new(StandardAPI::Schema) { attributes(*names) })
+end
+
 # Test Application Routes
 Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables

@@ -159,10 +159,11 @@ module StandardAPI
     # `auto_populated`.
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. If the model's controller nests a
-    # StandardAPI::Schema, the built definitions and the record (nil for a
-    # model) are passed through its `schemas(default_schema, record)` and its
-    # return value is used.
+    # `read_only` is the model wide answer. The built definitions and the record
+    # (nil for a model) are passed through `schemas(default_schema, record)` of
+    # the model's StandardAPI::Schema and its return value is used. A model with
+    # no Schema raises StandardAPI::MissingSchema when the controller includes
+    # StandardAPI::Schemas.
     #
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. `schemas`

@@ -13,6 +13,13 @@ class SchemasTest < ActionDispatch::IntegrationTest
     schemas(model, **options).find { |a| a[:name] == name }
   end
 
+  # Have Property's Schema declare +names+ too
+  def declare_on_property(*names)
+    declared = Property.attribute_names + names
+    schema = Class.new(StandardAPI::Schema) { attributes(*declared) }
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
+  end
+
   test 'one definition per attribute, in attribute order, with every key' do
     definitions = schemas(Property)
 
@@ -175,6 +182,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
       attribute :opens_at, :time
       attribute :inspected_at, :datetime
     end
+    declare_on_property('opened_on', 'opens_at', 'inspected_at')
 
     assert_equal %w(date time datetime), %w(opened_on opens_at inspected_at).map { |name|
       attribute(model, name)[:type]
@@ -188,13 +196,24 @@ class SchemasTest < ActionDispatch::IntegrationTest
     record = Property.select(:id, :name).first
     assert_equal %w(id name), controller.schemas_for(record).map { |a| a[:name] }
     assert_equal attribute(Property, 'name'), controller.schemas_for(record).last
+  end
 
+  test 'an attribute only a query selects is used once declared with a type' do
+    create(:property)
     record = Property.select('properties.*, 1 AS rank').first
-    rank = controller.schemas_for(record).last
+
+    assert_not_includes PropertiesController.new.schemas_for(record).map { |a| a[:name] }, 'rank'
+
+    names = Property.attribute_names
+    schema = Class.new(StandardAPI::Schema) do
+      attributes(*names)
+      attribute :rank, :integer
+    end
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
+
+    rank = PropertiesController.new.schemas_for(record).last
     assert_equal 'rank', rank[:name]
-    # the model types attributes, and has no type for rank
-    assert_nil rank[:type]
-    assert_nil rank[:null]
+    assert_equal 'integer', rank[:type]
   end
 
   test 'records with the same attributes share definitions' do
@@ -263,6 +282,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
       def self.name = 'Property'
       attribute :nickname, :string
     end
+    declare_on_property('nickname')
 
     definitions = schemas(model)
     assert_equal 'nickname', definitions.last[:name]

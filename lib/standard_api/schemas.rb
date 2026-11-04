@@ -33,10 +33,13 @@ module StandardAPI
 
     # Pass +schemas+, the attribute definitions built for +model+ by
     # Helpers#schemas_for, and +record+ (nil for a model) through its Schema and
-    # return the result. Returns +schemas+ unchanged when there is none.
+    # return the result. Raises MissingSchema when there is none, so nothing is
+    # rendered that no one chose to expose.
     def model_schemas(model, schemas, record = nil)
       schema = model_schema(model)
-      schema ? schema.schemas(schemas, record) : schemas
+      raise StandardAPI::MissingSchema.new(model) if !schema
+
+      schema.schemas(schemas, record)
     end
 
     private
@@ -48,8 +51,15 @@ module StandardAPI
       return @model_schema_instances[model] if @model_schema_instances.key?(model)
 
       classes = model.respond_to?(:base_class) ? [model, model.base_class].uniq : [model]
-      klass = classes.filter_map { |k| self.class.standard_api_schemas[model_name(k)] }.first
+      klass = classes.filter_map { |k| self.class.standard_api_schemas[model_name(k)] || named_schema(k) }.first
       @model_schema_instances[model] = klass&.new(self, model)
+    end
+
+    # A model with no controller of its own, such as one only rendered as an
+    # include, declares its Schema by name: ToolCallSchema for ToolCall
+    def named_schema(model)
+      schema = "#{model.name}Schema".safe_constantize
+      schema if schema.is_a?(Class) && schema < StandardAPI::Schema
     end
 
     # The attributes +record+'s Schema hides from this requester
