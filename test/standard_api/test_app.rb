@@ -62,7 +62,7 @@ require 'standard_api/test_app/models'
 require 'standard_api/test_app/controllers'
 
 # The controllers above are defined after boot, outside app/controllers, so the
-# Railtie never saw their nested ACL and Schema modules.
+# Railtie never saw their nested ACLs and Schemas.
 StandardAPI::AccessControlList.load!
 StandardAPI::Schemas.load!
 

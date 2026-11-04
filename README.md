@@ -245,8 +245,8 @@ timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
-A model's controller can declare how its attributes are described with a
-`Schema` module, nested in it like an `ACL`. `StandardAPI::Schemas` is the
+A model's controller can declare how its attributes are described by nesting a
+subclass of `StandardAPI::Schema`, like an `ACL`. `StandardAPI::Schemas` is the
 sibling of `StandardAPI::AccessControlList` that finds them; include it in
 your base controller (`include StandardAPI` includes both):
 
@@ -256,59 +256,93 @@ your base controller (`include StandardAPI` includes both):
       include StandardAPI::Schemas
     end
 
-The `Schema`'s `schemas(default_schema, record)` receives the definitions
-StandardAPI builds for the model and the record being rendered (`nil` for
-`schemas_for(Photo)` and `json_schema.json`), and returns the definitions to
-use, so it can change, drop or add attributes:
-
     class PhotosController < ApplicationController
-      module Schema
-        def schemas(default_schema, record)
-          default_schema.map do |schema|
-            schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
-          end
-        end
+      class Schema < StandardAPI::Schema
+        controller_methods :admin?
+
+        attribute :caption, comment: 'Shown under the photo' # change an attribute
+        attribute :thumbnail_url, :string                    # add one
+        attribute :location, if: :admin?                     # hide one, per request
+        remove :internal_notes                               # drop one
       end
     end
 
-The ACL is about access, so `schemas` isn't an ACL method, and one an ACL
-defines isn't renamed or used. A `Schema` module is found and
-included in ApplicationController the same way as a nested `ACL`, under the
-model's name (`photo_schemas`), so every controller describes and renders a
-Photo the same way, including as an include of a property. Two controllers of
-one model with a `Schema`, or a `Schema` and an ACL defining the same method,
-raise `StandardAPI::InvalidConfiguration`. Without `StandardAPI::Schemas` in
-the base controller, `Schema` modules are ignored and the definitions are
-used as StandardAPI builds them.
+`attribute` takes any key of the definition below. With a type it adds an
+attribute the model doesn't have, read from the record by name
+(`record.thumbnail_url`), and read only unless it says otherwise. Without a
+type, naming an attribute the model doesn't have raises, as does an unknown
+option. A real attribute a query didn't select stays out of that record's
+definitions, whatever is declared for it.
+
+Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
+private methods stay on the Schema rather than the controller.
+
+The Schema runs on one instance per model for the length of a request, reached
+through `controller`. `params` is available; `controller_methods` makes others
+available, private ones included.
+
+Every controller describes and renders a Photo with the same Schema, including
+as an include of a property, so two controllers of one model with a Schema
+raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
+a `StandardAPI::Schema`. Without `StandardAPI::Schemas` in the base controller,
+they are ignored and the definitions are used as StandardAPI builds them.
+
+`dynamic_attributes` declares attributes only known at runtime. The block runs
+on the instance and is given a builder with `attribute` and `remove`, and the
+value of `by`, a method name or Proc given the record (`nil` for a model). It
+runs once a request for each value:
+
+    dynamic_attributes by: ->(record) { record&.account_id || params[:account_id] } do |schema, account_id|
+      Field.where(account_id: account_id).each do |field|
+        schema.attribute field.key, field.value_type, comment: field.name
+      end
+    end
+
+`if` and `unless` take a method name or Proc that runs on the instance, once for
+each record, and is given the record if it takes an argument. For
+`schemas_for(Photo)` and `json_schema.json` the record is `nil`, so decide what
+that means: `if: ->(record) { record&.public? }` hides the attribute from them,
+while `unless: ->(record) { record&.private? }` shows it. Hidden attributes are
+added to the record's excludes, so they aren't rendered or named in validation
+errors, and a Schema that could vary by requester counts as an exclude rule, so
+fragments that include its model aren't cached.
+
+Hiding an attribute controls what the API shows, not what it permits: its ACL
+still decides whether it can be written, and filtered or ordered by, which can
+reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
+for associations.
+
+`varies_by_requester?` is true for a Schema with `if`, `unless` or
+`dynamic_attributes`, or one that overrides `schemas`. Override it when a Schema
+doesn't vary, so fragments can be cached.
+
+For what the declarations can't express, override `schemas(default_schema,
+record)`. It receives the definitions StandardAPI builds and the record being
+rendered (`nil` for a model), and returns the definitions to use:
+
+    class Schema < StandardAPI::Schema
+      def schemas(default_schema, record)
+        super.map { |schema| schema[:name] == 'caption' ? schema.merge(comment: record&.title) : schema }
+      end
+    end
+
+It's called once per record rendered, with definitions the records share, so
+return new Hashes (`merge`, `reject`, `map`) rather than changing them. An
+attribute it leaves out isn't rendered, but isn't excluded from validation
+errors the way one hidden with `if` or `remove` is.
 
 `schemas_for(Photo)` returns the result, and `json_schema.json` is built from
 it. Records are rendered from it too: `application/_record` renders the
-attributes in `schemas_for(record)`, so an attribute `Schema#schemas` leaves
-out isn't rendered, and one it adds is
-read from the record by name (`record.thumbnail_url`). `schemas_for` is
-available in controllers and views, so other code (an MCP tool describing your
-models, for instance) can read the same definitions without rendering a schema
-view and parsing it back.
+attributes in `schemas_for(record)`. `schemas_for` is available in controllers
+and views, so other code (an MCP tool describing your models, for instance) can
+read the same definitions without rendering a schema view and parsing it back.
 
-Before `Schema#schemas` sees them, there is one definition per entry in
+Before the Schema sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
 attributes its query selected. A record loaded with `select(:id)` has only
 `id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
 `nil` type since the model doesn't have it. Records of a model with the same
-attributes share their definitions before `Schema#schemas` sees them.
-
-The record lets the definitions vary by record:
-
-    module Schema
-      def schemas(default_schema, record)
-        return default_schema if !record&.private?
-        default_schema.reject { |schema| schema[:name] == 'location' }
-      end
-    end
-
-`schemas` is called once per record rendered, with the definitions the
-records share, so return new Hashes (`merge`, `reject`, `map`) rather than
-changing the ones it is given.
+attributes share their definitions before the Schema sees them.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,

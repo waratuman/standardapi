@@ -39,7 +39,7 @@ module StandardAPI
         other = others.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
         next if !other
 
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs and Schemas of one model are shared by all of its controllers, so define them once"
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
       end
 
       application_controller.include mod
@@ -160,15 +160,15 @@ module StandardAPI
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
     # `read_only` is the model wide answer. If the model's controller nests a
-    # `Schema` module, the built definitions and the record (nil for a model)
-    # are passed through its `schemas(default_schema, record)` and its return
-    # value is used.
+    # StandardAPI::Schema, the built definitions and the record (nil for a
+    # model) are passed through its `schemas(default_schema, record)` and its
+    # return value is used.
     #
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. `schemas`
     # is called once per model and once per record, with those shared
-    # definitions, so it must return new Hashes rather than change the ones
-    # it is given.
+    # definitions, so an override must return new Hashes rather than change
+    # the ones it is given.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model

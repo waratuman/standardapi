@@ -21,6 +21,14 @@ class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryBot::Syntax::Methods
 
+  # Override CamerasController::Schema#schemas for the length of the block
+  def with_camera_schemas(hook)
+    CamerasController::Schema.define_method(:schemas, &hook)
+    yield
+  ensure
+    CamerasController::Schema.send(:remove_method, :schemas)
+  end
+
   def setup
     @routes ||= TestApplication.routes
     @subscribers, @layouts, @partials = [], {}, {}
