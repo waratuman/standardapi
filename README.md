@@ -273,27 +273,12 @@ listed. Types, defaults and validations of a declared attribute still come from
 the model. Undeclared attributes are added to the record's excludes too, so they
 aren't named in validation errors.
 
-To start from every attribute of the model instead, inherit from
-`StandardAPI::Schema[:implicit]` and take out what shouldn't show with `remove`:
-
-    class Schema < StandardAPI::Schema[:implicit]
-      add :thumbnail_url, :string
-      remove :internal_notes
-    end
-
-`implicit_attributes` does the same in any Schema, so an application's own base
-class can opt in. Called on `StandardAPI::Schema` itself, in an initializer, it
-makes implicit the default for the application, and `implicit_attributes false`
-opts a Schema back out.
-
-`StandardAPI::Schema[:explicit]` is always explicit, whatever the application's
-default, so a model with sensitive columns can say so. Without that default
-set, plain `StandardAPI::Schema` is explicit as well.
+`remove` takes back a declaration, such as one inherited from a parent Schema.
 
 A model with no Schema is rendered as StandardAPI builds it, with every
 attribute.
 
-`add` is another name for `attribute`, and either works in both modes.
+`add` is another name for `attribute`.
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
 (`record.thumbnail_url`), and read only unless it says otherwise. Without a

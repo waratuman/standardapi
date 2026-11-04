@@ -16,11 +16,6 @@ module StandardAPI
   #       add :thumbnail_url, :string
   #       attribute :location, if: :admin?
   #
-  # To start from every attribute of the model instead, inherit from
-  # StandardAPI::Schema[:implicit] or call +implicit_attributes+. Calling it on
-  # StandardAPI::Schema itself makes that the default for an application, which
-  # StandardAPI::Schema[:explicit] isn't affected by.
-  #
   #       dynamic_attributes by: ->(record) { record&.account_id } do |schema, account_id|
   #         Field.where(account_id: account_id).each do |field|
   #           schema.attribute field.key, field.value_type, comment: field.name
@@ -41,11 +36,10 @@ module StandardAPI
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
 
-      attr_reader :removed, :conditions
+      attr_reader :conditions
 
       def initialize
         @changes = {}
-        @removed = []
         @conditions = {}
       end
 
@@ -58,7 +52,6 @@ module StandardAPI
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
-        @removed.delete(name)
         changes = (@changes[name] ||= {})
         changes[:type] = type.to_s if type
         changes.merge!(options)
@@ -72,25 +65,21 @@ module StandardAPI
         self
       end
 
+      # Take back a declaration, ie. one inherited from a parent Schema
       def remove(*names)
         names.map(&:to_s).each do |name|
           @changes.delete(name)
           @conditions.delete(name)
-          @removed << name if !@removed.include?(name)
         end
         self
       end
 
       # New definitions; those in +default_schema+ are shared, so aren't changed
-      def apply(default_schema, model, implicit: false)
+      def apply(default_schema, model)
         pending = @changes.dup
         definitions = default_schema.filter_map do |definition|
-          next if @removed.include?(definition[:name])
-
           changes = pending.delete(definition[:name])
-          next if !changes && !implicit
-
-          changes ? definition.merge(changes) : definition
+          definition.merge(changes) if changes
         end
 
         pending.each do |name, changes|
@@ -107,30 +96,14 @@ module StandardAPI
       end
 
       # The model's attributes these declarations leave out
-      def hidden_attributes(model, implicit: false)
-        implicit ? @removed.dup : model.attribute_names - @changes.keys
+      def hidden_attributes(model)
+        model.attribute_names - @changes.keys
       end
     end
 
     class_attribute :schema_steps, instance_accessor: false, default: [].freeze
-    class_attribute :schema_implicit, instance_accessor: false, default: false
 
     class << self
-      # The Schema to inherit from for +mode+, :explicit or :implicit, whatever
-      # the application's default. Always the same class, as reopening a class
-      # with a different superclass raises.
-      def [](mode)
-        if !equal?(StandardAPI::Schema)
-          raise ArgumentError, "#{name}[#{mode.inspect}] isn't supported, use StandardAPI::Schema[#{mode.inspect}]"
-        end
-
-        case mode
-        when :explicit then Explicit
-        when :implicit then Implicit
-        else raise ArgumentError, "unknown Schema mode: #{mode.inspect}, expected :explicit or :implicit"
-        end
-      end
-
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
       # Proc. Both run on the Schema instance and are given the record, or nil
       # for a model, when they take an argument.
@@ -146,12 +119,6 @@ module StandardAPI
 
       def remove(*names)
         add_step { |schema, _| schema.remove(*names) }
-      end
-
-      # Start from every attribute of the model rather than only those declared.
-      # A column added later is then rendered without anyone having to list it.
-      def implicit_attributes(value = true)
-        self.schema_implicit = value
       end
 
       # Declare attributes only known at runtime. The block runs on the Schema
@@ -207,7 +174,7 @@ module StandardAPI
     def schemas(default_schema, record)
       builder = builder_for(record)
       definitions = (@applied[builder] ||= {}.compare_by_identity)[default_schema] ||=
-        builder.apply(default_schema, model, implicit: self.class.schema_implicit)
+        builder.apply(default_schema, model)
 
       failed = failed_conditions(record)
       failed.empty? ? definitions : definitions.reject { |definition| failed.include?(definition[:name]) }
@@ -216,7 +183,7 @@ module StandardAPI
     # Names of the attributes +record+ doesn't render for this requester
     def hidden_attributes(record)
       builder = builder_for(record)
-      undeclared = @undeclared[builder] ||= builder.hidden_attributes(model, implicit: self.class.schema_implicit)
+      undeclared = @undeclared[builder] ||= builder.hidden_attributes(model)
       undeclared + failed_conditions(record)
     end
 
@@ -243,14 +210,6 @@ module StandardAPI
       callable = method(callable) if callable.is_a?(Symbol)
       args = callable.arity > 0 ? [record] : []
       callable.is_a?(Proc) ? instance_exec(*args, &callable) : callable.call(*args)
-    end
-
-    class Explicit < self
-      implicit_attributes false
-    end
-
-    class Implicit < self
-      implicit_attributes
     end
 
   end

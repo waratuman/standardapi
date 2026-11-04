@@ -112,7 +112,8 @@ class CamerasController < ApplicationController
 
   # Adjusts the attribute definitions schemas_for(Camera), json_schema.json and
   # rendered cameras are built from
-  class Schema < StandardAPI::Schema[:implicit]
+  class Schema < StandardAPI::Schema
+    attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer'
   end
 

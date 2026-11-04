@@ -11,12 +11,16 @@ class SchemaTest < ActionDispatch::IntegrationTest
     yield
   end
 
-  # Most declarations are simplest to check against the whole model
-  def schema_class(&block)
-    Class.new(StandardAPI::Schema[:implicit], &block)
+  # A Schema declaring every attribute of +model+, then what +block+ does
+  def schema_class(model = Camera, &block)
+    names = model.attribute_names
+    Class.new(StandardAPI::Schema) do
+      attributes(*names)
+      class_eval(&block) if block
+    end
   end
 
-  def explicit_schema_class(&block)
+  def empty_schema_class(&block)
     Class.new(StandardAPI::Schema, &block)
   end
 
@@ -31,7 +35,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'only declared attributes are used, in attribute order' do
-    schema = explicit_schema_class do
+    schema = empty_schema_class do
       attributes :make, :id
       attribute :thumbnail_url, :string
     end
@@ -40,11 +44,11 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'declaring nothing uses nothing' do
-    assert_empty names(explicit_schema_class)
+    assert_empty names(empty_schema_class)
   end
 
   test 'a declared attribute keeps what the model says about it' do
-    make = definition(explicit_schema_class { attributes :make }, 'make')
+    make = definition(empty_schema_class { attributes :make }, 'make')
 
     assert_equal 'string', make[:type]
     assert_equal false, make[:null]
@@ -53,7 +57,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
   test 'a new column stays hidden until it is declared' do
     camera = create(:camera)
-    schema = explicit_schema_class { attributes :id, :make }
+    schema = empty_schema_class { attributes :id, :make }
 
     with_schema(schema) do
       get camera_path(camera, format: 'json')
@@ -69,19 +73,19 @@ class SchemaTest < ActionDispatch::IntegrationTest
     camera = create(:camera)
     selected = Camera.select('cameras.*, 1 AS rank').find(camera.id)
 
-    assert_equal ['id'], names(explicit_schema_class { attributes :id }, selected)
-    assert_includes names(schema_class, selected), 'rank'
+    assert_equal ['id'], names(empty_schema_class { attributes :id }, selected)
+    assert_equal ['id', 'rank'], names(empty_schema_class { attributes :id; add :rank, :integer }, selected)
   end
 
   test 'an undeclared attribute is excluded, so its validation error is withheld' do
     property = create(:property)
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => explicit_schema_class { attributes :id })
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => empty_schema_class { attributes :id })
 
     excluded = PropertiesController.new.send(:excludes, property)
     assert_equal true, excluded[:name]
     assert_not excluded.key?(:id)
 
-    with_schema(explicit_schema_class { attributes :id }) do
+    with_schema(empty_schema_class { attributes :id }) do
       post '/cameras', params: { camera: { make: nil } }, as: :json
     end
     assert_response :bad_request
@@ -89,7 +93,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'attributes declared at runtime count as declared' do
-    schema = explicit_schema_class do
+    schema = empty_schema_class do
       attributes :id
       dynamic_attributes { |builder, _| builder.attributes(:make) }
     end
@@ -98,76 +102,19 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'attributes raises for an attribute the model lacks' do
-    error = assert_raises(ArgumentError) { definitions(explicit_schema_class { attributes :mkae }) }
+    error = assert_raises(ArgumentError) { definitions(empty_schema_class { attributes :mkae }) }
     assert_match(/Camera has no attribute mkae/, error.message)
   end
 
-  test 'add is attribute, in either mode and at runtime' do
-    assert_equal ['thumbnail_url'], names(explicit_schema_class { add :thumbnail_url, :string })
-    assert_equal Camera.attribute_names + ['thumbnail_url'], names(schema_class { add :thumbnail_url, :string })
-    assert_equal ['make'], names(explicit_schema_class { add :make })
-    assert_equal ['thumbnail_url'], names(explicit_schema_class { dynamic_attributes { |builder, _| builder.add(:thumbnail_url, :string) } })
+  test 'a model with a Schema has no way to use undeclared attributes' do
+    assert_not StandardAPI::Schema.respond_to?(:implicit_attributes)
+    assert_not StandardAPI::Schema.respond_to?(:[])
   end
 
-  test 'Schema[:implicit] starts from every attribute, and a subclass can opt back out' do
-    assert_equal Camera.attribute_names, names(schema_class)
-    assert_equal Camera.attribute_names, names(Class.new(schema_class))
-    assert_equal ['id'], names(Class.new(schema_class) { implicit_attributes false; attributes :id })
-  end
-
-  test 'implicit_attributes opts in without inheriting Schema[:implicit]' do
-    assert_equal Camera.attribute_names, names(explicit_schema_class { implicit_attributes })
-    assert_not explicit_schema_class.schema_implicit
-  end
-
-  test 'implicit_attributes on StandardAPI::Schema sets the default for an application' do
-    StandardAPI::Schema.implicit_attributes
-    assert_equal Camera.attribute_names, names(explicit_schema_class)
-    assert_equal ['id'], names(explicit_schema_class { implicit_attributes false; attributes :id })
-  ensure
-    StandardAPI::Schema.implicit_attributes false
-  end
-
-  test 'StandardAPI::Schema and Schema[:explicit] are both explicit' do
-    assert_equal ['id'], names(Class.new(StandardAPI::Schema) { attributes :id })
-    assert_equal ['id'], names(Class.new(StandardAPI::Schema[:explicit]) { attributes :id })
-  end
-
-  test "Schema[:explicit] and Schema[:implicit] don't follow the application's default" do
-    StandardAPI::Schema.implicit_attributes
-    assert_equal ['id'], names(Class.new(StandardAPI::Schema[:explicit]) { attributes :id })
-
-    StandardAPI::Schema.implicit_attributes false
-    assert_equal Camera.attribute_names, names(Class.new(StandardAPI::Schema[:implicit]))
-  ensure
-    StandardAPI::Schema.implicit_attributes false
-  end
-
-  test 'Schema[] is always the same named class, so a class body can run again' do
-    assert_same StandardAPI::Schema[:implicit], StandardAPI::Schema[:implicit]
-    assert_same StandardAPI::Schema[:explicit], StandardAPI::Schema[:explicit]
-    assert_equal 'StandardAPI::Schema::Implicit', StandardAPI::Schema[:implicit].name
-    assert_equal 'StandardAPI::Schema::Explicit', StandardAPI::Schema[:explicit].name
-
-    2.times { Object.class_eval('class SchemaReopenedTwice < StandardAPI::Schema[:implicit]; end') }
-  ensure
-    Object.send(:remove_const, :SchemaReopenedTwice)
-  end
-
-  test 'Schema[] raises for an unknown mode' do
-    error = assert_raises(ArgumentError) { StandardAPI::Schema[:strict] }
-    assert_match(/unknown Schema mode: :strict/, error.message)
-  end
-
-  test 'Schema[] only works on StandardAPI::Schema itself' do
-    assert_raises(ArgumentError) { CamerasController::Schema[:explicit] }
-    assert_raises(ArgumentError) { StandardAPI::Schema[:implicit][:explicit] }
-  end
-
-  test 'a Schema inheriting a mode is registered and cached like any other' do
-    assert CamerasController::Schema < StandardAPI::Schema
-    assert_not StandardAPI::Schema[:implicit].varies_by_requester?
-    assert_not StandardAPI::Schema[:explicit].varies_by_requester?
+  test 'add is attribute, also at runtime' do
+    assert_equal ['thumbnail_url'], names(empty_schema_class { add :thumbnail_url, :string })
+    assert_equal ['make'], names(empty_schema_class { add :make })
+    assert_equal ['thumbnail_url'], names(empty_schema_class { dynamic_attributes { |builder, _| builder.add(:thumbnail_url, :string) } })
   end
 
   test 'attribute changes a definition in place' do
@@ -223,8 +170,16 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal [{ name: 'make', type: 'string', comment: 'Who made it' }], builder.apply(default_schema, Camera)
   end
 
-  test 'remove drops definitions' do
+  test 'remove takes back a declaration' do
     assert_equal Camera.attribute_names - ['make', 'retired'], names(schema_class { remove :make, :retired })
+  end
+
+  test 'remove takes back what a parent declares, without changing it' do
+    parent = empty_schema_class { attributes :id, :make }
+    child = Class.new(parent) { remove :make }
+
+    assert_equal ['id'], names(child)
+    assert_equal ['id', 'make'], names(parent)
   end
 
   test 'the last declaration of an attribute wins' do
@@ -361,7 +316,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
   test 'what a Schema hides is excluded' do
     property = create(:property)
-    schema = schema_class do
+    schema = schema_class(Property) do
       attribute :name, if: -> { false }
       remove :description
     end
@@ -398,15 +353,15 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'a Schema that could vary by requester counts as an exclude rule' do
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class { attribute :name, comment: 'Its name' })
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class(Property) { attribute :name, comment: 'Its name' })
     assert_not AccountsController.new.send(:excludes?, Property)
 
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class { attribute :name, if: -> { true } })
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class(Property) { attribute :name, if: -> { true } })
     assert AccountsController.new.send(:excludes?, Property)
   end
 
   def property_hiding_name_by_header
-    schema_class do
+    schema_class(Property) do
       controller_methods :request
       attribute :name, unless: -> { request.headers['X-Hide-Name'] == '1' }
     end
@@ -439,7 +394,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'unconditional declarations keep fragment caching' do
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class { attribute :name, comment: 'Its name' })
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class(Property) { attribute :name, comment: 'Its name' })
     property = create(:property, name: 'The Shard')
     account = create(:account, property: property, property_cached_at: 1.day.ago)
 
