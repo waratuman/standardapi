@@ -62,7 +62,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
 
   test 'a model with no controller declares its Schema by name' do
     assert_equal AccountSchema, ApplicationController.new.send(:model_schema, Account).class
-    assert_equal ['id'], Class.new(ApplicationController).new.schemas_for(Class.new(Account) { def self.name = 'Account' }).map { |s| s[:name] }.first(1)
+    assert_equal Account.attribute_names, CamerasController.new.schemas_for(Account).map { |s| s[:name] }
   end
 
   test 'a constant with the right name that is not a Schema is ignored' do
