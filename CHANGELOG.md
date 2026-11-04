@@ -82,8 +82,8 @@
   (`PhotosController::Schema`), found by `StandardAPI::Schemas`, the sibling
   of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
   to declare its model's attribute definitions. Like strong parameters only
-  declared attributes are used. `attributes` declares them, `attribute` (or
-  `add`) can also change or add one, `remove` drops one, and
+  declared attributes are used. `attributes` declares them, `attribute` can
+  also change or add one, `remove` drops one, and
   `dynamic_attributes` declares those only known at runtime, once a request per
   value of `by`. `if` and `unless` hide an attribute
   per record, or per requester: hidden attributes join the record's excludes,

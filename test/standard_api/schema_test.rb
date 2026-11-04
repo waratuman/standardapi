@@ -74,7 +74,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
     selected = Camera.select('cameras.*, 1 AS rank').find(camera.id)
 
     assert_equal ['id'], names(empty_schema_class { attributes :id }, selected)
-    assert_equal ['id', 'rank'], names(empty_schema_class { attributes :id; add :rank, :integer }, selected)
+    assert_equal ['id', 'rank'], names(empty_schema_class { attributes :id; attribute :rank, :integer }, selected)
   end
 
   test 'an undeclared attribute is excluded, so its validation error is withheld' do
@@ -111,10 +111,13 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not StandardAPI::Schema.respond_to?(:[])
   end
 
-  test 'add is attribute, also at runtime' do
-    assert_equal ['thumbnail_url'], names(empty_schema_class { add :thumbnail_url, :string })
-    assert_equal ['make'], names(empty_schema_class { add :make })
-    assert_equal ['thumbnail_url'], names(empty_schema_class { dynamic_attributes { |builder, _| builder.add(:thumbnail_url, :string) } })
+  test 'attribute declares one at runtime too' do
+    assert_equal ['thumbnail_url'], names(empty_schema_class { dynamic_attributes { |builder, _| builder.attribute(:thumbnail_url, :string) } })
+  end
+
+  test "there's no add" do
+    assert_not StandardAPI::Schema.respond_to?(:add)
+    assert_not StandardAPI::Schema::Builder.method_defined?(:add)
   end
 
   test 'attribute changes a definition in place' do

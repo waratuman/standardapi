@@ -13,7 +13,7 @@ module StandardAPI
   #
   #       attributes :id, :format, :created_at
   #       attribute :caption, comment: 'Shown under the photo'
-  #       add :thumbnail_url, :string
+  #       attribute :thumbnail_url, :string
   #       attribute :location, if: :admin?
   #
   #       dynamic_attributes by: ->(record) { record&.account_id } do |schema, account_id|
@@ -58,7 +58,6 @@ module StandardAPI
         (@conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
         self
       end
-      alias_method :add, :attribute
 
       def attributes(*names)
         names.each { |name| attribute(name) }
@@ -111,7 +110,6 @@ module StandardAPI
         conditional = options.key?(:if) || options.key?(:unless)
         add_step(varies: conditional) { |schema, _| schema.attribute(name, type, **options) }
       end
-      alias_method :add, :attribute
 
       def attributes(*names)
         add_step { |schema, _| schema.attributes(*names) }

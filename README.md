@@ -262,7 +262,7 @@ your base controller (`include StandardAPI` includes both):
 
         attributes :id, :format, :created_at                 # use these as they are
         attribute :caption, comment: 'Shown under the photo' # use one and change it
-        add :thumbnail_url, :string                          # add one
+        attribute :thumbnail_url, :string                    # add one
         attribute :location, if: :admin?                     # hide one, per request
       end
     end
@@ -278,7 +278,6 @@ aren't named in validation errors.
 A model with no Schema is rendered as StandardAPI builds it, with every
 attribute.
 
-`add` is another name for `attribute`.
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
 (`record.thumbnail_url`), and read only unless it says otherwise. Without a
