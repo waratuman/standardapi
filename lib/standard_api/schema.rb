@@ -3,16 +3,22 @@ require 'active_support/core_ext/hash/keys'
 
 module StandardAPI
   # Declares how a model's attributes are described and rendered. Nest a
-  # subclass in the model's controller; StandardAPI::Schemas finds it:
+  # subclass in the model's controller; StandardAPI::Schemas finds it. Like
+  # strong parameters, only what it declares is used, so a new column stays
+  # hidden until it's listed. Types and validations still come from the model.
   #
   #   class PhotosController < ApplicationController
   #     class Schema < StandardAPI::Schema
   #       controller_methods :admin?
   #
+  #       attributes :id, :format, :created_at
   #       attribute :caption, comment: 'Shown under the photo'
-  #       attribute :thumbnail_url, :string
+  #       add :thumbnail_url, :string
   #       attribute :location, if: :admin?
-  #       remove :internal_notes
+  #
+  # To start from every attribute of the model instead, inherit from
+  # StandardAPI::ImplicitSchema or call +implicit_attributes+. Calling it on
+  # StandardAPI::Schema itself makes that the default for an application.
   #
   #       dynamic_attributes by: ->(record) { record&.account_id } do |schema, account_id|
   #         Field.where(account_id: account_id).each do |field|
@@ -42,8 +48,9 @@ module StandardAPI
         @conditions = {}
       end
 
-      # Change the attribute +name+, or add it when +type+ is given and the
-      # model doesn't have it. +if+ and +unless+ hide it per record.
+      # Declare the attribute +name+, changing it with +options+, or add it
+      # when +type+ is given and the model doesn't have it. +if+ and +unless+
+      # hide it per record.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -57,6 +64,12 @@ module StandardAPI
         (@conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
         self
       end
+      alias_method :add, :attribute
+
+      def attributes(*names)
+        names.each { |name| attribute(name) }
+        self
+      end
 
       def remove(*names)
         names.map(&:to_s).each do |name|
@@ -68,12 +81,14 @@ module StandardAPI
       end
 
       # New definitions; those in +default_schema+ are shared, so aren't changed
-      def apply(default_schema, model)
+      def apply(default_schema, model, implicit: false)
         pending = @changes.dup
         definitions = default_schema.filter_map do |definition|
           next if @removed.include?(definition[:name])
 
           changes = pending.delete(definition[:name])
+          next if !changes && !implicit
+
           changes ? definition.merge(changes) : definition
         end
 
@@ -89,9 +104,15 @@ module StandardAPI
 
         definitions
       end
+
+      # The model's attributes these declarations leave out
+      def hidden_attributes(model, implicit: false)
+        implicit ? @removed.dup : model.attribute_names - @changes.keys
+      end
     end
 
     class_attribute :schema_steps, instance_accessor: false, default: [].freeze
+    class_attribute :schema_implicit, instance_accessor: false, default: false
 
     class << self
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
@@ -101,9 +122,20 @@ module StandardAPI
         conditional = options.key?(:if) || options.key?(:unless)
         add_step(varies: conditional) { |schema, _| schema.attribute(name, type, **options) }
       end
+      alias_method :add, :attribute
+
+      def attributes(*names)
+        add_step { |schema, _| schema.attributes(*names) }
+      end
 
       def remove(*names)
         add_step { |schema, _| schema.remove(*names) }
+      end
+
+      # Start from every attribute of the model rather than only those declared.
+      # A column added later is then rendered without anyone having to list it.
+      def implicit_attributes(value = true)
+        self.schema_implicit = value
       end
 
       # Declare attributes only known at runtime. The block runs on the Schema
@@ -148,7 +180,8 @@ module StandardAPI
       @model = model
       @builders = {}
       @applied = {}.compare_by_identity
-      @hidden = {}.compare_by_identity
+      @undeclared = {}.compare_by_identity
+      @failed = {}.compare_by_identity
     end
 
     # The definitions to use for +record+, or nil for a model. Override this,
@@ -158,24 +191,26 @@ module StandardAPI
     def schemas(default_schema, record)
       builder = builder_for(record)
       definitions = (@applied[builder] ||= {}.compare_by_identity)[default_schema] ||=
-        builder.apply(default_schema, model)
+        builder.apply(default_schema, model, implicit: self.class.schema_implicit)
 
-      hidden = hidden_attributes(record)
-      hidden.empty? ? definitions : definitions.reject { |definition| hidden.include?(definition[:name]) }
+      failed = failed_conditions(record)
+      failed.empty? ? definitions : definitions.reject { |definition| failed.include?(definition[:name]) }
     end
 
     # Names of the attributes +record+ doesn't render for this requester
     def hidden_attributes(record)
-      @hidden[record] ||= begin
-        builder = builder_for(record)
-        failed = builder.conditions.filter_map do |name, conditions|
-          name if conditions.any? { |kind, condition| !!resolve(condition, record) == (kind == :unless) }
-        end
-        builder.removed + failed
-      end
+      builder = builder_for(record)
+      undeclared = @undeclared[builder] ||= builder.hidden_attributes(model, implicit: self.class.schema_implicit)
+      undeclared + failed_conditions(record)
     end
 
     private
+
+    def failed_conditions(record)
+      @failed[record] ||= builder_for(record).conditions.filter_map do |name, conditions|
+        name if conditions.any? { |kind, condition| !!resolve(condition, record) == (kind == :unless) }
+      end
+    end
 
     def builder_for(record)
       steps = self.class.schema_steps

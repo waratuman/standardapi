@@ -296,7 +296,7 @@ module StandardAPI
 
       # What a Schema hides is excluded too, so it stays out of validation errors
       hidden = model_hidden_attributes(record) if respond_to?(:model_hidden_attributes, true)
-      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden)
+      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
     # ApplicationHelper#excludes is keyed by model and takes no record, so it

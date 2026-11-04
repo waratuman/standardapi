@@ -81,9 +81,12 @@
 - A controller can nest a subclass of `StandardAPI::Schema`
   (`PhotosController::Schema`), found by `StandardAPI::Schemas`, the sibling
   of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
-  to adjust its model's attribute definitions. `attribute` changes or adds one,
-  `remove` drops one, and `dynamic_attributes` declares those only known at
-  runtime, once a request per value of `by`. `if` and `unless` hide an attribute
+  to declare its model's attribute definitions. Like strong parameters only
+  declared attributes are used, unless it inherits `StandardAPI::ImplicitSchema`
+  or calls `implicit_attributes`. `attributes` declares them, `attribute` (or
+  `add`) can also change or add one, `remove` drops one, and
+  `dynamic_attributes` declares those only known at runtime, once a request per
+  value of `by`. `if` and `unless` hide an attribute
   per record, or per requester: hidden attributes join the record's excludes,
   and a Schema that could vary by requester turns off fragment caching for its
   model. `schemas(default_schema, record)` can be overridden for anything else.

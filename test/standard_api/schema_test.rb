@@ -11,7 +11,12 @@ class SchemaTest < ActionDispatch::IntegrationTest
     yield
   end
 
+  # Most declarations are simplest to check against the whole model
   def schema_class(&block)
+    Class.new(StandardAPI::ImplicitSchema, &block)
+  end
+
+  def explicit_schema_class(&block)
     Class.new(StandardAPI::Schema, &block)
   end
 
@@ -23,6 +28,104 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
   def definition(schema, name, ...)
     definitions(schema, ...).find { |d| d[:name] == name }
+  end
+
+  test 'only declared attributes are used, in attribute order' do
+    schema = explicit_schema_class do
+      attributes :make, :id
+      attribute :thumbnail_url, :string
+    end
+
+    assert_equal ['id', 'make', 'thumbnail_url'], names(schema)
+  end
+
+  test 'declaring nothing uses nothing' do
+    assert_empty names(explicit_schema_class)
+  end
+
+  test 'a declared attribute keeps what the model says about it' do
+    make = definition(explicit_schema_class { attributes :make }, 'make')
+
+    assert_equal 'string', make[:type]
+    assert_equal false, make[:null]
+    assert_equal KEYS, make.keys
+  end
+
+  test 'a new column stays hidden until it is declared' do
+    camera = create(:camera)
+    schema = explicit_schema_class { attributes :id, :make }
+
+    with_schema(schema) do
+      get camera_path(camera, format: 'json')
+      assert_response :ok
+      assert_equal ['id', 'make'], JSON(response.body).keys.sort
+
+      get json_schema_cameras_path(format: 'json')
+      assert_equal ['id', 'make'], JSON(response.body)['properties'].keys.sort
+    end
+  end
+
+  test 'a select the Schema does not declare is not rendered' do
+    camera = create(:camera)
+    selected = Camera.select('cameras.*, 1 AS rank').find(camera.id)
+
+    assert_equal ['id'], names(explicit_schema_class { attributes :id }, selected)
+    assert_includes names(schema_class, selected), 'rank'
+  end
+
+  test 'an undeclared attribute is excluded, so its validation error is withheld' do
+    property = create(:property)
+    ApplicationController.stubs(:standard_api_schemas).returns('property' => explicit_schema_class { attributes :id })
+
+    excluded = PropertiesController.new.send(:excludes, property)
+    assert_equal true, excluded[:name]
+    assert_not excluded.key?(:id)
+
+    with_schema(explicit_schema_class { attributes :id }) do
+      post '/cameras', params: { camera: { make: nil } }, as: :json
+    end
+    assert_response :bad_request
+    assert_not JSON(response.body)['errors'].key?('make')
+  end
+
+  test 'attributes declared at runtime count as declared' do
+    schema = explicit_schema_class do
+      attributes :id
+      dynamic_attributes { |builder, _| builder.attributes(:make) }
+    end
+
+    assert_equal ['id', 'make'], names(schema)
+  end
+
+  test 'attributes raises for an attribute the model lacks' do
+    error = assert_raises(ArgumentError) { definitions(explicit_schema_class { attributes :mkae }) }
+    assert_match(/Camera has no attribute mkae/, error.message)
+  end
+
+  test 'add is attribute, in either mode and at runtime' do
+    assert_equal ['thumbnail_url'], names(explicit_schema_class { add :thumbnail_url, :string })
+    assert_equal Camera.attribute_names + ['thumbnail_url'], names(schema_class { add :thumbnail_url, :string })
+    assert_equal ['make'], names(explicit_schema_class { add :make })
+    assert_equal ['thumbnail_url'], names(explicit_schema_class { dynamic_attributes { |builder, _| builder.add(:thumbnail_url, :string) } })
+  end
+
+  test 'ImplicitSchema starts from every attribute, and a subclass can opt back out' do
+    assert_equal Camera.attribute_names, names(schema_class)
+    assert_equal Camera.attribute_names, names(Class.new(schema_class))
+    assert_equal ['id'], names(Class.new(schema_class) { implicit_attributes false; attributes :id })
+  end
+
+  test 'implicit_attributes opts in without inheriting ImplicitSchema' do
+    assert_equal Camera.attribute_names, names(explicit_schema_class { implicit_attributes })
+    assert_not explicit_schema_class.schema_implicit
+  end
+
+  test 'implicit_attributes on StandardAPI::Schema sets the default for an application' do
+    StandardAPI::Schema.implicit_attributes
+    assert_equal Camera.attribute_names, names(explicit_schema_class)
+    assert_equal ['id'], names(explicit_schema_class { implicit_attributes false; attributes :id })
+  ensure
+    StandardAPI::Schema.implicit_attributes false
   end
 
   test 'attribute changes a definition in place' do

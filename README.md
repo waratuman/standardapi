@@ -260,13 +260,36 @@ your base controller (`include StandardAPI` includes both):
       class Schema < StandardAPI::Schema
         controller_methods :admin?
 
-        attribute :caption, comment: 'Shown under the photo' # change an attribute
-        attribute :thumbnail_url, :string                    # add one
+        attributes :id, :format, :created_at                 # use these as they are
+        attribute :caption, comment: 'Shown under the photo' # use one and change it
+        add :thumbnail_url, :string                          # add one
         attribute :location, if: :admin?                     # hide one, per request
-        remove :internal_notes                               # drop one
       end
     end
 
+Like strong parameters, a Schema is explicit: only the attributes it declares
+are rendered or described, so a column added later stays hidden until it's
+listed. Types, defaults and validations of a declared attribute still come from
+the model. Undeclared attributes are added to the record's excludes too, so they
+aren't named in validation errors.
+
+To start from every attribute of the model instead, inherit from
+`StandardAPI::ImplicitSchema` and take out what shouldn't show with `remove`:
+
+    class Schema < StandardAPI::ImplicitSchema
+      add :thumbnail_url, :string
+      remove :internal_notes
+    end
+
+`implicit_attributes` does the same in any Schema, so an application's own base
+class can opt in. Called on `StandardAPI::Schema` itself, in an initializer, it
+makes implicit the default for the application, and `implicit_attributes false`
+opts a Schema back out.
+
+A model with no Schema is rendered as StandardAPI builds it, with every
+attribute.
+
+`add` is another name for `attribute`, and either works in both modes.
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
 (`record.thumbnail_url`), and read only unless it says otherwise. Without a

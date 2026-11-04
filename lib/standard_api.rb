@@ -25,6 +25,7 @@ require 'standard_api/railtie'
 module StandardAPI
   autoload :AccessControlList, 'standard_api/access_control_list'
   autoload :Schema, 'standard_api/schema'
+  autoload :ImplicitSchema, 'standard_api/implicit_schema'
   autoload :Schemas, 'standard_api/schemas'
   autoload :Middleware, 'standard_api/middleware'
 
