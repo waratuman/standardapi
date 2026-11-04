@@ -307,15 +307,21 @@ raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
 a `StandardAPI::Schema`. Without `StandardAPI::Schemas` in the base controller,
 they are ignored and every attribute is used as StandardAPI builds them.
 
-`dynamic_attributes` declares attributes only known at runtime. The block runs
-on the instance and is given a builder with `attribute` and `remove`, and the
-value of `by`, a method name or Proc given the record (`nil` for a model). It
-runs once a request for each value:
+`attributes_for` declares attributes only known at runtime. Its key is a method
+name or Proc given the record (`nil` for a model), and records with the same key
+share the result. The block runs on the instance once a request per key, is given
+the key, and declares with `attribute`, `attributes` and `remove`:
 
-    dynamic_attributes by: ->(record) { record&.account_id || params[:account_id] } do |schema, account_id|
+    attributes_for :account_id do |account_id|
       Field.where(account_id: account_id).each do |field|
-        schema.attribute field.key, field.value_type, comment: field.name
+        attribute field.key, field.value_type, comment: field.name
       end
+    end
+
+    private
+
+    def account_id(record)
+      record&.account_id || params[:account_id]
     end
 
 `if` and `unless` take a method name or Proc that runs on the instance, once for
@@ -333,7 +339,7 @@ reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
 for associations.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless` or
-`dynamic_attributes`, or one that overrides `schemas`. Override it when a Schema
+`attributes_for`, or one that overrides `schemas`. Override it when a Schema
 doesn't vary, so fragments can be cached.
 
 For what the declarations can't express, override `schemas(default_schema,

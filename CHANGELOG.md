@@ -84,8 +84,8 @@
   to declare its model's attribute definitions. Like strong parameters only
   declared attributes are used. `attributes` declares them, `attribute` can
   also change or add one, `remove` drops one, and
-  `dynamic_attributes` declares those only known at runtime, once a request per
-  value of `by`. `if` and `unless` hide an attribute
+  `attributes_for`
+  declares those only known at runtime, once a request per key. `if` and `unless` hide an attribute
   per record, or per requester: hidden attributes join the record's excludes,
   and a Schema that could vary by requester turns off fragment caching for its
   model. `schemas(default_schema, record)` can be overridden for anything else.

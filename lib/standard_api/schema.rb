@@ -16,11 +16,15 @@ module StandardAPI
   #       attribute :thumbnail_url, :string
   #       attribute :location, if: :admin?
   #
-  #       dynamic_attributes by: ->(record) { record&.account_id } do |schema, account_id|
+  #       attributes_for :account_id do |account_id|
   #         Field.where(account_id: account_id).each do |field|
-  #           schema.attribute field.key, field.value_type, comment: field.name
+  #           attribute field.key, field.value_type, comment: field.name
   #         end
   #       end
+  #
+  #       private
+  #
+  #       def account_id(record) = record&.account_id
   #     end
   #   end
   #
@@ -108,24 +112,25 @@ module StandardAPI
       # for a model, when they take an argument.
       def attribute(name, type = nil, **options)
         conditional = options.key?(:if) || options.key?(:unless)
-        add_step(varies: conditional) { |schema, _| schema.attribute(name, type, **options) }
+        add_step(varies: conditional) { attribute(name, type, **options) }
       end
 
       def attributes(*names)
-        add_step { |schema, _| schema.attributes(*names) }
+        add_step { attributes(*names) }
       end
 
       def remove(*names)
-        add_step { |schema, _| schema.remove(*names) }
+        add_step { remove(*names) }
       end
 
-      # Declare attributes only known at runtime. The block runs on the Schema
-      # instance, once a request per value of +by+, a Symbol or Proc given the
-      # record (nil for a model), and is given a Builder and that value.
-      def dynamic_attributes(by: nil, &block)
-        raise ArgumentError, 'dynamic_attributes needs a block' if !block
+      # Declare attributes only known at runtime. +key+ is a Symbol or Proc given
+      # the record (nil for a model), and records with the same result share
+      # them: the block runs on the Schema instance once a request per key, is
+      # given the key, and declares with +attribute+, +attributes+ and +remove+.
+      def attributes_for(key, &block)
+        raise ArgumentError, 'attributes_for needs a block' if !block
 
-        add_step(by: by, varies: true, &block)
+        add_step(key: key, varies: true, &block)
       end
 
       # Make methods of the controller, including private ones, available to
@@ -147,8 +152,8 @@ module StandardAPI
 
       private
 
-      def add_step(by: nil, varies: false, &block)
-        self.schema_steps += [{ by: by, varies: varies, block: block }.freeze]
+      def add_step(key: nil, varies: false, &block)
+        self.schema_steps += [{ key: key, varies: varies, block: block }.freeze]
       end
     end
 
@@ -187,6 +192,22 @@ module StandardAPI
 
     private
 
+    def attribute(name, type = nil, **options)
+      declarations.attribute(name, type, **options)
+    end
+
+    def attributes(*names)
+      declarations.attributes(*names)
+    end
+
+    def remove(*names)
+      declarations.remove(*names)
+    end
+
+    def declarations
+      @declarations || raise(ArgumentError, 'declare attributes in the class body or an attributes_for block')
+    end
+
     def failed_conditions(record)
       @failed[record] ||= builder_for(record).conditions.filter_map do |name, conditions|
         name if conditions.any? { |kind, condition| !!resolve(condition, record) == (kind == :unless) }
@@ -195,12 +216,14 @@ module StandardAPI
 
     def builder_for(record)
       steps = self.class.schema_steps
-      keys = steps.map { |step| resolve(step[:by], record) if step[:by] }
+      keys = steps.map { |step| resolve(step[:key], record) if step[:key] }
 
       @builders[keys] ||= begin
-        builder = Builder.new
-        steps.zip(keys) { |step, key| instance_exec(builder, key, &step[:block]) }
-        builder
+        @declarations = Builder.new
+        steps.zip(keys) { |step, key| instance_exec(key, &step[:block]) }
+        @declarations
+      ensure
+        @declarations = nil
       end
     end
 

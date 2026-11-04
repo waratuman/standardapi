@@ -95,7 +95,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'attributes declared at runtime count as declared' do
     schema = empty_schema_class do
       attributes :id
-      dynamic_attributes { |builder, _| builder.attributes(:make) }
+      attributes_for(->(_) { :all }) { attributes :make }
     end
 
     assert_equal ['id', 'make'], names(schema)
@@ -111,13 +111,22 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not StandardAPI::Schema.respond_to?(:[])
   end
 
-  test 'attribute declares one at runtime too' do
-    assert_equal ['thumbnail_url'], names(empty_schema_class { dynamic_attributes { |builder, _| builder.attribute(:thumbnail_url, :string) } })
+  test 'attribute and remove declare at runtime too' do
+    schema = empty_schema_class do
+      attributes :id, :make
+      attributes_for(->(_) { :all }) do
+        attribute :thumbnail_url, :string
+        remove :make
+      end
+    end
+
+    assert_equal ['id', 'thumbnail_url'], names(schema)
   end
 
-  test "there's no add" do
+  test "there's no add or dynamic_attributes" do
     assert_not StandardAPI::Schema.respond_to?(:add)
     assert_not StandardAPI::Schema::Builder.method_defined?(:add)
+    assert_not StandardAPI::Schema.respond_to?(:dynamic_attributes)
   end
 
   test 'attribute changes a definition in place' do
@@ -210,15 +219,15 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal 'Who made it!', definition(schema, 'make')[:comment]
   end
 
-  test 'dynamic_attributes runs on the instance, once per value of by' do
+  test 'attributes_for runs on the instance, once per key' do
     runs = []
     schema = schema_class do
       controller_methods :default_limit
 
       define_method(:seen) { |key| runs << key }
-      dynamic_attributes by: ->(record) { record&.make } do |builder, make|
+      attributes_for ->(record) { record&.make } do |make|
         seen(make)
-        builder.attribute("#{make || 'none'}_limit", :integer, comment: default_limit.to_s)
+        attribute "#{make || 'none'}_limit", :integer, comment: default_limit.to_s
       end
     end
     sony, other_sony, leica = create(:camera, make: 'Sony'), create(:camera, make: 'Sony'), create(:camera, make: 'Leica')
@@ -234,20 +243,46 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal '7', definition(schema, 'Sony_limit', sony, controller: controller)[:comment]
   end
 
-  test 'by may name a method, and without by the block runs once' do
-    runs = 0
+  test 'a key may name a method, and a Schema may have several' do
     schema = schema_class do
-      dynamic_attributes(by: :make_of) { |builder, make| builder.attribute("#{make}_url", :string) }
-      dynamic_attributes { |builder, key| runs += 1; builder.attribute('fixed_url', :string, comment: key.inspect) }
+      attributes_for(:make_of) { |make| attribute "#{make}_url", :string }
+      attributes_for(->(record) { record&.retired? }) { |retired| attribute "retired_#{retired}", :string }
 
       private def make_of(record) = record&.make
     end
-    sony, leica = create(:camera, make: 'Sony'), create(:camera, make: 'Leica')
+    sony, leica = create(:camera, make: 'Sony', retired: true), create(:camera, make: 'Leica', retired: false)
     controller = CamerasController.new
 
-    assert_includes names(schema, sony, controller: controller), 'Sony_url'
-    assert_includes names(schema, leica, controller: controller), 'Leica_url'
-    assert_equal 'nil', definition(schema, 'fixed_url', sony, controller: controller)[:comment]
+    assert_empty ['Sony_url', 'retired_true'] - names(schema, sony, controller: controller)
+    assert_empty ['Leica_url', 'retired_false'] - names(schema, leica, controller: controller)
+  end
+
+  test 'attributes_for needs a key and a block' do
+    assert_raises(ArgumentError) { empty_schema_class { attributes_for { } } }
+    error = assert_raises(ArgumentError) { empty_schema_class { attributes_for :make_of } }
+    assert_match(/needs a block/, error.message)
+  end
+
+  test 'attributes can only be declared while the Schema is built' do
+    schema = empty_schema_class.new(CamerasController.new, Camera)
+
+    error = assert_raises(ArgumentError) { schema.send(:attribute, :make) }
+    assert_match(/class body or an attributes_for block/, error.message)
+  end
+
+  test 'a failed attributes_for block leaves nothing half declared' do
+    calls = 0
+    schema = empty_schema_class do
+      attributes_for(->(_) { :all }) do
+        calls += 1
+        raise 'failed' if calls == 1
+        attribute :make
+      end
+    end
+    controller = CamerasController.new
+
+    assert_raises(RuntimeError) { names(schema, controller: controller) }
+    assert_equal ['make'], names(schema, controller: controller)
   end
 
   test 'controller_methods reach private controller methods' do
@@ -286,8 +321,8 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'a condition is decided for each record, not cached with the definitions' do
     calls = []
     schema = schema_class do
-      dynamic_attributes(by: ->(_) { :same }) do |builder, _|
-        builder.attribute :make, if: ->(record) { calls << record&.id; record&.retired? }
+      attributes_for(->(_) { :same }) do
+        attribute :make, if: ->(record) { calls << record&.id; record&.retired? }
       end
     end
     retired, active = create(:camera, retired: true), create(:camera, retired: false)
@@ -350,7 +385,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
     assert schema_class { attribute :make, if: -> { true } }.varies_by_requester?
     assert schema_class { attribute :make, unless: -> { true } }.varies_by_requester?
-    assert schema_class { dynamic_attributes { |_, _| } }.varies_by_requester?
+    assert schema_class { attributes_for(->(_) { :all }) { } }.varies_by_requester?
     assert schema_class { def schemas(default_schema, record) = default_schema }.varies_by_requester?
     assert Class.new(schema_class { attribute :make, if: -> { true } }).varies_by_requester?
   end
