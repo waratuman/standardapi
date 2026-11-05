@@ -326,13 +326,15 @@ raises in the block, since its result is shared between records:
       record&.account_id || params[:account_id]
     end
 
-`if` and `unless` take a method name or Proc that runs on the instance, once for
-each record, takes no arguments and reads the record from `record`. Pass it to a
-controller method that needs it: `unless: -> { hide?(record) }`. Don't memoize
-something about `record` in an instance variable, as the instance serves every
-record of the model. For `schemas_for(Photo)` and `json_schema.json`, `record` is
-`nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
-from them, while `unless: -> { record&.private? }` shows it. Hidden attributes are
+`if` and `unless` take a Proc or a method name, and run once for each record. A
+Proc runs on the instance and reads the record from `record`. A method name can
+be the Schema's or its controller's, and the method is given the record if it
+requires exactly one argument, so `unless: :hide?` calls `hide?(record)` while
+`if: :admin?` calls `admin?`. Don't memoize something about `record` in an
+instance variable, as the instance serves every record of the model. For
+`schemas_for(Photo)` and `json_schema.json` the record is `nil`, including for a
+method given it, so decide what that means: `if: -> { record&.public? }` hides the
+attribute from them, while `unless: -> { record&.private? }` shows it. Hidden attributes are
 added to the record's excludes, so they aren't rendered or named in validation
 errors, and a Schema that could vary by requester counts as an exclude rule, so
 fragments that include its model aren't cached.

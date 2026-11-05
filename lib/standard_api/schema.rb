@@ -106,9 +106,10 @@ module StandardAPI
     class_attribute :schema_steps, instance_accessor: false, default: [].freeze
 
     class << self
-      # See Builder#attribute. Conditions may be a Symbol naming a method or a
-      # Proc. Both run on the Schema instance, take no arguments and read the
-      # record from +record+, which is nil for a model.
+      # See Builder#attribute. Conditions may be a Proc, which runs on the Schema
+      # instance and reads +record+ (nil for a model), or a Symbol naming a
+      # method of the Schema or its controller, given the record if it requires
+      # exactly one argument.
       def attribute(name, type = nil, **options)
         conditional = options.key?(:if) || options.key?(:unless)
         add_step(varies: conditional) { attribute(name, type, **options) }
@@ -122,8 +123,8 @@ module StandardAPI
         add_step { remove(*names) }
       end
 
-      # Declare attributes only known at runtime. +key+ is a Symbol or Proc that
-      # reads +record+ (nil for a model), and records with the same result share
+      # Declare attributes only known at runtime. +key+ is a Symbol or Proc, as
+      # for a condition (nil for a model), and records with the same result share
       # them: the block runs on the Schema instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
@@ -233,9 +234,19 @@ module StandardAPI
 
     def resolve(callable, record)
       previous, @record = @record, record
-      callable.is_a?(Proc) ? instance_exec(&callable) : send(callable)
+      return instance_exec(&callable) if callable.is_a?(Proc)
+
+      target = named_method(callable)
+      target.arity == 1 ? target.call(record) : target.call
     ensure
       @record = previous
+    end
+
+    # method(name) can't tell a forwarded method's arity, as it would describe
+    # method_missing, so a controller's method is looked up on the controller.
+    def named_method(name)
+      own = self.class.method_defined?(name) || self.class.private_method_defined?(name)
+      own || !controller.respond_to?(name, true) ? method(name) : controller.method(name)
     end
 
   end
