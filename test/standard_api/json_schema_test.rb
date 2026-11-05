@@ -6,16 +6,15 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   # The JSON Schema of +attribute+ in cameras' json_schema.json, with the
   # +validations+ given to it through Schema#schemas
   def camera_attribute_schema(attribute, validations)
-    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
+    hook = lambda do |default_schema, record|
       default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
     end
-    ApplicationController.send(:private, :camera_schemas)
 
-    get json_schema_cameras_path(format: 'json')
-    assert_response :ok
-    JSON(response.body).dig('properties', attribute)
-  ensure
-    ApplicationController.send(:remove_method, :camera_schemas)
+    with_camera_schemas(hook) do
+      get json_schema_cameras_path(format: 'json')
+      assert_response :ok
+      JSON(response.body).dig('properties', attribute)
+    end
   end
 
   test 'Controller#json_schema.json is a valid JSON Schema' do
@@ -37,18 +36,15 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#json_schema.json renders a definition Schema#schemas adds with only a name and type' do
-    ApplicationController.define_method(:camera_schemas) do |default_schema, record|
-      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
-    end
-    ApplicationController.send(:private, :camera_schemas)
+    hook = ->(default_schema, record) { default_schema + [{ name: 'thumbnail_url', type: 'string' }] }
 
-    get json_schema_cameras_path(format: 'json')
-    assert_response :ok
-    # null defaults to true, and CameraACL#attributes doesn't permit it, so
-    # it's read only
-    assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
-  ensure
-    ApplicationController.send(:remove_method, :camera_schemas)
+    with_camera_schemas(hook) do
+      get json_schema_cameras_path(format: 'json')
+      assert_response :ok
+      # null defaults to true, and CameraACL#attributes doesn't permit it, so
+      # it's read only
+      assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
+    end
   end
 
   test 'Controller#json_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do

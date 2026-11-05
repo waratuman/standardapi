@@ -78,23 +78,28 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
-- A controller can nest a `Schema` module, found and included like a nested
-  `ACL` (`PhotosController::Schema` as `photo_schemas`) by
-  `StandardAPI::Schemas`, the sibling of `StandardAPI::AccessControlList`
-  (`include StandardAPI` includes both), whose
-  `schemas(default_schema, record)` adjusts its model's attribute
-  definitions: it receives the definitions StandardAPI builds and the record
-  being rendered (`nil` for a model), and returns the ones to use. It is
-  called once per record.
-  `schemas` isn't an ACL method. Two `Schema` modules of one model raise
-  `StandardAPI::InvalidConfiguration`. `schemas_for(record_or_model)` returns the result, for use
-  without rendering a view, and `json_schema.json` and `application/_record`
-  are built from it: a record renders the attributes in
-  `schemas_for(record)`, one per entry in `record.attribute_names`, so an
-  attribute `Schema#schemas` removes isn't rendered and one it adds is
-  read from the record. Each definition has one `type`, the attribute's
-  ActiveModel type, and a `comment`, which `json_schema.json` renders as
-  `description`.
+- A controller can nest a subclass of `StandardAPI::Schema`
+  (`PhotosController::Schema`), found by `StandardAPI::Schemas`, the sibling
+  of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
+  to declare its model's attribute definitions. Like strong parameters only
+  declared attributes are used. `attributes` declares them, `attribute` can
+  also change or add one, `remove` drops one, and
+  `attributes_for`
+  declares those only known at runtime, once a request per key. `if` and `unless` hide an attribute
+  per record, or per requester: hidden attributes join the record's excludes,
+  and a Schema that could vary by requester turns off fragment caching for its
+  model. `schemas(default_schema, record)` can be overridden for anything else.
+  Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
+  Rendering or describing a model with no Schema raises
+  `StandardAPI::MissingSchema`; a model with no controller declares one by name,
+  `ToolCallSchema` for `ToolCall`.
+  `schemas_for(record_or_model)` returns the result, for use without rendering a
+  view, and `json_schema.json`, `schema.json` and `application/_record` are built
+  from it: a record renders the attributes in `schemas_for(record)`, one per entry in
+  `record.attribute_names`, so an attribute a Schema removes isn't rendered and
+  one it adds is read from the record. Each definition has one `type`, the
+  attribute's ActiveModel type, and a `comment`, which `json_schema.json`
+  renders as `description`.
 
 ### Changed
 
@@ -103,6 +108,10 @@
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and `json_schema.json` and `schema.json` describe it the same way.
+- `schema.json` lists only what the model's Schema declares, and `readonly` is
+  the definition's `read_only`, so it's true for an `attr_readonly` attribute
+  even when the ACL permits it. A column's `type` still comes from its SQL type
+  unless the Schema declares another.
 - `json_schema.json` describes every attribute in `model.attribute_names`,
   including those declared without a column, and types each by its ActiveModel
   type rather than its column's SQL type. An `attribute` declaration that

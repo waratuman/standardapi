@@ -249,8 +249,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        if column.comment
-          assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        # CamerasController::Schema declares a comment of its own
+        comment = model == Camera && column.name == 'make' ? 'The manufacturer' : column.comment
+        if comment
+          assert_equal comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
         end

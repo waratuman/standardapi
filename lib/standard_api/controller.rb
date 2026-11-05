@@ -208,8 +208,8 @@ module StandardAPI
       # end
     end
 
-    # The method +name+ an ACL or Schema defines for +model+ once
-    # Helpers.include_renamed has renamed it, ie. +property_attributes+,
+    # The method +name+ an ACL defines for +model+ once
+    # AccessControlList.include_acl has renamed it, ie. +property_attributes+,
     # falling back to the one for its base class (ie. an STI subclass), or nil
     # if there is none
     def model_method_for(model, name)
@@ -218,7 +218,8 @@ module StandardAPI
       end
     end
 
-    # The prefix +model+'s ACL and Schema methods are renamed under
+    # The prefix +model+'s ACL methods are renamed under, and its Schema is
+    # registered under
     def model_name(model)
       if model.model_name.singular.starts_with?('habtm_')
         model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
@@ -291,7 +292,11 @@ module StandardAPI
       else
         application_helper_excludes[model_name(record.class)] || []
       end
-      StandardAPI::Excludes.normalize(raw)
+      excluded = StandardAPI::Excludes.normalize(raw)
+
+      # What a Schema hides is excluded too, so it stays out of validation errors
+      hidden = model_hidden_attributes(record) if respond_to?(:model_hidden_attributes, true)
+      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
     # ApplicationHelper#excludes is keyed by model and takes no record, so it
@@ -310,7 +315,8 @@ module StandardAPI
     end
 
     # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method or from ApplicationHelper#excludes.
+    # +excludes+ method, from ApplicationHelper#excludes, or from a Schema whose
+    # definitions could vary by requester.
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -320,7 +326,8 @@ module StandardAPI
       return @excludes_defined[klass] if @excludes_defined.key?(klass)
 
       @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
+        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)) ||
+        (respond_to?(:model_schema, true) && !!model_schema(klass)&.class&.varies_by_requester?)
     end
 
     # True when rendering +klass+ with +includes+ could be affected by an

@@ -5,7 +5,7 @@ module StandardAPI
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
     # prefix for each controller with one, so AccessControlList and Schemas
-    # can include it into the base controller for every controller to use.
+    # can make it available to every controller.
     def self.each_nested(owner, const)
       ActionController::Metal.descendants.each do |controller|
         next if !controller.const_defined?(const, false)
@@ -17,32 +17,6 @@ module StandardAPI
 
         yield base, controller.const_get(const, false), controller.model.model_name.singular
       end
-    end
-
-    # Rename the methods of +mod+ in +renames+ (+{ attributes:
-    # 'photo_attributes' }+) and include it into +application_controller+. A
-    # module already renamed is left as it is. Raises if another module
-    # included this way defines any of the same methods, as one would silently
-    # override the other.
-    def self.include_renamed(application_controller, mod, renames)
-      renames.each do |from, to|
-        next if !mod.instance_methods.include?(from)
-        mod.send :alias_method, to.to_sym, from
-        mod.send :remove_method, from
-      end
-      mod.instance_variable_set(:@standard_api_model_module, true)
-
-      others = application_controller.ancestors.select { |m|
-        m != mod && m.instance_variable_get(:@standard_api_model_module)
-      }
-      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
-        other = others.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
-        next if !other
-
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs and Schemas of one model are shared by all of its controllers, so define them once"
-      end
-
-      application_controller.include mod
     end
 
     def serialize_attribute(json, record, name, type)
@@ -159,16 +133,17 @@ module StandardAPI
     # `auto_populated`.
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. If the model's controller nests a
-    # `Schema` module, the built definitions and the record (nil for a model)
-    # are passed through its `schemas(default_schema, record)` and its return
-    # value is used.
+    # `read_only` is the model wide answer. The built definitions and the record
+    # (nil for a model) are passed through `schemas(default_schema, record)` of
+    # the model's StandardAPI::Schema and its return value is used. A model with
+    # no Schema raises StandardAPI::MissingSchema when the controller includes
+    # StandardAPI::Schemas.
     #
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. `schemas`
     # is called once per model and once per record, with those shared
-    # definitions, so it must return new Hashes rather than change the ones
-    # it is given.
+    # definitions, so an override must return new Hashes rather than change
+    # the ones it is given.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model
@@ -427,6 +402,17 @@ module StandardAPI
       else
         model.connection.lookup_cast_type_from_column(column)
       end
+    end
+
+    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # column keeps its SQL based type, unless a Schema declared another.
+    def schema_json_type(model, schema)
+      column = model.columns_hash[schema[:name]]
+      attribute_type = model.type_for_attribute(schema[:name])
+      built = attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? 'string' : attribute_type.type&.to_s
+      return schema[:type] if !column || schema[:type] != built
+
+      attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? built : json_column_type(column.sql_type)
     end
 
     def json_column_type(sql_type)

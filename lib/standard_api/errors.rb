@@ -15,6 +15,16 @@ module StandardAPI
   class InvalidConfiguration < StandardAPIError
   end
 
+  # Raised when rendering or describing a model that has no Schema
+  class MissingSchema < StandardAPIError
+    attr_reader :model
+
+    def initialize(model)
+      @model = model
+      super("#{model.name} has no Schema; nest a Schema in its controller or define #{model.name}Schema, subclasses of StandardAPI::Schema")
+    end
+  end
+
   class UnpermittedParameters < StandardAPIError
     attr_reader :params
 
