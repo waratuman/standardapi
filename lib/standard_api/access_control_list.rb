@@ -1,6 +1,5 @@
 module StandardAPI
   module AccessControlList
-    ACL_METHODS = [:orders, :includes, :wheres, :attributes, :excludes]
 
     def self.traverse(path, prefix: nil, &block)
       path.children.each do |child|
@@ -21,9 +20,11 @@ module StandardAPI
       end
     end
 
-    # Include the +ACL+ module nested in each controller into its base
-    # controller (the topmost class that includes AccessControlList), the
-    # same way #included does for app/controllers/acl
+    # Include the +ACL+ module nested in a controller into its base controller
+    # (the topmost class that includes AccessControlList), the same way
+    # #included does for app/controllers/acl. Controllers must already be
+    # loaded for their ACL to be found, so the Railtie calls this once they
+    # are, at boot and after each reload.
     def self.load!
       Helpers.each_nested(self, :ACL) do |base, mod, prefix|
         include_acl(base, mod, prefix)
@@ -31,12 +32,36 @@ module StandardAPI
     end
 
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
-    # +application_controller+, as Helpers.include_renamed does
+    # +application_controller+. A module already renamed is left as it is.
+    # Raises if another ACL included into +application_controller+ defines
+    # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      renames = ACL_METHODS.to_h { |m| [m, "#{prefix}_#{m}"] }
-      renames[:nested] = "nested_#{prefix}_attributes"
-      renames[:filter] = "filter_#{prefix}_params"
-      Helpers.include_renamed(application_controller, mod, renames)
+      [:orders, :includes, :wheres, :attributes, :excludes].each do |m|
+        next if !mod.instance_methods.include?(m)
+        mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
+        mod.send :remove_method, m
+      end
+
+      if mod.instance_methods.include?(:nested)
+        mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
+        mod.send :remove_method, :nested
+      end
+
+      if mod.instance_methods.include?(:filter)
+        mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
+        mod.send :remove_method, :filter
+      end
+
+      # ACL modules are named *ACL, ie. PhotoACL or PhotosController::ACL
+      acls = application_controller.ancestors.select { |m| m != mod && m.name&.end_with?('ACL') }
+      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
+        other = acls.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
+        next if !other
+
+        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs of one model are shared by all of its controllers, so define them once"
+      end
+
+      application_controller.include mod
     end
 
     def model_params
