@@ -9,8 +9,6 @@ module StandardAPI
   #
   #   class PhotosController < ApplicationController
   #     class Schema < StandardAPI::Schema
-  #       controller_methods :admin?
-  #
   #       attributes :id, :format, :created_at
   #       attribute :caption, comment: 'Shown under the photo'
   #       attribute :thumbnail_url, :string
@@ -24,11 +22,12 @@ module StandardAPI
   #
   #       private
   #
-  #       def account_id(record) = record&.account_id
+  #       def account_id = record&.account_id
   #     end
   #   end
   #
   # One instance serves a model for the length of a request, on its controller.
+  # A method it doesn't define goes to the controller, private ones included.
   class Schema
 
     # The changes a Schema's declarations make to a model's definitions
@@ -108,8 +107,8 @@ module StandardAPI
 
     class << self
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
-      # Proc. Both run on the Schema instance and are given the record, or nil
-      # for a model, when they take an argument.
+      # Proc. Both run on the Schema instance, take no arguments and read the
+      # record from +record+, which is nil for a model.
       def attribute(name, type = nil, **options)
         conditional = options.key?(:if) || options.key?(:unless)
         add_step(varies: conditional) { attribute(name, type, **options) }
@@ -123,24 +122,15 @@ module StandardAPI
         add_step { remove(*names) }
       end
 
-      # Declare attributes only known at runtime. +key+ is a Symbol or Proc given
-      # the record (nil for a model), and records with the same result share
+      # Declare attributes only known at runtime. +key+ is a Symbol or Proc that
+      # reads +record+ (nil for a model), and records with the same result share
       # them: the block runs on the Schema instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+ and +remove+.
+      # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
 
         add_step(key: key, varies: true, &block)
-      end
-
-      # Make methods of the controller, including private ones, available to
-      # the Schema. Only what's listed is, so a typo raises rather than falling
-      # through to something else.
-      def controller_methods(*names)
-        names.each do |name|
-          define_method(name) { |*args, **options, &block| controller.send(name, *args, **options, &block) }
-          private name
-        end
       end
 
       # Whether the definitions could differ by requester, which fragment
@@ -158,8 +148,6 @@ module StandardAPI
     end
 
     attr_reader :controller, :model
-
-    controller_methods :params
 
     def initialize(controller, model)
       @controller = controller
@@ -191,6 +179,22 @@ module StandardAPI
     end
 
     private
+
+    # The record a condition or attributes_for key is being run for, or nil for
+    # a model
+    def record
+      raise ArgumentError, 'record is shared between records in an attributes_for block; use the key it is given' if @declarations
+
+      @record
+    end
+
+    def method_missing(name, ...)
+      controller.respond_to?(name, true) ? controller.send(name, ...) : super
+    end
+
+    def respond_to_missing?(name, include_private = false)
+      controller.respond_to?(name, true) || super
+    end
 
     def attribute(name, type = nil, **options)
       declarations.attribute(name, type, **options)
@@ -228,9 +232,10 @@ module StandardAPI
     end
 
     def resolve(callable, record)
-      callable = method(callable) if callable.is_a?(Symbol)
-      args = callable.arity > 0 ? [record] : []
-      callable.is_a?(Proc) ? instance_exec(*args, &callable) : callable.call(*args)
+      previous, @record = @record, record
+      callable.is_a?(Proc) ? instance_exec(&callable) : send(callable)
+    ensure
+      @record = previous
     end
 
   end

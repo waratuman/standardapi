@@ -258,8 +258,6 @@ your base controller (`include StandardAPI` includes both):
 
     class PhotosController < ApplicationController
       class Schema < StandardAPI::Schema
-        controller_methods :admin?
-
         attributes :id, :format, :created_at                 # use these as they are
         attribute :caption, comment: 'Shown under the photo' # use one and change it
         attribute :thumbnail_url, :string                    # add one
@@ -297,9 +295,12 @@ definitions, whatever is declared for it.
 Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
 private methods stay on the Schema rather than the controller.
 
-The Schema runs on one instance per model for the length of a request, reached
-through `controller`. `params` is available; `controller_methods` makes others
-available, private ones included.
+The Schema runs on one instance per model for the length of a request. A method
+it doesn't define goes to its `controller`, private ones and ACL methods
+included, so `params` and `admin?` just work. The Schema's own methods win, so
+`attributes`, `model` and `schemas` are its own; call `controller.model` for the
+controller's. Don't call `excludes` or `schemas_for` from a condition, as they
+call back into the Schema.
 
 Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
@@ -308,9 +309,10 @@ a `StandardAPI::Schema`. Without `StandardAPI::Schemas` in the base controller,
 they are ignored and every attribute is used as StandardAPI builds them.
 
 `attributes_for` declares attributes only known at runtime. Its key is a method
-name or Proc given the record (`nil` for a model), and records with the same key
-share the result. The block runs on the instance once a request per key, is given
-the key, and declares with `attribute`, `attributes` and `remove`:
+name or Proc that reads `record` (`nil` for a model), and records with the same
+key share the result. The block runs on the instance once a request per key, is
+given the key, and declares with `attribute`, `attributes` and `remove`. `record`
+raises in the block, since its result is shared between records:
 
     attributes_for :account_id do |account_id|
       Field.where(account_id: account_id).each do |field|
@@ -320,15 +322,17 @@ the key, and declares with `attribute`, `attributes` and `remove`:
 
     private
 
-    def account_id(record)
+    def account_id
       record&.account_id || params[:account_id]
     end
 
 `if` and `unless` take a method name or Proc that runs on the instance, once for
-each record, and is given the record if it takes an argument. For
-`schemas_for(Photo)` and `json_schema.json` the record is `nil`, so decide what
-that means: `if: ->(record) { record&.public? }` hides the attribute from them,
-while `unless: ->(record) { record&.private? }` shows it. Hidden attributes are
+each record, takes no arguments and reads the record from `record`. Pass it to a
+controller method that needs it: `unless: -> { hide?(record) }`. Don't memoize
+something about `record` in an instance variable, as the instance serves every
+record of the model. For `schemas_for(Photo)` and `json_schema.json`, `record` is
+`nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
+from them, while `unless: -> { record&.private? }` shows it. Hidden attributes are
 added to the record's excludes, so they aren't rendered or named in validation
 errors, and a Schema that could vary by requester counts as an exclude rule, so
 fragments that include its model aren't cached.
