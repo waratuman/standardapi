@@ -357,9 +357,10 @@ return new Hashes (`merge`, `reject`, `map`) rather than changing them. An
 attribute it leaves out isn't rendered, but isn't excluded from validation
 errors the way one hidden with `if` or `remove` is.
 
-`schemas_for(Photo)` returns the result, and `json_schema.json` is built from
-it. Records are rendered from it too: `application/_record` renders the
-attributes in `schemas_for(record)`. `schemas_for` is available in controllers
+`schemas_for(Photo)` returns the result, and `json_schema.json` and
+`schema.json` are built from it. Records are rendered from it too:
+`application/_record` renders the attributes in `schemas_for(record)`.
+`schemas_for` is available in controllers
 and views, so other code (an MCP tool describing your models, for instance) can
 read the same definitions without rendering a schema view and parsing it back.
 
@@ -398,9 +399,8 @@ the answer for the model as a whole.
 
 A definition `Schema#schemas` returns needs a `name` and a `type` (`nil` for
 one with no JSON Schema mapping); `json_schema.json` raises without them. It
-treats any other key it leaves out as unset, and works out `readOnly` from the
-ACL's `attributes`, as `read_only` is built, so an added attribute is read only
-unless the ACL permits writing it. Records are rendered with it, so the record
+treats any other key it leaves out as unset, except `read_only`, which defaults
+to true, as it does for `attribute`. Records are rendered with it, so the record
 must respond to it:
 
     def schemas(default_schema, record)
@@ -412,9 +412,10 @@ own, the base class's `attributes` and `schemas` are used
 (`document_attributes`, `document_schemas`), as they are for `orders`,
 `includes` and `wheres`.
 
-`schema.json` is not built from `schemas_for`, and `Schema#schemas` doesn't
-affect it: its `type` still comes from the column's SQL type, so it reports
-`datetime` for date and time columns, `hash` for JSON and `decimal` for floats.
+`schema.json` is built from `schemas_for` too, so it lists the same attributes
+with the same `readonly`. A column's `type` still comes from its SQL type unless
+a Schema declares another, so it reports `datetime` for date and time columns,
+`hash` for JSON and `decimal` for floats.
 
 ##### Upgrading from 8.x
 

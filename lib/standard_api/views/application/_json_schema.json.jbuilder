@@ -5,8 +5,6 @@ json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
 if comment = model.connection.table_comment(model.table_name)
   json.set! 'description', comment
 end
-# The attributes the ACL lets a client write; any other is read only
-permitted = controller.model_attributes(model)&.map(&:to_s)
 json.set! 'properties' do
   schemas_for(model).each do |schema|
     name = schema.fetch(:name)
@@ -76,7 +74,7 @@ json.set! 'properties' do
         json.merge! schema_properties
       end
       # For an array these describe the array, not its items
-      json.set! 'readOnly', true if (permitted && permitted.exclude?(name)) || model.readonly_attribute?(name)
+      json.set! 'readOnly', true if schema.fetch(:read_only, true)
       json.set! 'default', schema[:default] if !schema[:default].nil?
       json.set! 'description', schema[:comment] if schema[:comment]
     end

@@ -94,8 +94,8 @@
   `StandardAPI::MissingSchema`; a model with no controller declares one by name,
   `ToolCallSchema` for `ToolCall`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a
-  view, and `json_schema.json` and `application/_record` are built from it: a
-  record renders the attributes in `schemas_for(record)`, one per entry in
+  view, and `json_schema.json`, `schema.json` and `application/_record` are built
+  from it: a record renders the attributes in `schemas_for(record)`, one per entry in
   `record.attribute_names`, so an attribute a Schema removes isn't rendered and
   one it adds is read from the record. Each definition has one `type`, the
   attribute's ActiveModel type, and a `comment`, which `json_schema.json`
@@ -108,6 +108,10 @@
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and `json_schema.json` and `schema.json` describe it the same way.
+- `schema.json` lists only what the model's Schema declares, and `readonly` is
+  the definition's `read_only`, so it's true for an `attr_readonly` attribute
+  even when the ACL permits it. A column's `type` still comes from its SQL type
+  unless the Schema declares another.
 - `json_schema.json` describes every attribute in `model.attribute_names`,
   including those declared without a column, and types each by its ActiveModel
   type rather than its column's SQL type. An `attribute` declaration that
