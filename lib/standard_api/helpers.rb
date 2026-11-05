@@ -404,6 +404,17 @@ module StandardAPI
       end
     end
 
+    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # column keeps its SQL based type, unless a Schema declared another.
+    def schema_json_type(model, schema)
+      column = model.columns_hash[schema[:name]]
+      attribute_type = model.type_for_attribute(schema[:name])
+      built = attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? 'string' : attribute_type.type&.to_s
+      return schema[:type] if !column || schema[:type] != built
+
+      attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? built : json_column_type(column.sql_type)
+    end
+
     def json_column_type(sql_type)
       case sql_type.to_s.downcase
       when 'binary', 'bytea', 'blob'

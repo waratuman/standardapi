@@ -49,47 +49,20 @@ if model.nil? && controller_name == "application"
 else
 
   json.set! 'attributes' do
-    # Not built from schemas_for(model): `type` here comes from
-    # json_column_type(column.sql_type), an older list keyed on SQL types that
-    # has drifted from the ActiveModel type schemas_for and json_schema.json
-    # use. It folds date and time into "datetime", float into "decimal" and
-    # json into "hash", has no entry for types like interval or varbinary, and
-    # describes a column by its SQL type even when an `attribute` declaration
-    # casts it differently. Kept so schema.json's output doesn't change.
-    model.columns.each do |column|
-      default = column_default_value(column, model)
-      type = case model.type_for_attribute(column.name)
-      when ::ActiveRecord::Enum::EnumType
-        default = model.defined_enums[column.name].key(default)
-        "string"
-      else
-        json_column_type(column.sql_type)
+    schemas_for(model).each do |schema|
+      json.set! schema[:name] do
+        json.set! 'type', schema_json_type(model, schema)
+        json.set! 'default', schema[:default]
+        json.set! 'primary_key', schema[:primary_key]
+        json.set! 'null', schema[:null]
+        json.set! 'array', schema[:array]
+        json.set! 'comment', schema[:comment]
+        json.set! 'auto_populated', !!schema[:auto_populated]
+        json.set! 'readonly', schema.fetch(:read_only, true)
+        json.set! 'validations', Array(schema[:validations]).map { |v|
+          { v[:kind] => v[:options].blank? ? true : v[:options].as_json }
+        }
       end
-
-      json.set! column.name do
-        json.set! 'type', type
-        json.set! 'default', default
-        json.set! 'primary_key', column.name == model.primary_key
-        json.set! 'null', column.null
-        json.set! 'array', column.array
-        json.set! 'comment', column.comment
-        # TODO: it would be nice if rails responded with a true or false here
-        # instead of the function itself
-        json.set! 'auto_populated', !!column.auto_populated?
-
-        json.set! 'readonly', (if attributes = controller.model_attributes(model)
-          !attributes.map(&:to_s).include?(column.name)
-        else
-          model.readonly_attribute?(column.name)
-        end)
-
-        validations = model.validators.
-          select { |v| v.attributes.include?(column.name.to_sym) }.
-          map { |v|
-            { v.kind => v.options.empty? ? true : v.options.as_json }
-          }.compact
-        json.set! 'validations', validations
-       end
     end
   end
 

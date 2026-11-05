@@ -34,6 +34,62 @@ class SchemaTest < ActionDispatch::IntegrationTest
     definitions(schema, ...).find { |d| d[:name] == name }
   end
 
+  def camera_json(path)
+    get "/cameras/#{path}", params: { format: 'json' }
+    assert_response :ok
+    JSON(response.body)
+  end
+
+  test 'schema.json lists only what the Schema declares' do
+    schema = empty_schema_class do
+      attributes :id, :make
+      attribute :hidden, if: -> { false }
+      attribute :thumbnail_url, :string, comment: 'Small'
+    end
+
+    with_schema(schema) do
+      attributes = camera_json('schema')['attributes']
+      assert_equal ['id', 'make', 'thumbnail_url'], attributes.keys
+      assert_equal 'string', attributes.dig('thumbnail_url', 'type')
+      assert_equal 'Small', attributes.dig('thumbnail_url', 'comment')
+      assert_equal true, attributes.dig('thumbnail_url', 'readonly')
+    end
+  end
+
+  test 'schema.json uses a type the Schema declares for a column' do
+    schema = empty_schema_class { attribute :make, :integer }
+
+    with_schema(schema) do
+      assert_equal 'integer', camera_json('schema').dig('attributes', 'make', 'type')
+    end
+  end
+
+  test 'schema.json at the root lists only what the Schema declares' do
+    with_schema(empty_schema_class { attributes :id }) do
+      get '/schema', params: { format: 'json' }
+      assert_response :ok
+      assert_equal ['id'], JSON(response.body).dig('models', 'Camera', 'attributes').keys
+    end
+  end
+
+  test 'schema.json and json_schema.json follow a declared read_only' do
+    schema = empty_schema_class do
+      attribute :photo_id, read_only: true
+      attribute :id, read_only: false
+    end
+
+    with_schema(schema) do
+      attributes = camera_json('schema')['attributes']
+      assert_equal true, attributes.dig('photo_id', 'readonly')
+      assert_equal false, attributes.dig('id', 'readonly')
+
+      properties = camera_json('json_schema')['properties']
+      assert_equal ['id', 'photo_id'], properties.keys.sort
+      assert_equal true, properties.dig('photo_id', 'readOnly')
+      assert_nil properties.dig('id', 'readOnly')
+    end
+  end
+
   test 'only declared attributes are used, in attribute order' do
     schema = empty_schema_class do
       attributes :make, :id

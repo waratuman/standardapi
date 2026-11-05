@@ -11,27 +11,17 @@ module StandardAPI
         json = JSON(@response.body)
         assert json['attributes']
 
-        model.columns.map do |column|
-          actual_column = json['attributes'][column.name]
-          assert_not_nil actual_column['type'], "Missing `type` for \"#{model}\" attribute \"#{column.name}\""
-          assert_equal_or_nil model.primary_key == column.name, actual_column['primary_key']
-          assert_equal_or_nil column.null, actual_column['null']
-          assert_equal_or_nil column.array, actual_column['array']
-          assert_equal_or_nil column.comment, actual_column['comment']
+        definitions = @controller.schemas_for(model)
+        assert_equal definitions.map { |d| d[:name] }.sort, json['attributes'].keys.sort
 
-          if !column.default.nil?
-            cast_type = if column.respond_to?(:fetch_cast_type)
-              column.fetch_cast_type(model.connection)
-            elsif column.respond_to?(:cast_type)
-              column.cast_type
-            else
-              model.connection.lookup_cast_type_from_column(column)
-            end
-            default = cast_type.deserialize(column.default)
-            assert_equal default, actual_column['default']
-          else
-            assert_nil actual_column['default']
-          end
+        definitions.each do |definition|
+          actual = json['attributes'][definition[:name]]
+          assert_not_nil actual['type'], "Missing `type` for \"#{model}\" attribute \"#{definition[:name]}\"" if definition[:type]
+          assert_equal_or_nil definition[:primary_key], actual['primary_key']
+          assert_equal_or_nil definition[:null], actual['null']
+          assert_equal_or_nil definition[:array], actual['array']
+          assert_equal_or_nil definition[:comment], actual['comment']
+          assert_equal_or_nil definition[:default].as_json, actual['default']
         end
 
         assert json['limit']
