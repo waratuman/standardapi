@@ -53,9 +53,7 @@ json.object! do
           when :presence
             # Already counted in schema[:required]
           else
-            puts "******* MISSING VALIDATOR **********"
-            puts v.inspect
-            warn "missing validator"
+            Rails.logger.debug("#{model.name}##{name} #{v[:kind]} validation has no JSON Schema equivalent, so it's left out")
           end
         end
 

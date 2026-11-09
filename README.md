@@ -426,8 +426,8 @@ and accept the record:
       { caption: !photo.public? }
     end
 
-Zero-arity ACL `excludes` methods still work temporarily, but emit a
-deprecation warning and should be updated to accept the record.
+An ACL `excludes` method must accept the record; one that takes no arguments
+raises `ArgumentError`.
 
 # API Usage
 Resources can be queried via REST style end points

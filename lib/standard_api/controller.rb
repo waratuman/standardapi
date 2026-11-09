@@ -277,19 +277,11 @@ module StandardAPI
     end
 
     # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record; a zero-arity definition is
-    # still supported but deprecated, matching #model_attributes.
+    # takes the record so it can decide per record.
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
       raw = if self.respond_to?(acl_method, true)
-        if self.method(acl_method).arity == 0
-          logger.warn <<~NOTE.strip_heredoc
-            DEPRECATION WARNING: #{ record.class.name }ACL#excludes() has been deprecated, use #{ record.class.name }ACL#excludes(record) instead
-          NOTE
-          self.send(acl_method)
-        else
-          self.send(acl_method, record)
-        end
+        self.send(acl_method, record)
       else
         application_helper_excludes[model_name(record.class)] || []
       end
