@@ -396,59 +396,12 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not_includes names(schema, create(:camera, retired: true), controller: controller), 'make'
   end
 
-  test 'a controller method named by a condition is given the record if it requires one argument' do
+  test 'a named controller method is called without the record' do
     controller = CamerasController.new
     controller.define_singleton_method(:hide_camera?) { |camera| camera&.retired? }
-    controller.singleton_class.send(:private, :hide_camera?)
     schema = schema_class { attribute :make, unless: :hide_camera? }
 
-    assert_includes names(schema, create(:camera, retired: false), controller: controller), 'make'
-    assert_not_includes names(schema, create(:camera, retired: true), controller: controller), 'make'
-    assert_includes names(schema, controller: controller), 'make'
-  end
-
-  test "a Schema's method named by a condition is given the record if it requires one argument" do
-    schema = schema_class do
-      attribute :make, if: :retired_camera?
-      private def retired_camera?(camera) = camera&.retired?
-    end
-
-    assert_includes names(schema, create(:camera, retired: true)), 'make'
-    assert_not_includes names(schema, create(:camera, retired: false)), 'make'
-  end
-
-  test 'a named method that takes no argument, or an optional one, is not given the record' do
-    controller = CamerasController.new
-    controller.define_singleton_method(:admin?) { true }
-    controller.define_singleton_method(:allowed?) { |camera = :none| camera == :none }
-    schema = schema_class do
-      attribute :make, if: :admin?
-      attribute :hidden, if: :allowed?
-    end
-
-    assert_empty ['make', 'hidden'] - names(schema, create(:camera), controller: controller)
-  end
-
-  test 'a key naming a controller method is given the record if it requires one argument' do
-    controller = CamerasController.new
-    controller.define_singleton_method(:make_of) { |camera| camera&.make }
-    schema = schema_class { attributes_for(:make_of) { |make| attribute "#{make}_url", :string } }
-
-    assert_includes names(schema, create(:camera, make: 'Sony'), controller: controller), 'Sony_url'
-  end
-
-  test 'a condition naming a method neither has raises' do
-    schema = schema_class { attribute :make, if: :not_a_real_method }
-
-    assert_raises(NameError) { names(schema) }
-  end
-
-  test 'a named method requiring two arguments raises' do
-    controller = CamerasController.new
-    controller.define_singleton_method(:two_args) { |a, b| true }
-    schema = schema_class { attribute :make, if: :two_args }
-
-    assert_raises(ArgumentError) { names(schema, controller: controller) }
+    assert_raises(ArgumentError) { names(schema, create(:camera), controller: controller) }
   end
 
   test 'a condition that takes an argument raises' do
