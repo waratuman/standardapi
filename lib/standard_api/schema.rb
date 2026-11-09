@@ -189,7 +189,7 @@ module StandardAPI
     end
 
     def method_missing(name, ...)
-      controller.respond_to?(name, true) ? controller.send(name, ...) : super
+      controller.send(name, ...)
     end
 
     def respond_to_missing?(name, include_private = false)
