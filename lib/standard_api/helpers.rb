@@ -136,8 +136,7 @@ module StandardAPI
     # `read_only` is the model wide answer. The built definitions and the record
     # (nil for a model) are passed through `schemas(default_schema, record)` of
     # the model's StandardAPI::Schema and its return value is used. A model with
-    # no Schema raises StandardAPI::MissingSchema when the controller includes
-    # StandardAPI::Schemas.
+    # no Schema raises StandardAPI::MissingSchema.
     #
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. `schemas`
@@ -163,7 +162,6 @@ module StandardAPI
           attribute_schema(model, name, columns[name], writeable_attributes&.exclude?(name))
         end
       end
-      return schemas if !controller.respond_to?(:model_schemas)
 
       if record
         @record_schemas_for ||= {}.compare_by_identity

@@ -8,7 +8,6 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
     @schema_base ||= Class.new(ActionController::Base) do
       include StandardAPI::Controller
       include StandardAPI::AccessControlList
-      include StandardAPI::Schemas
     end
 
     controller = Class.new(@schema_base)
@@ -85,18 +84,19 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
     assert_equal DocumentSchema, DocumentsController.new.send(:model_schema, Pdf).class
   end
 
-  test "a base controller without Schemas doesn't register a Schema" do
-    base = Class.new(ActionController::Base) do
-      include StandardAPI::Controller
-      include StandardAPI::AccessControlList
-    end
-    controller = Class.new(base)
-    controller.define_singleton_method(:model) { Attachment }
-    controller.const_set(:Schema, Class.new(StandardAPI::Schema))
-    (@schema_controllers ||= []) << controller
+  test 'StandardAPI::Controller includes Schemas' do
+    base = Class.new(ActionController::Base) { include StandardAPI::Controller }
 
+    assert base.include?(StandardAPI::Schemas)
+    assert_equal({}, base.standard_api_schemas)
+  end
+
+  test 'including Schemas again keeps what load! registered' do
+    controller = schema_controller(Attachment)
     StandardAPI::Schemas.load!
-    assert_not base.respond_to?(:standard_api_schemas)
+    @schema_base.include(StandardAPI::Schemas)
+
+    assert_equal({ 'attachment' => controller::Schema }, @schema_base.standard_api_schemas)
   end
 
   test "a nested Schema on a controller without a model is skipped" do

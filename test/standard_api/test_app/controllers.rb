@@ -1,7 +1,6 @@
 class ApplicationController < ActionController::Base
   include StandardAPI::Controller
   include StandardAPI::AccessControlList
-  include StandardAPI::Schemas
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
   
   helper_method :serialize_attribute
