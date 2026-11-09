@@ -1,10 +1,12 @@
 module StandardAPI
-  # The sibling of AccessControlList that finds each controller's nested
-  # StandardAPI::Schema and gives a base controller the means to use it. Include
-  # this in the base controller, as AccessControlList.
+  # Finds each controller's nested StandardAPI::Schema and gives a base
+  # controller the means to use it. StandardAPI::Controller includes it.
   module Schemas
 
     def self.included(base)
+      # Including it again would reset what load! registered
+      return if base.respond_to?(:standard_api_schemas)
+
       base.class_attribute :standard_api_schemas, instance_accessor: false, default: {}.freeze
     end
 

@@ -11,6 +11,7 @@ module StandardAPI
     delegate :preloadables, :model_partial, :schemas_for, to: :helpers
 
     def self.included(klass)
+      klass.include StandardAPI::Schemas
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
@@ -295,7 +296,7 @@ module StandardAPI
       excluded = StandardAPI::Excludes.normalize(raw)
 
       # What a Schema hides is excluded too, so it stays out of validation errors
-      hidden = model_hidden_attributes(record) if respond_to?(:model_hidden_attributes, true)
+      hidden = model_hidden_attributes(record)
       hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
@@ -327,7 +328,7 @@ module StandardAPI
 
       @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
         (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)) ||
-        (respond_to?(:model_schema, true) && !!model_schema(klass)&.class&.varies_by_requester?)
+        !!model_schema(klass)&.class&.varies_by_requester?
     end
 
     # True when rendering +klass+ with +includes+ could be affected by an

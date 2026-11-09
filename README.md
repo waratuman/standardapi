@@ -246,15 +246,8 @@ timestamps and cannot distinguish one requester from another.
 ##### Schemas
 
 A model's controller can declare how its attributes are described by nesting a
-subclass of `StandardAPI::Schema`, like an `ACL`. `StandardAPI::Schemas` is the
-sibling of `StandardAPI::AccessControlList` that finds them; include it in
-your base controller (`include StandardAPI` includes both):
-
-    class ApplicationController
-      include StandardAPI::Controller
-      include StandardAPI::AccessControlList
-      include StandardAPI::Schemas
-    end
+subclass of `StandardAPI::Schema`, like an `ACL`. `StandardAPI::Controller`
+finds them, and every model it renders needs one:
 
     class PhotosController < ApplicationController
       class Schema < StandardAPI::Schema
@@ -305,8 +298,7 @@ call back into the Schema.
 Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
 raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
-a `StandardAPI::Schema`. Without `StandardAPI::Schemas` in the base controller,
-they are ignored and every attribute is used as StandardAPI builds them.
+a `StandardAPI::Schema`.
 
 `attributes_for` declares attributes only known at runtime. Its key is a method
 name or Proc that reads `record` (`nil` for a model), and records with the same

@@ -31,7 +31,6 @@ module StandardAPI
   def self.included(base)
     base.include StandardAPI::Controller
     base.include StandardAPI::AccessControlList
-    base.include StandardAPI::Schemas
   end
 end
 
