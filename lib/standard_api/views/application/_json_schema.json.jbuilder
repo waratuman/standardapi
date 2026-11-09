@@ -7,10 +7,10 @@ if comment = model.connection.table_comment(model.table_name)
 end
 json.set! 'properties' do
   schemas_for(model).each do |schema|
-    name = schema.fetch(:name)
+    name = schema[:name]
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
-    schema_properties = json_schema_for_type(schema.fetch(:type))
+    schema_properties = json_schema_for_type(schema[:type])
 
     required.add(name) if schema[:required]
 
@@ -61,20 +61,20 @@ json.set! 'properties' do
     schema_properties["enum"] = schema[:enum] if schema[:enum]
     # A column that allows NULL renders null, as does a definition that
     # doesn't say
-    if schema.fetch(:null, true) && !schema[:array]
+    if schema[:null] && !schema[:array]
       schema_properties[:type] = Array(schema_properties[:type]) + ['null'] if schema_properties[:type]
       schema_properties["enum"] += [nil] if schema_properties["enum"]
     end
 
     json.set! name do
       if schema[:array]
-        json.set! 'type', schema.fetch(:null, true) ? ['array', 'null'] : 'array'
+        json.set! 'type', schema[:null] ? ['array', 'null'] : 'array'
         json.set! 'items', schema_properties
       else
         json.merge! schema_properties
       end
       # For an array these describe the array, not its items
-      json.set! 'readOnly', true if schema.fetch(:read_only, true)
+      json.set! 'readOnly', true if schema[:read_only]
       json.set! 'default', schema[:default] if !schema[:default].nil?
       json.set! 'description', schema[:comment] if schema[:comment]
     end

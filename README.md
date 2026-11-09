@@ -394,14 +394,12 @@ An attribute declared without a column (`attribute :nickname, :string`) has
 `attributes` is called without a record (`attributes(nil)`), so `read_only` is
 the answer for the model as a whole.
 
-A definition `Schema#schemas` returns needs a `name` and a `type` (`nil` for
-one with no JSON Schema mapping); `json_schema.json` raises without them. It
-treats any other key it leaves out as unset, except `read_only`, which defaults
-to true, as it does for `attribute`. Records are rendered with it, so the record
-must respond to it:
+A definition `Schema#schemas` adds needs every key above. Start from
+`StandardAPI::Schema::Builder::DEFAULTS`, which an `attribute` without a column
+uses. Records are rendered with it, so the record must respond to it:
 
     def schemas(default_schema, record)
-      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
+      default_schema + [StandardAPI::Schema::Builder::DEFAULTS.merge(name: 'thumbnail_url', type: 'string')]
     end
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
