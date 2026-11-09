@@ -2,83 +2,15 @@ require 'standard_api/test_helper'
 
 class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
-  # = ApplicationHelper backward compatibility
-
-  test "Controller#index falls back to ApplicationHelper#excludes when no ACL excludes defined" do
+  test "Schemas.load! raises if ApplicationHelper#excludes is defined" do
     ApplicationHelper.module_eval do
       def excludes
         { account: [:email] }
       end
     end
 
-    property = create(:property)
-    account = create(:account, name: "Test User", email: "test@example.com", property: property)
-
-    get "/accounts", params: { limit: 100 }, as: :json
-    json = JSON.parse(response.body)
-
-    assert_response :ok
-    account_json = json.find { |a| a['id'] == account.id }
-    assert account_json.key?('name'), "Expected 'name' to be present"
-    assert_not account_json.key?('email'), "Expected 'email' excluded via ApplicationHelper#excludes"
-  ensure
-    ApplicationHelper.module_eval { remove_method :excludes }
-  end
-
-  test "ApplicationHelper#excludes is resolved once per request, not once per record" do
-    calls = 0
-    ApplicationHelper.module_eval do
-      define_method(:excludes) do
-        calls += 1
-        { account: [:email] }
-      end
-    end
-
-    property = create(:property)
-    10.times { |i| create(:account, name: "A#{i}", email: "a#{i}@example.com", property: property) }
-
-    get "/accounts", params: { limit: 100 }, as: :json
-    json = JSON.parse(response.body)
-
-    assert_response :ok
-    assert json.size >= 10, "Expected the index to render every account"
-    assert json.none? { |a| a.key?('email') }, "Expected 'email' excluded on every account"
-    assert_equal 1, calls, "Expected ApplicationHelper#excludes to be resolved once per request"
-  ensure
-    ApplicationHelper.module_eval { remove_method :excludes }
-  end
-
-  test "ACL excludes takes precedence over ApplicationHelper#excludes" do
-    ApplicationHelper.module_eval do
-      def excludes
-        { camera: [:retired] }
-      end
-    end
-
-    camera = create(:camera, make: "Leica", hidden: true)
-
-    get "/cameras/#{camera.id}", as: :json
-    json = JSON.parse(response.body)
-
-    assert_response :ok
-    assert json.key?('retired'), "Expected ACL excludes to take precedence, 'retired' should be present"
-    assert_not json.key?('make'), "Expected ACL excludes to still exclude 'make' for a hidden camera"
-  ensure
-    ApplicationHelper.module_eval { remove_method :excludes }
-  end
-
-  test "ApplicationHelper#excludes uses the ACL model name for HABTM join records" do
-    ApplicationHelper.module_eval do
-      def excludes
-        { photo_property: [:property_id] }
-      end
-    end
-
-    join_model = Photo.const_get(:HABTM_Properties)
-    excluded = CamerasController.new.send(:excludes, join_model.new)
-
-    assert_equal true, excluded['property_id'],
-      "Expected the HABTM-aware ApplicationHelper key to be used"
+    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::Schemas.load! }
+    assert_match(/ApplicationHelper#excludes is no longer supported/, error.message)
   ensure
     ApplicationHelper.module_eval { remove_method :excludes }
   end

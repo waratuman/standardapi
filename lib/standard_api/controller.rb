@@ -280,36 +280,16 @@ module StandardAPI
     # takes the record so it can decide per record.
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
-      raw = if self.respond_to?(acl_method, true)
-        self.send(acl_method, record)
-      else
-        application_helper_excludes[model_name(record.class)] || []
-      end
-      excluded = StandardAPI::Excludes.normalize(raw)
+      excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
 
       # What a Schema hides is excluded too, so it stays out of validation errors
       hidden = model_hidden_attributes(record)
       hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
-    # ApplicationHelper#excludes is keyed by model and takes no record, so it
-    # is the same for every record in a response. Build it once per request:
-    # #excludes runs per rendered record, and the anonymous class this needs
-    # is not free to make — each one invalidates Ruby's global method cache.
-    def application_helper_excludes
-      return @application_helper_excludes if defined?(@application_helper_excludes)
-
-      @application_helper_excludes =
-        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        else
-          ActiveSupport::HashWithIndifferentAccess.new
-        end
-    end
-
     # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method, from ApplicationHelper#excludes, or from a Schema whose
-    # definitions could vary by requester.
+    # +excludes+ method or from a Schema whose definitions could vary by
+    # requester.
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -319,7 +299,6 @@ module StandardAPI
       return @excludes_defined[klass] if @excludes_defined.key?(klass)
 
       @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)) ||
         !!model_schema(klass)&.class&.varies_by_requester?
     end
 
