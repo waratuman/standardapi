@@ -429,6 +429,20 @@ and accept the record:
 An ACL `excludes` method must accept the record; one that takes no arguments
 raises `ArgumentError`.
 
+`ApplicationHelper#excludes` is no longer used, and the app won't boot while
+it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
+what it hid out of each model's Schema, which renders only what it declares:
+
+    # Before, in ApplicationHelper
+    def excludes
+      { user: [:password_digest] }
+    end
+
+    # After: UserSchema doesn't declare password_digest
+    class UserSchema < StandardAPI::Schema
+      attributes :id, :name, :email
+    end
+
 # API Usage
 Resources can be queried via REST style end points
 ```

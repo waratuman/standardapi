@@ -13,6 +13,10 @@ module StandardAPI
     # Register the +Schema+ nested in each controller with its base controller
     # (the topmost class that includes Schemas)
     def self.load!
+      if defined?(::ApplicationHelper) && ::ApplicationHelper.method_defined?(:excludes)
+        raise StandardAPI::InvalidConfiguration, "ApplicationHelper#excludes is no longer supported, so it would hide nothing. Remove it, and leave what it hid out of each model's Schema"
+      end
+
       Helpers.each_nested(self, :Schema) do |base, schema, prefix|
         register(base, schema, prefix)
       end
