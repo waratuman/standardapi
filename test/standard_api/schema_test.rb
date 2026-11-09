@@ -151,7 +151,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'attributes declared at runtime count as declared' do
     schema = empty_schema_class do
       attributes :id
-      attributes_for(->(_) { :all }) { attributes :make }
+      attributes_for(-> { :all }) { attributes :make }
     end
 
     assert_equal ['id', 'make'], names(schema)
@@ -170,7 +170,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'attribute and remove declare at runtime too' do
     schema = empty_schema_class do
       attributes :id, :make
-      attributes_for(->(_) { :all }) do
+      attributes_for(-> { :all }) do
         attribute :thumbnail_url, :string
         remove :make
       end
@@ -278,10 +278,8 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'attributes_for runs on the instance, once per key' do
     runs = []
     schema = schema_class do
-      controller_methods :default_limit
-
       define_method(:seen) { |key| runs << key }
-      attributes_for ->(record) { record&.make } do |make|
+      attributes_for -> { record&.make } do |make|
         seen(make)
         attribute "#{make || 'none'}_limit", :integer, comment: default_limit.to_s
       end
@@ -302,9 +300,9 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'a key may name a method, and a Schema may have several' do
     schema = schema_class do
       attributes_for(:make_of) { |make| attribute "#{make}_url", :string }
-      attributes_for(->(record) { record&.retired? }) { |retired| attribute "retired_#{retired}", :string }
+      attributes_for(-> { record&.retired? }) { |retired| attribute "retired_#{retired}", :string }
 
-      private def make_of(record) = record&.make
+      private def make_of = record&.make
     end
     sony, leica = create(:camera, make: 'Sony', retired: true), create(:camera, make: 'Leica', retired: false)
     controller = CamerasController.new
@@ -329,7 +327,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   test 'a failed attributes_for block leaves nothing half declared' do
     calls = 0
     schema = empty_schema_class do
-      attributes_for(->(_) { :all }) do
+      attributes_for(-> { :all }) do
         calls += 1
         raise 'failed' if calls == 1
         attribute :make
@@ -341,13 +339,27 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['make'], names(schema, controller: controller)
   end
 
-  test 'controller_methods reach private controller methods' do
-    schema = schema_class { controller_methods :secret_of_controller; public :secret_of_controller }
+  test 'an unknown method reaches private controller methods' do
     controller = CamerasController.new
-    controller.define_singleton_method(:secret_of_controller) { :secret }
+    controller.define_singleton_method(:secret_of_controller) { |arg, key:, &block| [arg, key, block.call] }
     controller.singleton_class.send(:private, :secret_of_controller)
+    schema = schema_class.new(controller, Camera)
 
-    assert_equal :secret, schema.new(controller, Camera).secret_of_controller
+    assert schema.respond_to?(:secret_of_controller, true)
+    assert_equal [1, 2, 3], schema.send(:secret_of_controller, 1, key: 2) { 3 }
+  end
+
+  test "a Schema's own methods win over the controller's" do
+    schema = schema_class { private def params = :from_schema }
+
+    assert_equal :from_schema, schema.new(CamerasController.new, Camera).send(:params)
+  end
+
+  test 'a method neither has raises' do
+    schema = schema_class.new(CamerasController.new, Camera)
+
+    assert_not schema.respond_to?(:not_a_real_method, true)
+    assert_raises(NoMethodError) { schema.send(:not_a_real_method) }
   end
 
   test 'params comes from the controller' do
@@ -356,16 +368,16 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal 1, CamerasController::Schema.new(controller, Camera).send(:params)[:a]
   end
 
-  test 'if and unless take a Proc, with or without the record, or a method' do
+  test 'if and unless take a Proc or a method that reads record' do
     schema = schema_class do
-      attribute :make, if: ->(record) { record&.retired? }
-      attribute :hidden, unless: ->(record) { record&.retired? }
+      attribute :make, if: -> { record&.retired? }
+      attribute :hidden, unless: -> { record&.retired? }
       attribute :retired, if: -> { false }
       attribute :photo_id, if: :never?
       attribute :id, if: :retired_record?
 
       private def never? = false
-      private def retired_record?(record) = record&.retired?
+      private def retired_record? = record&.retired?
     end
     retired, active = create(:camera, retired: true), create(:camera, retired: false)
     controller = CamerasController.new
@@ -374,11 +386,53 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['hidden'], names(schema, active, controller: controller) & %w(id make hidden retired photo_id)
   end
 
+  test 'a condition passes record to a controller method that needs it' do
+    controller = CamerasController.new
+    controller.define_singleton_method(:hide_camera?) { |camera| camera&.retired? }
+    controller.singleton_class.send(:private, :hide_camera?)
+    schema = schema_class { attribute :make, unless: -> { hide_camera?(record) } }
+
+    assert_includes names(schema, create(:camera, retired: false), controller: controller), 'make'
+    assert_not_includes names(schema, create(:camera, retired: true), controller: controller), 'make'
+  end
+
+  test 'a named controller method is called without the record' do
+    controller = CamerasController.new
+    controller.define_singleton_method(:hide_camera?) { |camera| camera&.retired? }
+    schema = schema_class { attribute :make, unless: :hide_camera? }
+
+    assert_raises(ArgumentError) { names(schema, create(:camera), controller: controller) }
+  end
+
+  test 'a condition that takes an argument raises' do
+    schema = schema_class { attribute :make, if: ->(camera) { camera } }
+
+    assert_raises(ArgumentError) { names(schema) }
+  end
+
+  test 'record raises in an attributes_for block' do
+    schema = schema_class { attributes_for(-> { :all }) { record } }
+
+    error = assert_raises(ArgumentError) { names(schema) }
+    assert_match(/use the key it is given/, error.message)
+  end
+
+  test 'record is only set while a condition runs' do
+    schema = schema_class { attribute :make, if: -> { record&.retired? } }
+    camera = create(:camera, retired: true)
+    instance = schema.new(CamerasController.new, Camera)
+
+    assert_equal camera, instance.send(:resolve, -> { record }, camera)
+    assert_nil instance.send(:record)
+    assert_raises(RuntimeError) { instance.send(:resolve, -> { raise 'failed' }, camera) }
+    assert_nil instance.send(:record)
+  end
+
   test 'a condition is decided for each record, not cached with the definitions' do
     calls = []
     schema = schema_class do
-      attributes_for(->(_) { :same }) do
-        attribute :make, if: ->(record) { calls << record&.id; record&.retired? }
+      attributes_for(-> { :same }) do
+        attribute :make, if: -> { calls << record&.id; record&.retired? }
       end
     end
     retired, active = create(:camera, retired: true), create(:camera, retired: false)
@@ -394,9 +448,9 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal [retired.id, active.id], calls
   end
 
-  test 'a condition is given nil for a model, so json_schema.json follows it' do
+  test 'record is nil for a model, so json_schema.json follows it' do
     seen = []
-    schema = schema_class { attribute :make, if: ->(record) { seen << record; false } }
+    schema = schema_class { attribute :make, if: -> { seen << record; false } }
 
     assert_not_includes names(schema), 'make'
     assert_equal [nil], seen
@@ -441,7 +495,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
     assert schema_class { attribute :make, if: -> { true } }.varies_by_requester?
     assert schema_class { attribute :make, unless: -> { true } }.varies_by_requester?
-    assert schema_class { attributes_for(->(_) { :all }) { } }.varies_by_requester?
+    assert schema_class { attributes_for(-> { :all }) { } }.varies_by_requester?
     assert schema_class { def schemas(default_schema, record) = default_schema }.varies_by_requester?
     assert Class.new(schema_class { attribute :make, if: -> { true } }).varies_by_requester?
   end
@@ -456,7 +510,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
 
   def property_hiding_name_by_header
     schema_class(Property) do
-      controller_methods :request
       attribute :name, unless: -> { request.headers['X-Hide-Name'] == '1' }
     end
   end
