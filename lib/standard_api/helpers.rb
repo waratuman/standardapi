@@ -453,48 +453,6 @@ module StandardAPI
         'ewkb'
       end
     end
-    
-    # For JSON Schema
-    def json_column_schema(sql_type)
-      case sql_type.to_s.downcase
-      when 'binary', 'bytea', 'blob'
-        # TODO contentMediaType correct?
-        # contentEncoding?
-        # https://json-schema.org/understanding-json-schema/reference/non_json_data
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      when 'duration'
-        {type: 'string', format: 'duration'}
-      when 'text'
-        {type: 'string'}
-      when 'json', 'jsonb'
-        {type: 'object'}
-      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
-        {type: 'integer'}
-      when 'hstore'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'object'}
-      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
-        {type: 'string', format: 'date-time'}
-      when 'date'
-        {type: 'string', format: 'date'}
-      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
-        {type: 'number'}
-      when 'inet'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'ltree'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'boolean'
-        {type: 'boolean'}
-      when 'uuid'
-        {type: 'string', format: 'uuid'}
-      when /\A(?:character varying|varchar)(\(\d+\))?$/
-        {type: 'string'}
-      when /\Ageometry/
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      end
-    end
 
   end
 end
