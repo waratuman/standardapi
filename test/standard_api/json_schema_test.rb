@@ -35,14 +35,14 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Controller#json_schema.json renders a definition Schema#schemas adds with only a name and type' do
-    hook = ->(default_schema, record) { default_schema + [{ name: 'thumbnail_url', type: 'string' }] }
+  test 'Controller#json_schema.json renders a definition Schema#schemas adds from the defaults' do
+    hook = lambda do |default_schema, record|
+      default_schema + [StandardAPI::Schema::Builder::DEFAULTS.merge(name: 'thumbnail_url', type: 'string')]
+    end
 
     with_camera_schemas(hook) do
       get json_schema_cameras_path(format: 'json')
       assert_response :ok
-      # null defaults to true, and CameraACL#attributes doesn't permit it, so
-      # it's read only
       assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
     end
   end

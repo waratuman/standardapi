@@ -68,7 +68,7 @@ else
               json.set! 'array', schema[:array]
               json.set! 'comment', schema[:comment]
               json.set! 'auto_populated', !!schema[:auto_populated]
-              json.set! 'readonly', schema.fetch(:read_only, true)
+              json.set! 'readonly', schema[:read_only]
               json.set! 'validations', Array(schema[:validations]).map { |v|
                 { v[:kind] => v[:options].blank? ? true : v[:options].as_json }
               }
