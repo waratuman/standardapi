@@ -6,7 +6,11 @@
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
 - Replace `Controller#excludes_for(klass)` with per-record ACL
-  `excludes(record)` rules.
+  `excludes(record)` rules. A zero-arity ACL `excludes` raises
+  `ArgumentError`; accept the record argument.
+- Remove `ApplicationHelper#excludes`. While it's defined,
+  `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
+  boot; leave what it hid out of each model's Schema instead.
 - Ordering through an association listed by name in ACL `orders`, ie.
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
@@ -88,8 +92,7 @@
   declares those only known at runtime, once a request per key. `if` and `unless` hide an attribute
   per record, or per requester: hidden attributes join the record's excludes,
   and a Schema that could vary by requester turns off fragment caching for its
-  model. `schemas(default_schema, record)` can be overridden for anything else.
-  Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
+  model. Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
   Rendering or describing a model with no Schema raises
   `StandardAPI::MissingSchema`; a model with no controller declares one by name,
   `ToolCallSchema` for `ToolCall`.
@@ -103,7 +106,7 @@
 
 ### Changed
 
-- The ACL `attributes` and `Schema#schemas` lookups fall back to the base
+- The ACL `attributes` and Schema lookups fall back to the base
   class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
@@ -117,10 +120,6 @@
   type rather than its column's SQL type. An `attribute` declaration that
   casts a column differently is described by its cast, and a type with no JSON
   Schema mapping gets an empty schema.
-
-### Deprecated
-
-- Zero-arity ACL `excludes` methods. Accept the record argument instead.
 
 ### Fixed
 

@@ -142,7 +142,7 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     assert_equal true, schema['required'].include?('make')
   end
 
-  test 'Controller#json_schema.json description from Schema#schemas' do
+  test "Controller#json_schema.json description from the Schema's comment" do
     get json_schema_cameras_path(format: 'json')
 
     assert_equal 'The manufacturer', JSON(response.body).dig('properties', 'make', 'description')
