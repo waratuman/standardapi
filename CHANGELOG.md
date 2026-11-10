@@ -130,8 +130,9 @@
 
   Validations are valid JSON Schema: a `format` Regexp is its source, left out
   when JavaScript wouldn't read it the same way, and a numeric `inclusion`
-  Range is `minimum` and `maximum`. `read_schema_for`, `write_schema_for` and
-  `query_schema_for` build them, and are public like `schemas_for`.
+  Range is `minimum` and `maximum`. They're rendered by the `read_schema`,
+  `write_schema` and `query_schema` views and the `application/json_schema`
+  partials, which an app can override.
 
 ### Changed
 

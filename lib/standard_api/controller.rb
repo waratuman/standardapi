@@ -16,6 +16,7 @@ module StandardAPI
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
+      klass.helper_method(*StandardAPI::JSONSchema::HELPERS)
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
 
@@ -44,17 +45,14 @@ module StandardAPI
 
     # JSON Schema of the record #show renders, with the +include+ param
     def read_schema
-      render json: read_schema_for(model, includes)
     end
 
     # JSON Schema of the params #create and #update accept
     def write_schema
-      render json: write_schema_for(model)
     end
 
     # JSON Schema of the params #index and #calculate accept
     def query_schema
-      render json: query_schema_for(model)
     end
 
     def index

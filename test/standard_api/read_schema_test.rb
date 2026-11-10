@@ -79,12 +79,6 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Controller#read_schema_for is public and gives what read_schema.json renders' do
-    schema = read_schema(read_schema_properties_path(format: 'json'), include: 'landlord')
-
-    assert_equal schema, controller.read_schema_for(Property, controller.send(:includes)).as_json
-  end
-
   test 'Controller#read_schema.json include has_many' do
     PropertiesController.any_instance.stubs(:property_includes).returns([:accounts])
     schema = read_schema(read_schema_properties_path(format: 'json'), include: 'accounts')

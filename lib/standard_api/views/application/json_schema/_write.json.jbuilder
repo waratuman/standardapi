@@ -1,0 +1,72 @@
+# The keys of the JSON Schema of the params #create and #update accept for
+# +model+: the attributes the ACL's +attributes+ permit, and the associations
+# its +nested+ permits. +required+ lists what a create needs; an update needs
+# none of it, and a +nested+ record none either. +path+ holds the models
+# already being described, so an association nested back into one of them
+# isn't described again.
+type = local_assigns[:nullable] ? ['object', 'null'] : 'object'
+
+if json_schema_filtered?(model)
+  json.set! 'type', type
+  json.set! 'description', "Filtered by #{model.name}ACL#filter"
+else
+  definitions = json_schema_definitions(model)
+  attributes = json_schema_attributes(model)
+  names = attributes.reject { |entry| entry.is_a?(Hash) }.map(&:to_s)
+  required = nested ? [] : names.select { |name| definitions[name]&.[](:required) }
+  path += [model]
+
+  json.set! 'type', type
+  json.set! 'properties' do
+    # Jbuilder leaves out a block that sets nothing
+    json.merge!({})
+    json.set! 'id', json_schema_attribute_write(model, model.primary_key) if nested && model.primary_key
+
+    attributes.each do |entry|
+      if entry.is_a?(Hash)
+        entry.each do |name, permit|
+          json.set! name.to_s, permit == [] ? { 'type' => 'array' } : { 'type' => 'object' }
+        end
+      else
+        json.set! entry.to_s, json_schema_attribute_write(model, entry)
+      end
+    end
+
+    # Mirrors AccessControlList#filter_model_params
+    json_schema_nested(model).each do |association|
+      if association.belongs_to?
+        foreign_key = association.foreign_key.to_s
+        json.set! foreign_key, json_schema_attribute_write(model, foreign_key) if !names.include?(foreign_key)
+        json.set! association.foreign_type.to_s, { 'type' => 'string' } if association.polymorphic?
+      end
+      next if association.polymorphic?
+
+      if association.collection?
+        json.set! "#{association.name.to_s.singularize}_ids", { 'type' => 'array', 'items' => json_schema_id(association) }
+      end
+
+      json.set! association.name.to_s do
+        cycle = path.include?(association.klass)
+        if association.collection?
+          json.set! 'type', ['array', 'null']
+          json.set! 'items' do
+            if cycle
+              json.set! 'type', 'object'
+            else
+              json.partial!('application/json_schema/write', model: association.klass, path: path, nested: true)
+            end
+          end
+        elsif cycle
+          json.set! 'type', ['object', 'null']
+        else
+          json.partial!('application/json_schema/write', model: association.klass, path: path, nested: true, nullable: true)
+        end
+      end
+    end
+  end
+  json.set! 'additionalProperties', false
+  if required.any?
+    json.set! 'required', required
+    json.set! '$comment', 'required applies to a create. An update may send any of the properties.'
+  end
+end

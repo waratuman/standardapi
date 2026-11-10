@@ -1,0 +1,17 @@
+json.object! do
+  json.set! '$schema', StandardAPI::JSONSchema::DIALECT
+  json.set! 'title', model.model_name.human
+  if description = json_schema_description(model)
+    json.set! 'description', description
+  end
+  json.set! 'type', 'object'
+  json.set! 'properties' do
+    json.object! do
+      json.set! json_schema_param_key(model) do
+        json.object! do
+          json.partial!('application/json_schema/write', model: model, path: [], nested: false)
+        end
+      end
+    end
+  end
+end

@@ -563,18 +563,13 @@ conditions see being `nil`.
   required unless there is a `default_limit`, or the query has a `select`
   (`#calculate`).
 
-The schemas are built by `read_schema_for(model, includes)`,
-`write_schema_for(model)` and `query_schema_for(model)`, which are public like
-`schemas_for`. Called on a controller handling a request, they give what the
-actions render, so a caller can validate params in-process before running an
-action. `query_schema_for` builds the where, order and include of every model
-reachable through a permitted association into `$defs`; given `ref:`, it
-leaves other models to the caller:
-
-    query_schema_for(Property, ref: ->(model, kind) {
-      # kind is "Where", "Order" or "Include"; nil builds it into $defs
-      { '$ref' => "myapp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
-    })
+The schemas are rendered by the `application/read_schema`, `write_schema` and
+`query_schema` views and the `application/json_schema` partials, in jbuilder
+and turbostreamer like the other views. A controller can override a template
+in its own view path (`app/views/photos/read_schema.json.jbuilder`). The
+values in them come from the `json_schema_*` helpers in
+`StandardAPI::JSONSchema`. To validate params in-process, render the view, ie.
+`render_to_string(:query_schema, formats: :json)`.
 
 # Testing
 

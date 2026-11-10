@@ -24,12 +24,6 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Controller#write_schema_for is public and gives what schema/write.json renders' do
-    schema = camera_schema
-
-    assert_equal schema, controller.write_schema_for(Camera).as_json.dig('properties', 'camera')
-  end
-
   test 'Controller#write_schema.json is served at schema/write.json' do
     get '/cameras/schema/write.json'
     assert_response :ok

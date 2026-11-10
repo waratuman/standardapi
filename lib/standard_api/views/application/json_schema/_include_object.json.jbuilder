@@ -1,0 +1,73 @@
+# The associations +permit+ lists on +model+, each true or its own include,
+# and with +options+ the options that apply to included records. The include
+# of an association is named after +prefix+.
+json.set! 'type', 'object'
+json.set! 'properties' do
+  # Jbuilder leaves out a block that sets nothing
+  json.merge!({})
+  permit.each do |name, subpermit|
+    next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
+
+    association = model&.reflect_on_association(name)
+    sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
+    # The include partial's locals
+    sub = if association && !association.polymorphic?
+      if subpermit.empty?
+        klass = association.klass
+        { permit: json_schema_includes(klass), model: klass, name: json_schema_name(klass, 'Include') }
+      else
+        { permit: subpermit, model: association.klass, name: sub_name }
+      end
+    elsif subpermit.present?
+      { permit: subpermit, model: nil, name: sub_name }
+    end
+
+    included = { 'enum' => [true, 'true'] }
+    if !sub
+      json.set! name.to_s, included
+      next
+    end
+
+    json.set! name.to_s do
+      json.set! 'anyOf' do
+        json.child! { json.merge! included }
+        json.child! do
+          if model
+            # The +when+ of an include is checked against the model it's on,
+            # and the include's schema is shared by every model including it
+            json.set! 'allOf' do
+              json.child! do
+                json.partial!('application/json_schema/include', sub.merge(defs: defs))
+              end
+              json.child! do
+                json.merge!({ 'properties' => { 'when' => json_schema_ref(defs, json_schema_name(model, 'When'), 'when', model: model) } })
+              end
+            end
+          else
+            json.partial!('application/json_schema/include', sub.merge(defs: defs))
+          end
+        end
+      end
+    end
+  end
+
+  if options
+    if model && json_schema_wheres(model).any?
+      json.set! 'where', json_schema_ref(defs, json_schema_name(model, 'Where'), 'where', model: model)
+    end
+    if model && json_schema_orders(model).any?
+      json.set! 'order', json_schema_ref(defs, json_schema_name(model, 'Order'), 'order',
+        permit: json_schema_orders(model), model: model)
+    end
+    json.set! 'limit', { 'type' => 'integer', 'minimum' => 0 }
+    json.set! 'distinct', { 'type' => 'boolean' }
+
+    # Passed through by #sanitize_includes, but not checked by the ACL
+    json.set! 'distinct_on', json_schema_unchecked(json_schema_columns, 'Columns to select distinct included records on, passed to `distinct_on`.')
+    json.set! 'when', {
+      'type' => 'object',
+      'description' => 'Only include for the including records whose rendered value of each attribute equals the given value. #index only.'
+    }
+  end
+end
+json.set! 'additionalProperties', false

@@ -1,0 +1,38 @@
+# Mirrors StandardAPI::Orders#sanitize_orders: a name +permit+ lists, an
+# object of them (application/json_schema/_order_object), or an Array of
+# either. +model+ is nil under a Hash in +permit+. An empty +permit+ accepts
+# nothing.
+permit = Array(permit).flatten
+
+if permit.empty?
+  json.set! 'not', {}
+else
+  names = permit.flat_map do |entry|
+    if entry.is_a?(Hash)
+      entry.flat_map { |name, subpermit| Array(subpermit).flatten.map { |column| "#{name}.#{column}" } }
+    elsif (association = model&.reflect_on_association(entry.to_s)) && !association.polymorphic?
+      json_schema_orders(association.klass).reject { |x| x.is_a?(Hash) }.map { |column| "#{entry}.#{column}" }
+    else
+      [entry.to_s]
+    end
+  end
+  name_schema = { 'type' => 'string', 'enum' => names }
+
+  json.set! 'anyOf' do
+    json.child! { json.merge! name_schema }
+    json.child! do
+      json.partial!('application/json_schema/order_object', permit: permit, model: model, defs: defs)
+    end
+    json.child! do
+      json.set! 'type', 'array'
+      json.set! 'items' do
+        json.set! 'anyOf' do
+          json.child! { json.merge! name_schema }
+          json.child! do
+            json.partial!('application/json_schema/order_object', permit: permit, model: model, defs: defs)
+          end
+        end
+      end
+    end
+  end
+end

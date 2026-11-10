@@ -1,17 +1,28 @@
 module StandardAPI
-  # Included in StandardAPI::Controller. Builds the JSON Schemas served at
-  # schema/read, schema/write and schema/query, each from the ACL, so it only
-  # describes what the ACL permits. Attributes are described from their
-  # definitions in schemas_for(model), so only what the model's Schema
-  # declares. Params the ACL doesn't check yet are described as they're used,
-  # and say so.
+  # Included in StandardAPI::Controller. The helpers the schema/read,
+  # schema/write and schema/query views (application/read_schema,
+  # write_schema and query_schema, and the application/json_schema partials)
+  # are built with.
   #
-  # read_schema_for, write_schema_for and query_schema_for are public, like
-  # schemas_for, so a caller can build a schema on a controller bound to a
-  # request and validate in-process, without dispatching the action.
+  # The views lay out each JSON Schema: its objects, properties, required and
+  # the records and associations they recurse into. These describe the values
+  # in it, ie. an attribute from its definition in schemas_for(model), and
+  # read the ACL for the views, so each schema only describes what the ACL
+  # permits.
   module JSONSchema
 
     DIALECT = 'https://json-schema.org/draft/2020-12/schema'.freeze
+
+    # The methods the views call
+    HELPERS = %i(
+      json_schema_definitions json_schema_description json_schema_nullable
+      json_schema_attribute_read json_schema_attribute_write json_schema_id
+      json_schema_attributes json_schema_nested json_schema_filtered?
+      json_schema_wheres json_schema_orders json_schema_includes
+      json_schema_required_orders json_schema_name json_schema_ref
+      json_schema_column_where json_schema_direction json_schema_columns
+      json_schema_select json_schema_unchecked json_schema_param_key
+    ).freeze
 
   end
 end
@@ -28,14 +39,19 @@ module StandardAPI
 
     private
 
-    def model_description(model)
+    # The key #create and #update read +model+'s params from
+    def json_schema_param_key(model)
+      model_name(model)
+    end
+
+    def json_schema_description(model)
       model.connection.table_comment(model.table_name)
     end
 
     # schemas_for(model), as name => definition
-    def definitions_for(model)
-      @definitions_for ||= {}
-      @definitions_for[model] ||= schemas_for(model).index_by { |definition| definition[:name].to_s }
+    def json_schema_definitions(model)
+      @json_schema_definitions ||= {}
+      @json_schema_definitions[model] ||= schemas_for(model).index_by { |definition| definition[:name].to_s }
     end
 
     # The JSON Schema of a value of the attribute a definition describes, from
@@ -95,7 +111,10 @@ module StandardAPI
       end
     end
 
-    def nullable(schema)
+    # +schema+, or its +type+ when given a type, allowing null
+    def json_schema_nullable(schema)
+      return [schema, 'null'] if schema.is_a?(String)
+
       schema = schema.dup
       if schema['enum']
         schema['enum'] = schema['enum'] + [nil]

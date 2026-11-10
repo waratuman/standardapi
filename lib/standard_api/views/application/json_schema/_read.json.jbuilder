@@ -1,0 +1,58 @@
+# The keys of the JSON Schema of +model+ as #show renders it with +includes+.
+# A singular association rendered as an include is +nullable+ unless it's
+# validated for presence.
+type = local_assigns[:nullable] ? ['object', 'null'] : 'object'
+
+if model_partial(model) != 'application/record'
+  json.set! 'type', type
+  json.set! 'description', "Rendered by #{model_partial(model)}"
+else
+  definitions = json_schema_definitions(model)
+  includes = includes.reject { |name, _| StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s) }
+
+  # Columns are always rendered. Other attributes may not be loaded, ie.
+  # under a partial select, or may be ones the Schema adds.
+  required = (definitions.keys & model.column_names) + includes.keys.map(&:to_s)
+  # An ACL exclude or a Schema condition can leave out any of them. What
+  # they hide is still described, as some records render it.
+  required = [] if excludes?(model)
+
+  if description = json_schema_description(model)
+    json.set! 'description', description
+  end
+  json.set! 'type', type
+  json.set! 'properties' do
+    definitions.each do |name, definition|
+      json.set! name, json_schema_attribute_read(model, definition)
+    end
+
+    includes.each do |name, subincludes|
+      association = model.reflect_on_association(name)
+      if !association
+        json.set! name.to_s, {}
+      elsif association.polymorphic?
+        json.set! name.to_s, { 'type' => ['object', 'null'] }
+      elsif association.collection?
+        json.set! name.to_s do
+          json.set! 'type', 'array'
+          json.set! 'items' do
+            json.partial!('application/json_schema/read', model: association.klass, includes: subincludes)
+          end
+        end
+      else
+        json.set! name.to_s do
+          json.partial!('application/json_schema/read', model: association.klass, includes: subincludes,
+            nullable: model.validators_on(association.name).none? { |v| v.kind == :presence })
+        end
+      end
+    end
+
+    json.set! 'errors', {
+      'type' => 'object',
+      'description' => 'Validation errors, when a create or update fails',
+      'additionalProperties' => { 'type' => 'array', 'items' => { 'type' => 'string' } }
+    }
+  end
+  json.set! 'additionalProperties', false
+  json.set! 'required', required if required.any?
+end
