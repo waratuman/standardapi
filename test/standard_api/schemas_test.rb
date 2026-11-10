@@ -146,7 +146,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
       schemas(Property, controller: controller).first
   end
 
-  test 'Schema#schemas method transforms the definitions' do
+  test "a Schema's declarations change the definitions" do
     # CamerasController::Schema sets a comment on make
     assert_equal 'The manufacturer', attribute(Camera, 'make', controller: CamerasController.new)[:comment]
     assert_nil attribute(Camera, 'hidden', controller: CamerasController.new)[:comment]
