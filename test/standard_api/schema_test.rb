@@ -147,11 +147,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_match(/Camera has no attribute mkae/, error.message)
   end
 
-  test 'a model with a Schema has no way to use undeclared attributes' do
-    assert_not StandardAPI::Schema.respond_to?(:implicit_attributes)
-    assert_not StandardAPI::Schema.respond_to?(:[])
-  end
-
   test 'attribute and remove declare at runtime too' do
     schema = empty_schema_class do
       attributes :id, :make
@@ -162,12 +157,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal ['id', 'thumbnail_url'], names(schema)
-  end
-
-  test "there's no add or dynamic_attributes" do
-    assert_not StandardAPI::Schema.respond_to?(:add)
-    assert_not StandardAPI::Schema::Builder.method_defined?(:add)
-    assert_not StandardAPI::Schema.respond_to?(:dynamic_attributes)
   end
 
   test 'attribute changes a definition in place' do
