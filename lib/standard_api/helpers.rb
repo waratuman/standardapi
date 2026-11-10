@@ -181,11 +181,11 @@ module StandardAPI
 
       @default_schemas_for ||= {}
       schemas = @default_schemas_for[[model, names]] ||= begin
-        writeable_attributes = controller.model_attributes(model)&.map(&:to_s)
+        permitted_attributes = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
         names.map do |name|
-          attribute_schema(model, name, columns[name], writeable_attributes&.exclude?(name))
+          attribute_schema(model, name, columns[name], permitted_attributes.nil? || permitted_attributes.include?(name))
         end
       end
       return schemas if !controller.respond_to?(:model_schemas)
@@ -199,15 +199,15 @@ module StandardAPI
       end
     end
 
-    def attribute_schema(model, name, column, writable)
+    def attribute_schema(model, name, column, permitted)
       attribute_type = model.type_for_attribute(name)
       enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
       default = column_default_value(column, model) if column
       auto_populated = (!!column.auto_populated? if column)
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
-      read_only = writable || model.readonly_attribute?(name)
-      writable_on_create = !writable && !auto_populated
+      read_only = !permitted || model.readonly_attribute?(name)
+      writable_on_create = permitted && !auto_populated
 
       {
         name: name,
