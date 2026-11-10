@@ -80,7 +80,7 @@ module StandardAPI
     end
 
     # The attributes of +model+ as StandardAPI exposes them. The JSON Schemas
-    # (StandardAPI::JSONSchema) are built from this, so code that needs the
+    # (Helpers::JSONSchemaHelper) are built from this, so code that needs the
     # same information (an MCP tool describing a model, say) can read it
     # directly instead of fetching a schema and parsing it back.
     #

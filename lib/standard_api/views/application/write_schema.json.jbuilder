@@ -1,4 +1,4 @@
-json.set! '$schema', StandardAPI::JSONSchema::DIALECT
+json.set! '$schema', StandardAPI::Helpers::JSONSchemaHelper::DIALECT
 json.set! 'title', model.model_name.human
 if description = json_schema_description(model)
   json.set! 'description', description
