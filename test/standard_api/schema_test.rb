@@ -264,15 +264,15 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not_includes names(parent), 'preview_url'
   end
 
-  test 'an override can call super' do
-    schema = schema_class do
-      attribute :make, comment: 'Who made it'
-      def schemas(default_schema, record)
-        super.map { |d| d[:name] == 'make' ? d.merge(comment: "#{d[:comment]}!") : d }
-      end
+  test "schemas can't be overridden" do
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      schema_class { def schemas(default_schema, record) = default_schema }
     end
+    assert_match "can't override schemas", error.message
 
-    assert_equal 'Who made it!', definition(schema, 'make')[:comment]
+    assert_raises(StandardAPI::InvalidConfiguration) do
+      Class.new(CamerasController::Schema) { private def schemas(*) = [] }
+    end
   end
 
   test 'attributes_for runs on the instance, once per key' do
@@ -496,7 +496,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert schema_class { attribute :make, if: -> { true } }.varies_by_requester?
     assert schema_class { attribute :make, unless: -> { true } }.varies_by_requester?
     assert schema_class { attributes_for(-> { :all }) { } }.varies_by_requester?
-    assert schema_class { def schemas(default_schema, record) = default_schema }.varies_by_requester?
     assert Class.new(schema_class { attribute :make, if: -> { true } }).varies_by_requester?
   end
 

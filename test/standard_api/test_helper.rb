@@ -21,12 +21,16 @@ class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryBot::Syntax::Methods
 
-  # Override CamerasController::Schema#schemas for the length of the block
-  def with_camera_schemas(hook)
-    CamerasController::Schema.define_method(:schemas, &hook)
+  # Render cameras with a subclass of CamerasController::Schema that also
+  # makes +declarations+, for the length of the block
+  def with_camera_schema(declarations)
+    schema = Class.new(CamerasController::Schema)
+    schema.class_exec(&declarations)
+    schemas = CamerasController.standard_api_schemas.merge('camera' => schema)
+    CamerasController.stubs(:standard_api_schemas).returns(schemas)
     yield
   ensure
-    CamerasController::Schema.send(:remove_method, :schemas)
+    CamerasController.unstub(:standard_api_schemas)
   end
 
   def setup
