@@ -31,6 +31,14 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#json_schema.json declares the 2020-12 dialect at its root only' do
+    get json_schema_properties_path(format: 'json'), params: { include: 'landlord' }
+    assert_response :ok
+    schema = JSON(response.body)
+    assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
+    assert_not schema.dig('properties', 'landlord').key?('$schema')
+  end
+
   test 'Controller#json_schema.json renders an attribute a Schema adds from the defaults' do
     with_camera_schema(proc { attribute :thumbnail_url, :string }) do
       get json_schema_cameras_path(format: 'json')
