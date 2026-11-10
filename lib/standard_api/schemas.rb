@@ -68,10 +68,5 @@ module StandardAPI
       schema if schema.is_a?(Class) && schema < StandardAPI::Schema
     end
 
-    # The attributes +record+'s Schema hides from this requester
-    def model_hidden_attributes(record)
-      model_schema(record.class)&.hidden_attributes(record)
-    end
-
   end
 end
