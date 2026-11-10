@@ -79,7 +79,9 @@ module StandardAPI
     # +nil+. A zero-arity +attributes+ definition is still supported but
     # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
     def model_attributes(model, record = nil)
-      return nil if !(method_name = model_method_for(model, :attributes))
+      # An STI subclass falls back to its base class's ACL
+      method_name = [model, model.base_class].uniq.map { |k| "#{model_name(k)}_attributes" }.find { |m| respond_to?(m, true) }
+      return nil if !method_name
 
       if self.method(method_name).arity == 0
         logger.warn <<~NOTE.strip_heredoc

@@ -209,16 +209,6 @@ module StandardAPI
       # end
     end
 
-    # The method +name+ an ACL defines for +model+ once
-    # AccessControlList.include_acl has renamed it, ie. +property_attributes+,
-    # falling back to the one for its base class (ie. an STI subclass), or nil
-    # if there is none
-    def model_method_for(model, name)
-      [model, model.base_class].uniq.map { |k| "#{model_name(k)}_#{name}" }.find do |method|
-        self.respond_to?(method, true)
-      end
-    end
-
     # The prefix +model+'s ACL methods are renamed under, and its Schema is
     # registered under
     def model_name(model)
