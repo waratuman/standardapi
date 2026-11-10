@@ -85,9 +85,9 @@ module StandardAPI
     # schema view and parsing it back.
     #
     # application/_record renders a record from `schemas_for(record)`, so the
-    # definitions are also what a record is rendered with: an attribute
-    # `Schema#schemas` leaves out isn't rendered, and one it adds is read from
-    # the record by name.
+    # definitions are also what a record is rendered with: an attribute its
+    # Schema leaves out isn't rendered, and one it adds is read from the record
+    # by name.
     #
     # Given a model, returns an Array of Hashes, one per attribute in
     # `model.attribute_names` order: the columns, then any attributes declared

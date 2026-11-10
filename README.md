@@ -336,23 +336,15 @@ reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
 for associations.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless` or
-`attributes_for`, or one that overrides `schemas`. Override it when a Schema
-doesn't vary, so fragments can be cached.
+`attributes_for`. Override it when a Schema doesn't vary, so fragments can be
+cached.
 
-For what the declarations can't express, override `schemas(default_schema,
-record)`. It receives the definitions StandardAPI builds and the record being
-rendered (`nil` for a model), and returns the definitions to use:
+A Schema's definitions come only from its declarations. Defining `schemas` on
+a Schema raises `StandardAPI::InvalidConfiguration`, because an override could
+render what `hidden_attributes` doesn't exclude. For a value that differs by
+record, key it with `attributes_for`:
 
-    class Schema < StandardAPI::Schema
-      def schemas(default_schema, record)
-        super.map { |schema| schema[:name] == 'caption' ? schema.merge(comment: record&.title) : schema }
-      end
-    end
-
-It's called once per record rendered, with definitions the records share, so
-return new Hashes (`merge`, `reject`, `map`) rather than changing them. An
-attribute it leaves out isn't rendered, but isn't excluded from validation
-errors the way one hidden with `if` or `remove` is.
+    attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 
 `schemas_for(Photo)` returns the result, and `json_schema.json` and
 `schema.json` are built from it. Records are rendered from it too:
@@ -389,22 +381,18 @@ attributes share their definitions before the Schema sees them.
 | `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
-An attribute declared without a column (`attribute :nickname, :string`) has
-`nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
-`attributes` is called without a record (`attributes(nil)`), so `read_only` is
-the answer for the model as a whole.
+An attribute the model declares without a column (`attribute :nickname,
+:string` in the model) has `nil` for `default`, `null`, `comment` and
+`auto_populated`. The ACL's `attributes` is called without a record
+(`attributes(nil)`), so `read_only` is the answer for the model as a whole.
 
-A definition `Schema#schemas` adds needs every key above. Start from
-`StandardAPI::Schema::Builder::DEFAULTS`, which an `attribute` without a column
-uses. Records are rendered with it, so the record must respond to it:
-
-    def schemas(default_schema, record)
-      default_schema + [StandardAPI::Schema::Builder::DEFAULTS.merge(name: 'thumbnail_url', type: 'string')]
-    end
+A Schema `attribute` adding one the model doesn't have starts from
+`StandardAPI::Schema::Builder::DEFAULTS`: `null` and `read_only` are `true`,
+`auto_populated` is `false`.
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
-own, the base class's `attributes` and `schemas` are used
-(`document_attributes`, `document_schemas`), as they are for `orders`,
+own, the base class's `attributes` and Schema are used
+(`document_attributes`, `DocumentSchema`), as they are for `orders`,
 `includes` and `wheres`.
 
 `schema.json` is built from `schemas_for` too, so it lists the same attributes

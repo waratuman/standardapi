@@ -135,12 +135,21 @@ module StandardAPI
 
       # Whether the definitions could differ by requester, which fragment
       # caching has to know as its keys can't tell requesters apart. Assumed of
-      # anything StandardAPI can't see through; override to say otherwise.
+      # conditions and attributes_for; override to say otherwise.
       def varies_by_requester?
-        schema_steps.any? { |step| step[:varies] } || instance_method(:schemas).owner != StandardAPI::Schema
+        schema_steps.any? { |step| step[:varies] }
       end
 
       private
+
+      # An override would bypass the excludes and the fragment caching check
+      def method_added(name)
+        if name == :schemas && self != StandardAPI::Schema
+          raise StandardAPI::InvalidConfiguration, "#{self.name || 'A Schema'} can't override schemas; declare attributes with attribute, remove and attributes_for instead"
+        end
+
+        super
+      end
 
       def add_step(key: nil, varies: false, &block)
         self.schema_steps += [{ key: key, varies: varies, block: block }.freeze]
@@ -158,10 +167,9 @@ module StandardAPI
       @failed = {}.compare_by_identity
     end
 
-    # The definitions to use for +record+, or nil for a model. Override this,
-    # calling +super+, for what the declarations can't express. Hide attributes
-    # with +if+ or +remove+ rather than here, as only those reach the excludes
-    # that keep hidden attributes out of validation errors.
+    # The definitions to use for +record+, or nil for a model, from
+    # +default_schema+, the ones Helpers#schemas_for builds. It can't be
+    # overridden, so what it renders always matches hidden_attributes.
     def schemas(default_schema, record)
       builder = builder_for(record)
       definitions = (@applied[builder] ||= {}.compare_by_identity)[default_schema] ||=
