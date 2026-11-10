@@ -92,12 +92,6 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_equal 'From the Schema of Document', attribute(Pdf, 'type', controller: DocumentsController.new)[:comment]
   end
 
-  test 'a definition Schema#schemas adds is returned as it is' do
-    with_camera_schemas(->(default_schema, record) { default_schema + [{ name: 'thumbnail_url', type: 'string' }] }) do
-      assert_equal({ name: 'thumbnail_url', type: 'string' }, attribute(Camera, 'thumbnail_url', controller: CamerasController.new))
-    end
-  end
-
   test 'a NOT NULL attr_readonly attribute is read only and required, without ACL attributes' do
     # ReferenceACL defines no attributes, so read_only comes from the model
     Reference.stubs(:readonly_attribute?).returns(false)
@@ -226,14 +220,11 @@ class SchemasTest < ActionDispatch::IntegrationTest
     assert_same controller.schemas_for(Property), controller.schemas_for(first)
   end
 
-  test 'records are rendered from Schema#schemas' do
+  test "records are rendered from their Schema's definitions" do
     camera = create(:camera)
     Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
-    hook = lambda do |default_schema, record|
-      default_schema.reject { |s| s[:name] == 'retired' } + [{ name: 'thumbnail_url', type: 'string' }]
-    end
 
-    with_camera_schemas(hook) do
+    with_camera_schema(proc { remove :retired; attribute :thumbnail_url, :string }) do
       get camera_path(camera, format: 'json')
       assert_response :ok
       body = JSON(response.body)
@@ -243,15 +234,15 @@ class SchemasTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Schema#schemas is given the record' do
+  test 'a Schema can vary definitions by record' do
     sony = create(:camera, make: 'Sony')
     leica = create(:camera, make: 'Leica')
     controller = CamerasController.new
-    hook = lambda do |default_schema, record|
-      default_schema.map { |s| s[:name] == 'make' ? s.merge(comment: record&.make) : s }
+    declarations = proc do
+      attributes_for(-> { record&.make }) { |make| attribute :make, comment: make }
     end
 
-    with_camera_schemas(hook) do
+    with_camera_schema(declarations) do
       assert_nil attribute(Camera, 'make', controller: controller)[:comment]
       make = ->(record) { controller.schemas_for(record).find { |s| s[:name] == 'make' } }
       assert_equal 'Sony', make.(sony)[:comment]
@@ -261,14 +252,11 @@ class SchemasTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'records are rendered from the Schema#schemas for each record' do
+  test "records are rendered from each record's definitions" do
     create(:camera, retired: false)
     create(:camera, retired: true)
-    hook = lambda do |default_schema, record|
-      record&.retired? ? default_schema.reject { |s| s[:name] == 'make' } : default_schema
-    end
 
-    with_camera_schemas(hook) do
+    with_camera_schema(proc { attribute :make, unless: -> { record&.retired? } }) do
       get cameras_path(format: 'json'), params: { limit: 10 }
       assert_response :ok
       retired, active = JSON(response.body).partition { |c| c['retired'] }

@@ -3,17 +3,13 @@ require 'json_schemer'
 
 class JSONSchemaTest < ActionDispatch::IntegrationTest
 
-  # The JSON Schema of +attribute+ in cameras' json_schema.json, with the
-  # +validations+ given to it through Schema#schemas
-  def camera_attribute_schema(attribute, validations)
-    hook = lambda do |default_schema, record|
-      default_schema.map { |s| s[:name] == attribute ? s.merge(validations: validations) : s }
-    end
-
-    with_camera_schemas(hook) do
+  # The JSON Schema of +name+ in cameras' json_schema.json, with the
+  # +validations+ declared on it and no description
+  def camera_attribute_schema(name, validations)
+    with_camera_schema(proc { attribute name, validations: validations, comment: nil }) do
       get json_schema_cameras_path(format: 'json')
       assert_response :ok
-      JSON(response.body).dig('properties', attribute)
+      JSON(response.body).dig('properties', name)
     end
   end
 
@@ -35,12 +31,8 @@ class JSONSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Controller#json_schema.json renders a definition Schema#schemas adds from the defaults' do
-    hook = lambda do |default_schema, record|
-      default_schema + [StandardAPI::Schema::Builder::DEFAULTS.merge(name: 'thumbnail_url', type: 'string')]
-    end
-
-    with_camera_schemas(hook) do
+  test 'Controller#json_schema.json renders an attribute a Schema adds from the defaults' do
+    with_camera_schema(proc { attribute :thumbnail_url, :string }) do
       get json_schema_cameras_path(format: 'json')
       assert_response :ok
       assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, JSON(response.body).dig('properties', 'thumbnail_url'))
