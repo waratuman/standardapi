@@ -78,6 +78,11 @@ module StandardAPI
     # can make per-record decisions; schema rendering has no record and passes
     # +nil+. A zero-arity +attributes+ definition is still supported but
     # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
+    #
+    # TODO: Remove ACL +attributes+ and permit writes through Schemas, so one
+    # declaration decides what's shown and what's writable. Until then a
+    # Schema can describe attributes the ACL doesn't permit, and the ACL can
+    # permit attributes the Schema doesn't show.
     def model_attributes(model, record = nil)
       # An STI subclass falls back to its base class's ACL
       method_name = [model, model.base_class].uniq.map { |k| "#{model_name(k)}_attributes" }.find { |m| respond_to?(m, true) }
