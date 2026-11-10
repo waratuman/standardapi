@@ -163,7 +163,6 @@ module StandardAPI
       @model = model
       @builders = {}
       @applied = {}.compare_by_identity
-      @undeclared = {}.compare_by_identity
       @failed = {}.compare_by_identity
     end
 
@@ -181,9 +180,7 @@ module StandardAPI
 
     # Names of the attributes +record+ doesn't render for this requester
     def hidden_attributes(record)
-      builder = builder_for(record)
-      undeclared = @undeclared[builder] ||= builder.hidden_attributes(model)
-      undeclared + failed_conditions(record)
+      builder_for(record).hidden_attributes(model) + failed_conditions(record)
     end
 
     private
