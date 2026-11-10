@@ -138,7 +138,8 @@ module StandardAPI
     # Schema raises StandardAPI::MissingSchema.
     #
     # Definitions are built once per model and set of attribute names in a
-    # view context, so records loaded by the same query share them.
+    # view context, so records loaded by the same query share them. The Schema
+    # caches what it makes of them, so this doesn't cache its result.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model
@@ -159,13 +160,7 @@ module StandardAPI
         end
       end
 
-      if record
-        @record_schemas_for ||= {}.compare_by_identity
-        @record_schemas_for[record] ||= controller.model_schemas(model, schemas, record)
-      else
-        @schemas_for ||= {}
-        @schemas_for[model] ||= controller.model_schemas(model, schemas)
-      end
+      controller.model_schemas(model, schemas, record)
     end
 
     def attribute_schema(model, name, column, permitted)
