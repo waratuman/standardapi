@@ -1,4 +1,6 @@
 required = Set.new
+# Only the document's root declares its dialect
+json.set! '$schema', local_assigns[:schema] if local_assigns[:schema]
 json.set! 'title', model.table_name.titleize.singularize
 # A singular association rendered as an include may be absent
 json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
