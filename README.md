@@ -389,22 +389,24 @@ attributes share their definitions before the Schema sees them.
 | `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
-An attribute declared without a column (`attribute :nickname, :string`) has
-`nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
-`attributes` is called without a record (`attributes(nil)`), so `read_only` is
-the answer for the model as a whole.
+An attribute the model declares without a column (`attribute :nickname,
+:string` in the model) has `nil` for `default`, `null`, `comment` and
+`auto_populated`. The ACL's `attributes` is called without a record
+(`attributes(nil)`), so `read_only` is the answer for the model as a whole.
 
 A definition `Schema#schemas` adds needs every key above. Start from
-`StandardAPI::Schema::Builder::DEFAULTS`, which an `attribute` without a column
-uses. Records are rendered with it, so the record must respond to it:
+`StandardAPI::Schema::Builder::DEFAULTS`, which a Schema `attribute` adding one
+the model doesn't have also starts from: `null` and `read_only` are `true`,
+`auto_populated` is `false`. Records are rendered with it, so the record must
+respond to it:
 
     def schemas(default_schema, record)
       default_schema + [StandardAPI::Schema::Builder::DEFAULTS.merge(name: 'thumbnail_url', type: 'string')]
     end
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
-own, the base class's `attributes` and `schemas` are used
-(`document_attributes`, `document_schemas`), as they are for `orders`,
+own, the base class's `attributes` and Schema are used
+(`document_attributes`, `DocumentSchema`), as they are for `orders`,
 `includes` and `wheres`.
 
 `schema.json` is built from `schemas_for` too, so it lists the same attributes
