@@ -76,7 +76,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
   end
 
   test "a model with no Schema doesn't raise when only its excludes are asked for" do
-    assert_nil ApplicationController.new.send(:model_hidden_attributes, unschemaed_model.new)
+    assert_equal({}, ApplicationController.new.send(:excludes, unschemaed_model.new))
   end
 
   test 'an STI subclass uses the Schema of its base class' do

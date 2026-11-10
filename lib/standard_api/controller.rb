@@ -273,7 +273,7 @@ module StandardAPI
       excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
 
       # What a Schema hides is excluded too, so it stays out of validation errors
-      hidden = model_hidden_attributes(record)
+      hidden = model_schema(record.class)&.hidden_attributes(record)
       hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 

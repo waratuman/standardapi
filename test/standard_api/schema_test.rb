@@ -416,8 +416,8 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not_includes names(schema, active, controller: controller), 'make'
     # and once each, though both the definitions and excludes ask
     with_schema(schema) do
-      controller.send(:model_hidden_attributes, retired)
-      controller.send(:model_hidden_attributes, active)
+      controller.send(:model_schema, Camera).hidden_attributes(retired)
+      controller.send(:model_schema, Camera).hidden_attributes(active)
     end
     assert_equal [retired.id, active.id], calls
   end
