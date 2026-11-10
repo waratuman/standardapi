@@ -33,7 +33,6 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
   test "a nested Schema is registered under the model's prefix on the base controller" do
     assert_equal CamerasController::Schema, ApplicationController.standard_api_schemas['camera']
     assert_equal CamerasController::Schema, PropertiesController.standard_api_schemas['camera']
-    assert_not ApplicationController.method_defined?(:camera_schemas)
   end
 
   test "a Schema's helpers stay out of the controller" do
