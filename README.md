@@ -261,8 +261,7 @@ finds them, and every model it renders needs one:
 Like strong parameters, a Schema is explicit: only the attributes it declares
 are rendered or described, so a column added later stays hidden until it's
 listed. Types, defaults and validations of a declared attribute still come from
-the model. Undeclared attributes are added to the record's excludes too, so they
-aren't named in validation errors.
+the model.
 
 `remove` takes back a declaration, such as one inherited from a parent Schema.
 
@@ -275,7 +274,6 @@ its Schema by name, `ToolCallSchema` for `ToolCall`:
       attributes :id, :name, :arguments
     end
 
-An STI subclass uses the Schema of its base class if it has none of its own.
 A custom partial that doesn't use `schemas_for` isn't checked.
 
 `attribute` takes any key of the definition below. With a type it adds an
@@ -325,9 +323,9 @@ to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
 something about `record` in an instance variable, as the instance serves every
 record of the model. For `schemas_for(Photo)` and `json_schema.json`, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
-from them, while `unless: -> { record&.private? }` shows it. Hidden attributes are
-added to the record's excludes, so they aren't rendered or named in validation
-errors, and a Schema that could vary by requester counts as an exclude rule, so
+from them, while `unless: -> { record&.private? }` shows it. Hidden and
+undeclared attributes are added to the record's excludes, so they aren't
+rendered or named in validation errors, and a Schema that could vary by requester counts as an exclude rule, so
 fragments that include its model aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
@@ -395,8 +393,8 @@ own, the base class's `attributes` and Schema are used
 (`document_attributes`, `DocumentSchema`), as they are for `orders`,
 `includes` and `wheres`.
 
-`schema.json` is built from `schemas_for` too, so it lists the same attributes
-with the same `readonly`. A column's `type` still comes from its SQL type unless
+`schema.json` lists the same attributes as `schemas_for`, with the same
+`readonly`. A column's `type` still comes from its SQL type unless
 a Schema declares another, so it reports `datetime` for date and time columns,
 `hash` for JSON and `decimal` for floats.
 
