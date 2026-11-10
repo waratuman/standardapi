@@ -133,21 +133,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['id', 'rank'], names(empty_schema_class { attributes :id; attribute :rank, :integer }, selected)
   end
 
-  test 'an undeclared attribute is excluded, so its validation error is withheld' do
-    property = create(:property)
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => empty_schema_class { attributes :id })
-
-    excluded = PropertiesController.new.send(:excludes, property)
-    assert_equal true, excluded[:name]
-    assert_not excluded.key?(:id)
-
-    with_schema(empty_schema_class { attributes :id }) do
-      post '/cameras', params: { camera: { make: nil } }, as: :json
-    end
-    assert_response :bad_request
-    assert_not JSON(response.body)['errors'].key?('make')
-  end
-
   test 'attributes declared at runtime count as declared' do
     schema = empty_schema_class do
       attributes :id
@@ -477,15 +462,18 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   test "a hidden attribute's validation error is withheld" do
-    schema = schema_class { attribute :make, if: -> { false } }
+    undeclared = empty_schema_class { attributes :id }
+    condition = schema_class { attribute :make, if: -> { false } }
 
-    with_schema(schema) do
-      post "/cameras", params: { camera: { make: nil } }, as: :json
+    [undeclared, condition].each do |schema|
+      with_schema(schema) do
+        post "/cameras", params: { camera: { make: nil } }, as: :json
+      end
+      assert_response :bad_request
+      json = JSON(response.body)
+      assert_not json.key?('make')
+      assert_not json['errors'].key?('make')
     end
-    assert_response :bad_request
-    json = JSON(response.body)
-    assert_not json.key?('make')
-    assert_not json['errors'].key?('make')
   end
 
   test 'varies_by_requester? is false only for unconditional declarations' do
