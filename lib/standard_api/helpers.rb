@@ -79,10 +79,10 @@ module StandardAPI
       end
     end
 
-    # The attributes of +model+ as StandardAPI exposes them. `json_schema.json`
-    # is built from this, so code that needs the same information (an MCP tool
-    # describing a model, say) can read it directly instead of rendering a
-    # schema view and parsing it back.
+    # The attributes of +model+ as StandardAPI exposes them. The JSON Schemas
+    # (StandardAPI::JSONSchema) are built from this, so code that needs the
+    # same information (an MCP tool describing a model, say) can read it
+    # directly instead of fetching a schema and parsing it back.
     #
     # application/_record renders a record from `schemas_for(record)`, so the
     # definitions are also what a record is rendered with: an attribute its

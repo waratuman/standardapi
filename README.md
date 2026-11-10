@@ -118,7 +118,7 @@ following files:
       # Accepts an optional record so the permitted list can vary per record
       # (e.g. based on ownership or state). The record is `nil` when there is no
       # record in context — most notably when rendering `schema.json` /
-      # `json_schema.json` — so always guard against `nil` (or default it).
+      # `schema/write.json` — so always guard against `nil` (or default it).
       def attributes(record = nil)
         [ :caption ]
       end
@@ -321,7 +321,7 @@ each record, takes no arguments and reads the record from `record`. A controller
 method can't read `record`, so a named one is called without it; pass the record
 to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
 something about `record` in an instance variable, as the instance serves every
-record of the model. For `schemas_for(Photo)` and `json_schema.json`, `record` is
+record of the model. For `schemas_for(Photo)` and the JSON Schemas, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
 from them, while `unless: -> { record&.private? }` shows it. Hidden and
 undeclared attributes are added to the record's excludes, so they aren't
@@ -344,8 +344,9 @@ record, key it with `attributes_for`:
 
     attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 
-`schemas_for(Photo)` returns the result, and `json_schema.json` and
-`schema.json` are built from it. Records are rendered from it too:
+`schemas_for(Photo)` returns the result, and `schema.json` and the JSON Schemas
+(see [Schema Discovery](#schema-discovery)) are built from it. Records are
+rendered from it too:
 `application/_record` renders the attributes in `schemas_for(record)`.
 `schemas_for` is available in controllers
 and views, so other code (an MCP tool describing your models, for instance) can
@@ -372,8 +373,8 @@ attributes share their definitions before the Schema sees them.
 | `default`        | The column default cast to Ruby. For an enum, the name of the default                                       |
 | `primary_key`    | Whether it is the primary key                                                                               |
 | `null`           | Whether the column allows `NULL`                                                                            |
-| `array`          | Whether the column is an array. `type` is then the type of its elements. `json_schema.json` puts `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
-| `comment`        | The column comment. `json_schema.json` renders it as `description`                                          |
+| `array`          | Whether the column is an array. `type` is then the type of its elements. The JSON Schemas put `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
+| `comment`        | The column comment. The JSON Schemas render it as `description`                                             |
 | `auto_populated` | Whether the database fills it in (a serial id, a function default), so a create needn't set it. It doesn't make it `read_only` |
 | `read_only`      | Not in the ACL's `attributes`, or readonly on the model (`attr_readonly`)                                   |
 | `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
@@ -428,6 +429,14 @@ what it hid out of each model's Schema, which renders only what it declares:
     class UserSchema < StandardAPI::Schema
       attributes :id, :name, :email
     end
+
+`json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
+and `schema/query.json` (see [Schema Discovery](#schema-discovery)). For the
+shape of a record, with includes, use `schema/read.json`; for what a create or
+update accepts, `schema/write.json`, which lists only the attributes the ACL
+permits. `include[only]` and `include[except]` have no equivalent. A route
+that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
+name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 # API Usage
 Resources can be queried via REST style end points
@@ -503,6 +512,69 @@ The only change on calculate routes is the `selects` paramater contains the func
 [{ count: '*', maximum: :id, minimum: :id }]            SELECT COUNT(*), MAXIMUM(id), MINIMUM(id)
 [{ maximum: :id }, { maximum: :count }]                 SELECT MAXIMUM(id), MAXIMUM(count)
 ```
+
+## Schema Discovery
+
+Each resource serves three [JSON Schemas](https://json-schema.org/draft/2020-12)
+(2020-12) built from its ACL and Schema, so a client (an MCP tool, for
+instance) can learn what it may send and what it will get back:
+
+```
+GET /records/schema/read.json   a record as #show and #index render it
+GET /records/schema/write.json  params #create and #update accept
+GET /records/schema/query.json  params #index and #calculate accept
+```
+
+Each route is only drawn with the actions it describes: `read_schema` with
+`show` or `index`, `write_schema` with `create` or `update`, and
+`query_schema` with `index` or `calculate`. Attributes are described from
+their definitions in `schemas_for(model)` (see [Schemas](#schemas)), so only
+what the model's Schema declares is described, with the `record` its
+conditions see being `nil`.
+
+- **`schema/read.json`** describes every definition as rendered (decimals as
+  strings, binary columns as hex), and the associations in the `include`
+  param, which is checked against the ACL's `includes` as on `#index`. A
+  singular association allows `null` unless its presence is validated.
+  Columns and includes are `required`; other attributes aren't, since a
+  partial `select` can leave them out. When an ACL `excludes` or a Schema
+  condition could hide something from a record, what it hides is still
+  described and nothing is `required`. A model with a custom partial is
+  described as any object.
+- **`schema/write.json`** describes `{ "record": { ... } }` with only the
+  attributes the ACL's `attributes(nil)` permit, with their validations, and
+  the associations its `nested` permits (by attributes, `_ids` and foreign
+  key). One the ACL permits but the Schema doesn't declare is `{}`.
+  `required` lists the definitions' `required`, for a create; an update may
+  send any of the properties. A `read_only` definition is `readOnly`: an
+  `attr_readonly` attribute, which can be set on create but not changed, or
+  one the Schema declares read only. A model with an ACL `filter` is
+  described as any object.
+- **`schema/query.json`** describes `where`, `order` and `include` as the
+  ACL's `wheres`, `orders` and `includes` permit them, following associations
+  into the associated models' ACLs through `$defs`, plus `limit`, `offset`,
+  `distinct`, and `group_by` as the model's columns. An include's `where` and
+  `order` are those the included model's ACL permits. A column permitted with
+  any operator lists the operators that apply to its type. An include's `when`
+  lists the attributes of the model it's on that its ACL `wheres` permit an
+  `eq` on. It also describes the params no ACL checks yet, as they're used,
+  with a description ending "Not checked by the ACL.": `distinct_on`, `join`,
+  `#calculate`'s `select`, and `distinct_on` within an include. `limit` is
+  required unless there is a `default_limit`, or the query has a `select`
+  (`#calculate`).
+
+The schemas are built by `read_schema_for(model, includes)`,
+`write_schema_for(model)` and `query_schema_for(model)`, which are public like
+`schemas_for`. Called on a controller handling a request, they give what the
+actions render, so a caller can validate params in-process before running an
+action. `query_schema_for` builds the where, order and include of every model
+reachable through a permitted association into `$defs`; given `ref:`, it
+leaves other models to the caller:
+
+    query_schema_for(Property, ref: ->(model, kind) {
+      # kind is "Where", "Order" or "Include"; nil builds it into $defs
+      { '$ref' => "myapp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+    })
 
 # Testing
 
