@@ -245,70 +245,120 @@ timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
-A model's controller can declare how its attributes are described with a
-`Schema` module, nested in it like an `ACL`. `StandardAPI::Schemas` is the
-sibling of `StandardAPI::AccessControlList` that finds them; include it in
-your base controller (`include StandardAPI` includes both):
-
-    class ApplicationController
-      include StandardAPI::Controller
-      include StandardAPI::AccessControlList
-      include StandardAPI::Schemas
-    end
-
-The `Schema`'s `schemas(default_schema, record)` receives the definitions
-StandardAPI builds for the model and the record being rendered (`nil` for
-`schemas_for(Photo)` and `json_schema.json`), and returns the definitions to
-use, so it can change, drop or add attributes:
+A model's controller can declare how its attributes are described by nesting a
+subclass of `StandardAPI::Schema`, like an `ACL`. `StandardAPI::Controller`
+finds them, and every model it renders needs one:
 
     class PhotosController < ApplicationController
-      module Schema
-        def schemas(default_schema, record)
-          default_schema.map do |schema|
-            schema[:name] == 'caption' ? schema.merge(comment: 'Shown under the photo') : schema
-          end
-        end
+      class Schema < StandardAPI::Schema
+        attributes :id, :format, :created_at                 # use these as they are
+        attribute :caption, comment: 'Shown under the photo' # use one and change it
+        attribute :thumbnail_url, :string                    # add one
+        attribute :location, if: :admin?                     # hide one, per request
       end
     end
 
-The ACL is about access, so `schemas` isn't an ACL method, and one an ACL
-defines isn't renamed or used. A `Schema` module is found and
-included in ApplicationController the same way as a nested `ACL`, under the
-model's name (`photo_schemas`), so every controller describes and renders a
-Photo the same way, including as an include of a property. Two controllers of
-one model with a `Schema`, or a `Schema` and an ACL defining the same method,
-raise `StandardAPI::InvalidConfiguration`. Without `StandardAPI::Schemas` in
-the base controller, `Schema` modules are ignored and the definitions are
-used as StandardAPI builds them.
+Like strong parameters, a Schema is explicit: only the attributes it declares
+are rendered or described, so a column added later stays hidden until it's
+listed. Types, defaults and validations of a declared attribute still come from
+the model. Undeclared attributes are added to the record's excludes too, so they
+aren't named in validation errors.
 
-`schemas_for(Photo)` returns the result, and `json_schema.json` is built from
-it. Records are rendered from it too: `application/_record` renders the
-attributes in `schemas_for(record)`, so an attribute `Schema#schemas` leaves
-out isn't rendered, and one it adds is
-read from the record by name (`record.thumbnail_url`). `schemas_for` is
-available in controllers and views, so other code (an MCP tool describing your
-models, for instance) can read the same definitions without rendering a schema
-view and parsing it back.
+`remove` takes back a declaration, such as one inherited from a parent Schema.
 
-Before `Schema#schemas` sees them, there is one definition per entry in
+Every model that's rendered or described needs a Schema, including one only
+rendered as an include, or `StandardAPI::MissingSchema` is raised, so nothing is
+exposed that no one chose to. A model with no controller of its own declares
+its Schema by name, `ToolCallSchema` for `ToolCall`:
+
+    class ToolCallSchema < StandardAPI::Schema
+      attributes :id, :name, :arguments
+    end
+
+An STI subclass uses the Schema of its base class if it has none of its own.
+A custom partial that doesn't use `schemas_for` isn't checked.
+
+`attribute` takes any key of the definition below. With a type it adds an
+attribute the model doesn't have, read from the record by name
+(`record.thumbnail_url`), and read only unless it says otherwise. Without a
+type, naming an attribute the model doesn't have raises, as does an unknown
+option. A real attribute a query didn't select stays out of that record's
+definitions, whatever is declared for it.
+
+Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
+private methods stay on the Schema rather than the controller.
+
+The Schema runs on one instance per model for the length of a request. A method
+it doesn't define goes to its `controller`, private ones and ACL methods
+included, so `params` and `admin?` just work. The Schema's own methods win, so
+`attributes`, `model` and `schemas` are its own; call `controller.model` for the
+controller's. Don't call `excludes` or `schemas_for` from a condition, as they
+call back into the Schema.
+
+Every controller describes and renders a Photo with the same Schema, including
+as an include of a property, so two controllers of one model with a Schema
+raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
+a `StandardAPI::Schema`.
+
+`attributes_for` declares attributes only known at runtime. Its key is a method
+name or Proc that reads `record` (`nil` for a model), and records with the same
+key share the result. The block runs on the instance once a request per key, is
+given the key, and declares with `attribute`, `attributes` and `remove`. `record`
+raises in the block, since its result is shared between records:
+
+    attributes_for :account_id do |account_id|
+      Field.where(account_id: account_id).each do |field|
+        attribute field.key, field.value_type, comment: field.name
+      end
+    end
+
+    private
+
+    def account_id
+      record&.account_id || params[:account_id]
+    end
+
+`if` and `unless` take a method name or Proc that runs on the instance, once for
+each record, takes no arguments and reads the record from `record`. A controller
+method can't read `record`, so a named one is called without it; pass the record
+to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
+something about `record` in an instance variable, as the instance serves every
+record of the model. For `schemas_for(Photo)` and `json_schema.json`, `record` is
+`nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
+from them, while `unless: -> { record&.private? }` shows it. Hidden attributes are
+added to the record's excludes, so they aren't rendered or named in validation
+errors, and a Schema that could vary by requester counts as an exclude rule, so
+fragments that include its model aren't cached.
+
+Hiding an attribute controls what the API shows, not what it permits: its ACL
+still decides whether it can be written, and filtered or ordered by, which can
+reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
+for associations.
+
+`varies_by_requester?` is true for a Schema with `if`, `unless` or
+`attributes_for`. Override it when a Schema doesn't vary, so fragments can be
+cached.
+
+A Schema's definitions come only from its declarations. Defining `schemas` on
+a Schema raises `StandardAPI::InvalidConfiguration`, because an override could
+render what `hidden_attributes` doesn't exclude. For a value that differs by
+record, key it with `attributes_for`:
+
+    attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
+
+`schemas_for(Photo)` returns the result, and `json_schema.json` and
+`schema.json` are built from it. Records are rendered from it too:
+`application/_record` renders the attributes in `schemas_for(record)`.
+`schemas_for` is available in controllers
+and views, so other code (an MCP tool describing your models, for instance) can
+read the same definitions without rendering a schema view and parsing it back.
+
+Before the Schema sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
 attributes its query selected. A record loaded with `select(:id)` has only
 `id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
 `nil` type since the model doesn't have it. Records of a model with the same
-attributes share their definitions before `Schema#schemas` sees them.
-
-The record lets the definitions vary by record:
-
-    module Schema
-      def schemas(default_schema, record)
-        return default_schema if !record&.private?
-        default_schema.reject { |schema| schema[:name] == 'location' }
-      end
-    end
-
-`schemas` is called once per record rendered, with the definitions the
-records share, so return new Hashes (`merge`, `reject`, `map`) rather than
-changing the ones it is given.
+attributes share their definitions before the Schema sees them.
 
     schemas_for(Property).find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
@@ -331,30 +381,24 @@ changing the ones it is given.
 | `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
-An attribute declared without a column (`attribute :nickname, :string`) has
-`nil` for `default`, `null`, `comment` and `auto_populated`. The ACL's
-`attributes` is called without a record (`attributes(nil)`), so `read_only` is
-the answer for the model as a whole.
+An attribute the model declares without a column (`attribute :nickname,
+:string` in the model) has `nil` for `default`, `null`, `comment` and
+`auto_populated`. The ACL's `attributes` is called without a record
+(`attributes(nil)`), so `read_only` is the answer for the model as a whole.
 
-A definition `Schema#schemas` returns needs a `name` and a `type` (`nil` for
-one with no JSON Schema mapping); `json_schema.json` raises without them. It
-treats any other key it leaves out as unset, and works out `readOnly` from the
-ACL's `attributes`, as `read_only` is built, so an added attribute is read only
-unless the ACL permits writing it. Records are rendered with it, so the record
-must respond to it:
-
-    def schemas(default_schema, record)
-      default_schema + [{ name: 'thumbnail_url', type: 'string' }]
-    end
+A Schema `attribute` adding one the model doesn't have starts from
+`StandardAPI::Schema::Builder::DEFAULTS`: `null` and `read_only` are `true`,
+`auto_populated` is `false`.
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
-own, the base class's `attributes` and `schemas` are used
-(`document_attributes`, `document_schemas`), as they are for `orders`,
+own, the base class's `attributes` and Schema are used
+(`document_attributes`, `DocumentSchema`), as they are for `orders`,
 `includes` and `wheres`.
 
-`schema.json` is not built from `schemas_for`, and `Schema#schemas` doesn't
-affect it: its `type` still comes from the column's SQL type, so it reports
-`datetime` for date and time columns, `hash` for JSON and `decimal` for floats.
+`schema.json` is built from `schemas_for` too, so it lists the same attributes
+with the same `readonly`. A column's `type` still comes from its SQL type unless
+a Schema declares another, so it reports `datetime` for date and time columns,
+`hash` for JSON and `decimal` for floats.
 
 ##### Upgrading from 8.x
 
@@ -370,8 +414,22 @@ and accept the record:
       { caption: !photo.public? }
     end
 
-Zero-arity ACL `excludes` methods still work temporarily, but emit a
-deprecation warning and should be updated to accept the record.
+An ACL `excludes` method must accept the record; one that takes no arguments
+raises `ArgumentError`.
+
+`ApplicationHelper#excludes` is no longer used, and the app won't boot while
+it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
+what it hid out of each model's Schema, which renders only what it declares:
+
+    # Before, in ApplicationHelper
+    def excludes
+      { user: [:password_digest] }
+    end
+
+    # After: UserSchema doesn't declare password_digest
+    class UserSchema < StandardAPI::Schema
+      attributes :id, :name, :email
+    end
 
 # API Usage
 Resources can be queried via REST style end points

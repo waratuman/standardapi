@@ -11,6 +11,7 @@ module StandardAPI
     delegate :preloadables, :model_partial, :schemas_for, to: :helpers
 
     def self.included(klass)
+      klass.include StandardAPI::Schemas
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
@@ -208,17 +209,8 @@ module StandardAPI
       # end
     end
 
-    # The method +name+ an ACL or Schema defines for +model+ once
-    # Helpers.include_renamed has renamed it, ie. +property_attributes+,
-    # falling back to the one for its base class (ie. an STI subclass), or nil
-    # if there is none
-    def model_method_for(model, name)
-      [model, model.base_class].uniq.map { |k| "#{model_name(k)}_#{name}" }.find do |method|
-        self.respond_to?(method, true)
-      end
-    end
-
-    # The prefix +model+'s ACL and Schema methods are renamed under
+    # The prefix +model+'s ACL methods are renamed under, and its Schema is
+    # registered under
     def model_name(model)
       if model.model_name.singular.starts_with?('habtm_')
         model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
@@ -275,42 +267,19 @@ module StandardAPI
     end
 
     # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record; a zero-arity definition is
-    # still supported but deprecated, matching #model_attributes.
+    # takes the record so it can decide per record.
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
-      raw = if self.respond_to?(acl_method, true)
-        if self.method(acl_method).arity == 0
-          logger.warn <<~NOTE.strip_heredoc
-            DEPRECATION WARNING: #{ record.class.name }ACL#excludes() has been deprecated, use #{ record.class.name }ACL#excludes(record) instead
-          NOTE
-          self.send(acl_method)
-        else
-          self.send(acl_method, record)
-        end
-      else
-        application_helper_excludes[model_name(record.class)] || []
-      end
-      StandardAPI::Excludes.normalize(raw)
-    end
+      excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
 
-    # ApplicationHelper#excludes is keyed by model and takes no record, so it
-    # is the same for every record in a response. Build it once per request:
-    # #excludes runs per rendered record, and the anonymous class this needs
-    # is not free to make — each one invalidates Ruby's global method cache.
-    def application_helper_excludes
-      return @application_helper_excludes if defined?(@application_helper_excludes)
-
-      @application_helper_excludes =
-        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        else
-          ActiveSupport::HashWithIndifferentAccess.new
-        end
+      # What a Schema hides is excluded too, so it stays out of validation errors
+      hidden = model_hidden_attributes(record)
+      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
     # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method or from ApplicationHelper#excludes.
+    # +excludes+ method or from a Schema whose definitions could vary by
+    # requester.
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -320,7 +289,7 @@ module StandardAPI
       return @excludes_defined[klass] if @excludes_defined.key?(klass)
 
       @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
+        !!model_schema(klass)&.class&.varies_by_requester?
     end
 
     # True when rendering +klass+ with +includes+ could be affected by an

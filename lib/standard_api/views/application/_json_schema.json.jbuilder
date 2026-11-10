@@ -1,18 +1,18 @@
 required = Set.new
+# Only the document's root declares its dialect
+json.set! '$schema', local_assigns[:schema] if local_assigns[:schema]
 json.set! 'title', model.table_name.titleize.singularize
 # A singular association rendered as an include may be absent
 json.set! 'type', local_assigns[:nullable] ? ['object', 'null'] : 'object'
 if comment = model.connection.table_comment(model.table_name)
   json.set! 'description', comment
 end
-# The attributes the ACL lets a client write; any other is read only
-permitted = controller.model_attributes(model)&.map(&:to_s)
 json.set! 'properties' do
   schemas_for(model).each do |schema|
-    name = schema.fetch(:name)
+    name = schema[:name]
     next if includes["only"]&.exclude?(name)
     next if includes["except"]&.include?(name)
-    schema_properties = json_schema_for_type(schema.fetch(:type))
+    schema_properties = json_schema_for_type(schema[:type])
 
     required.add(name) if schema[:required]
 
@@ -53,9 +53,7 @@ json.set! 'properties' do
       when :presence
         # Already counted in schema[:required]
       else
-        puts "******* MISSING VALIDATOR **********"
-        puts v.inspect
-        warn "missing validator"
+        Rails.logger.debug("#{model.name}##{name} #{v[:kind]} validation has no JSON Schema equivalent, so it's left out")
       end
     end
 
@@ -63,20 +61,20 @@ json.set! 'properties' do
     schema_properties["enum"] = schema[:enum] if schema[:enum]
     # A column that allows NULL renders null, as does a definition that
     # doesn't say
-    if schema.fetch(:null, true) && !schema[:array]
+    if schema[:null] && !schema[:array]
       schema_properties[:type] = Array(schema_properties[:type]) + ['null'] if schema_properties[:type]
       schema_properties["enum"] += [nil] if schema_properties["enum"]
     end
 
     json.set! name do
       if schema[:array]
-        json.set! 'type', schema.fetch(:null, true) ? ['array', 'null'] : 'array'
+        json.set! 'type', schema[:null] ? ['array', 'null'] : 'array'
         json.set! 'items', schema_properties
       else
         json.merge! schema_properties
       end
       # For an array these describe the array, not its items
-      json.set! 'readOnly', true if (permitted && permitted.exclude?(name)) || model.readonly_attribute?(name)
+      json.set! 'readOnly', true if schema[:read_only]
       json.set! 'default', schema[:default] if !schema[:default].nil?
       json.set! 'description', schema[:comment] if schema[:comment]
     end

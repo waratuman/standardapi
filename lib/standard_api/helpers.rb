@@ -5,7 +5,7 @@ module StandardAPI
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
     # prefix for each controller with one, so AccessControlList and Schemas
-    # can include it into the base controller for every controller to use.
+    # can make it available to every controller.
     def self.each_nested(owner, const)
       ActionController::Metal.descendants.each do |controller|
         next if !controller.const_defined?(const, false)
@@ -17,32 +17,6 @@ module StandardAPI
 
         yield base, controller.const_get(const, false), controller.model.model_name.singular
       end
-    end
-
-    # Rename the methods of +mod+ in +renames+ (+{ attributes:
-    # 'photo_attributes' }+) and include it into +application_controller+. A
-    # module already renamed is left as it is. Raises if another module
-    # included this way defines any of the same methods, as one would silently
-    # override the other.
-    def self.include_renamed(application_controller, mod, renames)
-      renames.each do |from, to|
-        next if !mod.instance_methods.include?(from)
-        mod.send :alias_method, to.to_sym, from
-        mod.send :remove_method, from
-      end
-      mod.instance_variable_set(:@standard_api_model_module, true)
-
-      others = application_controller.ancestors.select { |m|
-        m != mod && m.instance_variable_get(:@standard_api_model_module)
-      }
-      (mod.instance_methods(false) + mod.private_instance_methods(false)).each do |method|
-        other = others.find { |m| m.method_defined?(method, false) || m.private_method_defined?(method, false) }
-        next if !other
-
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name } and #{ other.name } both define #{ method }; the ACLs and Schemas of one model are shared by all of its controllers, so define them once"
-      end
-
-      application_controller.include mod
     end
 
     def serialize_attribute(json, record, name, type)
@@ -111,9 +85,9 @@ module StandardAPI
     # schema view and parsing it back.
     #
     # application/_record renders a record from `schemas_for(record)`, so the
-    # definitions are also what a record is rendered with: an attribute
-    # `Schema#schemas` leaves out isn't rendered, and one it adds is read from
-    # the record by name.
+    # definitions are also what a record is rendered with: an attribute its
+    # Schema leaves out isn't rendered, and one it adds is read from the record
+    # by name.
     #
     # Given a model, returns an Array of Hashes, one per attribute in
     # `model.attribute_names` order: the columns, then any attributes declared
@@ -159,16 +133,16 @@ module StandardAPI
     # `auto_populated`.
     #
     # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. If the model's controller nests a
-    # `Schema` module, the built definitions and the record (nil for a model)
-    # are passed through its `schemas(default_schema, record)` and its return
-    # value is used.
+    # `read_only` is the model wide answer. The built definitions and the record
+    # (nil for a model) are passed through `schemas(default_schema, record)` of
+    # the model's StandardAPI::Schema and its return value is used. A model with
+    # no Schema raises StandardAPI::MissingSchema.
     #
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. `schemas`
     # is called once per model and once per record, with those shared
-    # definitions, so it must return new Hashes rather than change the ones
-    # it is given.
+    # definitions, so an override must return new Hashes rather than change
+    # the ones it is given.
     def schemas_for(record_or_model)
       if record_or_model.is_a?(Class)
         model = record_or_model
@@ -188,7 +162,6 @@ module StandardAPI
           attribute_schema(model, name, columns[name], permitted_attributes.nil? || permitted_attributes.include?(name))
         end
       end
-      return schemas if !controller.respond_to?(:model_schemas)
 
       if record
         @record_schemas_for ||= {}.compare_by_identity
@@ -429,6 +402,17 @@ module StandardAPI
       end
     end
 
+    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # column keeps its SQL based type, unless a Schema declared another.
+    def schema_json_type(model, schema)
+      column = model.columns_hash[schema[:name]]
+      attribute_type = model.type_for_attribute(schema[:name])
+      built = attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? 'string' : attribute_type.type&.to_s
+      return schema[:type] if !column || schema[:type] != built
+
+      attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? built : json_column_type(column.sql_type)
+    end
+
     def json_column_type(sql_type)
       case sql_type.to_s.downcase
       when 'binary', 'bytea', 'blob'
@@ -467,48 +451,6 @@ module StandardAPI
         'string'
       when /\Ageometry/
         'ewkb'
-      end
-    end
-    
-    # For JSON Schema
-    def json_column_schema(sql_type)
-      case sql_type.to_s.downcase
-      when 'binary', 'bytea', 'blob'
-        # TODO contentMediaType correct?
-        # contentEncoding?
-        # https://json-schema.org/understanding-json-schema/reference/non_json_data
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      when 'duration'
-        {type: 'string', format: 'duration'}
-      when 'text'
-        {type: 'string'}
-      when 'json', 'jsonb'
-        {type: 'object'}
-      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
-        {type: 'integer'}
-      when 'hstore'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'object'}
-      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
-        {type: 'string', format: 'date-time'}
-      when 'date'
-        {type: 'string', format: 'date'}
-      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
-        {type: 'number'}
-      when 'inet'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'ltree'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'boolean'
-        {type: 'boolean'}
-      when 'uuid'
-        {type: 'string', format: 'uuid'}
-      when /\A(?:character varying|varchar)(\(\d+\))?$/
-        {type: 'string'}
-      when /\Ageometry/
-        {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end
 
