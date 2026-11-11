@@ -34,7 +34,9 @@ module StandardAPI
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
           association = model.reflect_on_association(name)
-          required << name.to_s
+          # #index only renders an include with a +when+ for the records that
+          # match it
+          required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')
           properties[name.to_s] = if !association
             {}
           elsif association.polymorphic?
