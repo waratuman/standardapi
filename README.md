@@ -186,7 +186,7 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
 It is included in ApplicationController the same way as an
 `app/controllers/acl` file, under the model's name (`photo_attributes`,
 `photo_orders`, ...), so it is never included in its own controller and its
-`includes`, `orders` and `excludes` don't override the controller's own.
+`includes` and `orders` don't override the controller's own.
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
 
@@ -198,50 +198,36 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-##### Excludes and custom partials
+An ACL decides what can be written, filtered, ordered and included. What's
+shown is up to the model's Schema (see [Schemas](#schemas)); an ACL that
+defines `excludes` raises `StandardAPI::InvalidConfiguration` when it's loaded.
 
-An ACL may also define `excludes(record)`, returning the attributes and
-relations to strip from the response for that record:
+##### Custom partials
 
-    module PhotoACL
-      def excludes(record)
-        {
-          # hide an attribute
-          caption: !record.public?,
-          # drop a whole relation
-          camera: record.anonymous?,
-          # or reach into one
-          account: [ :email ]
-        }
-      end
-    end
-
-Only `true` excludes a key. `false`, `nil` and empty collections exclude
-nothing, so predicates can be assigned directly as above.
-
-**Excludes are enforced in `application/_record` only.** If you have written a
+**Schemas are enforced in `application/_record` only.** If you have written a
 custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
-partial has to apply the excludes. Two helpers are provided:
+partial has to apply what the Schema hides. Two helpers are provided:
 
     excluded = resolve_excludes(photo, local_assigns[:excludes])
 
     json.set! :caption, photo.caption unless excluded[:caption] == true
 
-    # forward the sub-tree when nesting another record
+    # forward what narrows the records of an association
     if includes[:account] && excluded[:account] != true
       json.partial! 'application/record', record: photo.account,
         includes: includes[:account], excludes: sub_excludes(excluded, :account)
     end
 
-`resolve_excludes` merges the record's own ACL excludes with whatever the
-parent partial passed down; `sub_excludes` returns the sub-tree to forward for
-a given key. `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is
-a complete worked example.
+`resolve_excludes` gives what the record's Schema, and any Schemas narrowing it
+that the parent partial passed down, don't render, as `name => true`;
+`sub_excludes` returns what to forward for a given association.
+`test/standard_api/test_app/views/photos/_photo.json.jbuilder` is a complete
+worked example.
 
-Fragment caching is disabled automatically for any response an exclude rule or
-a `mask_for` row mask could affect, since cache keys are built from record
-timestamps and cannot distinguish one requester from another.
+Fragment caching is disabled automatically for any response a Schema that
+varies by requester or a `mask_for` row mask could affect, since cache keys are
+built from record timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
@@ -304,8 +290,8 @@ The Schema runs on one instance per model for the length of a request. A method
 it doesn't define goes to its `controller`, private ones and ACL methods
 included, so `params` and `admin?` just work. The Schema's own methods win, so
 `attributes`, `model` and `schemas` are its own; call `controller.model` for the
-controller's. Don't call `excludes` or `schemas_for` from a condition, as they
-call back into the Schema.
+controller's. Don't call `schema_excludes`, `resolve_excludes` or `schemas_for`
+from a condition, as they call back into the Schema.
 
 Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
@@ -339,9 +325,9 @@ something about `record` in an instance variable, as the instance serves every
 record of the model. For `schemas_for(Photo)` and the JSON Schemas, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
 from them, while `unless: -> { record&.private? }` shows it. Hidden and
-undeclared attributes are added to the record's excludes, so they aren't
-rendered or named in validation errors, and a Schema that could vary by requester counts as an exclude rule, so
-fragments that include its model aren't cached.
+undeclared attributes aren't rendered or named in validation errors, and
+fragments that include the model of a Schema that could vary by requester
+aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
 still decides whether it can be written, and filtered or ordered by, which can
@@ -450,20 +436,26 @@ a Schema declares another, so it reports `datetime` for date and time columns,
 
 ##### Upgrading from 8.x
 
-`Controller#excludes_for(klass)` has been replaced by `excludes(record)`, so
-that ACL rules can vary by record. Move exclusion logic into the model's ACL
-and accept the record:
+`Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
+model's Schema, which renders only what it declares and can hide an attribute
+or association per record. An ACL that defines `excludes` raises
+`StandardAPI::InvalidConfiguration` when it's loaded:
 
-    # Before
-    excludes_for(Photo)
-
-    # After, in PhotoACL
+    # Before, in PhotoACL
     def excludes(photo)
-      { caption: !photo.public? }
+      { caption: !photo.public?, camera: photo.anonymous?, account: [:email] }
     end
 
-An ACL `excludes` method must accept the record; one that takes no arguments
-raises `ArgumentError`.
+    # After
+    class PhotoSchema < StandardAPI::Schema
+      attribute :caption, if: -> { record&.public? }
+      association :camera, unless: -> { record&.anonymous? }
+      association :account, schema: AccountWithoutEmailSchema
+    end
+
+A custom partial calls `resolve_excludes(record, local_assigns[:excludes])` as
+before, and `Controller#excludes(record)` is now
+`schema_excludes(record.class, record)`.
 
 `ApplicationHelper#excludes` is no longer used, and the app won't boot while
 it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
@@ -586,8 +578,8 @@ conditions see being `nil`.
   param, which is checked against the ACL's `includes` as on `#index`. A
   singular association allows `null` unless its presence is validated.
   Columns and includes are `required`; other attributes aren't, since a
-  partial `select` can leave them out. When an ACL `excludes` or a Schema
-  condition could hide something from a record, what it hides is still
+  partial `select` can leave them out. When a Schema condition could hide
+  something from a record, what it hides is still
   described and nothing is `required`. A model with a custom partial is
   described as any object.
 - **`schema/write.json`** describes `{ "record": { ... } }` with only the

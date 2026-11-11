@@ -200,72 +200,41 @@ module StandardAPI
     end
     private :attribute_schema
 
-    # The excludes that apply to +record+ inside a partial: the record's own
-    # ACL excludes deep-merged with whatever the parent partial passed down as
-    # the `excludes` local.
+    # What +record+'s Schema, and the Schemas narrowing it, don't render, as
+    # name => true, inside a partial (Schemas#schema_excludes). +inherited+ is
+    # the `excludes` local the parent partial passed down, which carries the
+    # narrowing Schemas.
     #
     # Custom model partials MUST call this and honour the result. StandardAPI
-    # enforces excludes in application/_record only; it cannot filter
-    # attributes a hand-written partial serializes itself.
+    # enforces it in application/_record only; it cannot filter attributes a
+    # hand-written partial serializes itself.
     #
     #   excluded = resolve_excludes(photo, local_assigns[:excludes])
     #
     #   json.set! :format, photo.format unless excluded[:format] == true
     #
-    #   # forward the sub-tree when rendering a nested record
+    #   # forward what narrows a nested record
     #   json.partial! 'application/record', record: photo.account,
     #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
     def resolve_excludes(record, inherited = nil)
-      through = inherited[StandardAPI::Excludes::SCHEMAS] if inherited.is_a?(Hash)
-      own = if !respond_to?(:excludes)
-        nil
-      elsif through
-        excludes(record, through: through)
-      else
-        excludes(record)
-      end
+      return StandardAPI::Excludes.normalize(nil) if !respond_to?(:schema_excludes)
 
-      # The Schemas narrowing +record+ are applied here, not forwarded
-      excluded = StandardAPI::Excludes.deep_merge(own, inherited)
-      excluded.is_a?(Hash) ? excluded.except(StandardAPI::Excludes::SCHEMAS) : excluded
+      through = inherited[StandardAPI::Excludes::SCHEMAS] if inherited.is_a?(Hash)
+      schema_excludes(record.class, record, through: through)
     end
 
-    # The exclude sub-tree to forward for +key+, or nil when there is nothing
-    # to forward. Returns nil for a terminal `true` — that case means the key
-    # is dropped entirely and should never be rendered.
+    # What to forward to the records included through +key+: the Schemas
+    # narrowing them, or nil. nil too for a terminal `true`, which means the
+    # key is dropped entirely and should never be rendered.
     def sub_excludes(excluded, key)
       value = excluded[key]
       value.is_a?(Hash) ? value : nil
     end
 
-    # Apply an exclude sub-tree to a plain JSON value.
-    #
-    # An include can resolve to something that isn't a record — a method
-    # returning a Hash or an Array of Hashes — in which case there is no
-    # partial to enforce the excludes and the value would otherwise be
-    # serialized whole.
-    def apply_excludes(value, excluded)
-      return value if excluded.blank?
-
-      case value
-      when Array
-        value.map { |v| apply_excludes(v, excluded) }
-      when Hash
-        value.each_with_object({}) do |(key, v), result|
-          sub = excluded[key]
-          next if sub == true
-
-          result[key] = sub.is_a?(Hash) ? apply_excludes(v, sub) : v
-        end
-      else
-        value
-      end
-    end
-
     # Drop validation errors belonging to an excluded attribute. An error key
     # names the attribute it came from, and its message usually quotes the
     # value, so serializing the errors untouched hands back exactly what the
-    # exclude was hiding. Nested keys like `photos.caption` are matched on
+    # Schema was hiding. Nested keys like `photos.caption` are matched on
     # their leading segment.
     def reject_excluded_errors(errors, excluded)
       return errors if excluded.blank?
@@ -313,7 +282,7 @@ module StandardAPI
     end
 
     # False when rendering +klass+ with +includes+ could vary by requester,
-    # through an ACL exclude rule or a row mask. Cache keys are built from
+    # through a Schema that varies or a row mask. Cache keys are built from
     # record timestamps and the include digest alone, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.

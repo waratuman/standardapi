@@ -381,7 +381,7 @@ module StandardAPI
           end
         end
 
-        # An ACL exclude or a Schema condition can leave out any of them. What
+        # A Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
         required = [] if excludes?(model) || Array(through).any?(&:varies_by_requester?)
 

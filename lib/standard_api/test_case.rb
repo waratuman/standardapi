@@ -149,7 +149,7 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
+    excluded = @controller.schema_excludes(record.class, record)
     record.attributes.select do |x|
       excluded[x] != true
     end
@@ -157,7 +157,7 @@ module StandardAPI::TestCase
 
   def update_attributes(record)
     return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
+    excluded = @controller.schema_excludes(record.class, record)
     record.attributes.select do |x|
       !record.class.readonly_attributes.include?(x.to_s) && excluded[x] != true
     end

@@ -5,9 +5,13 @@
 ### Breaking changes
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
-- Replace `Controller#excludes_for(klass)` with per-record ACL
-  `excludes(record)` rules. A zero-arity ACL `excludes` raises
-  `ArgumentError`; accept the record argument.
+- Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
+  `excludes`. What's rendered is up to the model's Schema, which can hide an
+  attribute or association per record and narrow included records. An ACL
+  that defines `excludes` raises `StandardAPI::InvalidConfiguration` when it's
+  loaded. `schema_excludes(model, record)` gives what a Schema hides, and
+  `resolve_excludes` is built on it. `apply_excludes` is removed: an include
+  that resolves to a plain value is rendered whole.
 - Remove `ApplicationHelper#excludes`. While it's defined,
   `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
   boot; leave what it hid out of each model's Schema instead.
@@ -82,9 +86,8 @@
 
 ### Added
 
-- ACL excludes can remove attributes and nested associations from serialized
-  responses.
-- Exclude-aware serialization helpers for custom model partials.
+- Exclude-aware serialization helpers for custom model partials, which apply
+  what the record's Schema hides.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs
@@ -107,8 +110,7 @@
   A Schema declares the associations an include may render with `association`
   and `associations`; one it doesn't declare isn't rendered or described.
   `if` and `unless` hide one per record, and `schema:` narrows the included
-  records to what both it and their own Schema declare, so an ACL `excludes`
-  isn't needed to hide an association or reach into one.
+  records to what both it and their own Schema declare.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a

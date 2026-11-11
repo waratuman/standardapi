@@ -454,7 +454,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
 
-    excluded = PropertiesController.new.send(:excludes, property)
+    excluded = PropertiesController.new.schema_excludes(Property, property)
     assert_equal true, excluded[:name]
     assert_equal true, excluded[:description]
     assert_not excluded.key?(:size)

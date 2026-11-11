@@ -1,4 +1,7 @@
 module StandardAPI
+  # What a record's Schemas don't render, built by Schemas#schema_excludes:
+  # `name => true` for an attribute or association left out, and for an
+  # association whose records are narrowed, `name => { SCHEMAS => [schema] }`.
   module Excludes
 
     # The key under which an exclude tree lists the Schemas, from a parent's
@@ -7,80 +10,50 @@ module StandardAPI
     # them, and the Schemas of two parents are both applied.
     SCHEMAS = '$schemas'.freeze
 
-    # :x                            => { x: true }
-    # [:x, :y]                      => { x: true, y: true }
-    # { x: true, y: true }          => { x: true, y: true }
-    # [:x, { y: [:z] }]             => { x: true, y: { z: true } }
-    # { y: [:z] }                   => { y: { z: true } }
-    # { y: { z: true } }            => { y: { z: true } }
-    # { x: false, y: nil, z: [] }   => {}
-    #
-    # Only `true` excludes a whole key; falsy and empty values exclude nothing.
+    # +excludes+ (a Hash, or nil) with indifferent access and without the
+    # values that exclude nothing: anything but `true`, a Hash or SCHEMAS'
+    # list, and an empty Hash or list
     def self.normalize(excludes)
       normalized = ActiveSupport::HashWithIndifferentAccess.new
 
-      case excludes
-      when nil
-        # empty
-      when Array
-        excludes.flatten.compact.each { |v| normalized = deep_merge(normalized, v) }
-      when Hash, ActionController::Parameters
-        excludes.each_pair do |k, v|
-          value = case v
-          when true, 'true' then true
-          # A falsy or empty value means "nothing to exclude here". Without
-          # this an ACL written as `result[:make] = record.hidden?` would hide
-          # `make` on exactly the records it meant to show.
-          when false, 'false', nil then nil
-          else
-            sub = k.to_s == SCHEMAS ? Array(v).compact : normalize(v)
-            sub.empty? ? nil : sub
-          end
-          next if value.nil?
-
-          # Keys can collide even within one hash, since `:x` and `'x'` are the
-          # same key once normalized. Merge rather than overwrite so an earlier
-          # exclusion is never silently dropped.
-          normalized[k] = normalized.key?(k) ? merge_values(normalized[k], value) : value
+      (excludes || {}).each_pair do |key, value|
+        value = if key.to_s == SCHEMAS
+          Array(value).compact.presence
+        elsif value == true
+          true
+        elsif value.is_a?(Hash)
+          normalize(value).presence
         end
-      when Symbol, String
-        normalized[excludes] = true
+        next if value.nil?
+
+        # :x and 'x' are the same key once normalized
+        normalized[key] = normalized.key?(key) ? merge_values(normalized[key], value) : value
       end
 
       normalized
     end
 
-    # Deep-merge two normalized exclude hashes. A terminal `true` always wins
-    # over a sub-hash, so a child ACL cannot un-hide an attribute that a parent
-    # decided to hide, and vice versa.
+    # Merge two exclude trees. A terminal `true` always wins over a sub-hash,
+    # so neither side can un-hide what the other hid, and the Schemas of both
+    # narrow.
     def self.deep_merge(a, b)
       return true if a == true || b == true
-      return normalize(b) if a.nil? || (a.respond_to?(:empty?) && a.empty?)
-      return normalize(a) if b.nil? || (b.respond_to?(:empty?) && b.empty?)
 
-      a = normalize(a)
-      b = normalize(b)
-      result = a.dup
-
-      b.each do |k, v|
-        result[k] = result.key?(k) ? merge_values(result[k], v) : v
+      result = normalize(a)
+      normalize(b).each do |key, value|
+        result[key] = result.key?(key) ? merge_values(result[key], value) : value
       end
-
       result
     end
 
-    # Combine two values held under the same exclude key. A terminal `true`
-    # wins over a sub-hash, so neither side can un-hide what the other hid.
     def self.merge_values(a, b)
       if a == true || b == true
         true
       elsif a.is_a?(Hash) && b.is_a?(Hash)
         deep_merge(a, b)
-      elsif a.is_a?(Array) && b.is_a?(Array)
-        # The Schemas of SCHEMAS
-        a | b
       else
-        b
+        # The Schemas under SCHEMAS
+        a | b
       end
     end
     private_class_method :merge_values
