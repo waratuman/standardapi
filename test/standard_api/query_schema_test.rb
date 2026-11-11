@@ -55,6 +55,39 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_nil query_schema(query_schema_references_path(format: 'json')).dig('properties', 'where')
   end
 
+  test 'Controller#query_schema.json where reads an object as operators' do
+    path = query_schema_cameras_path(format: 'json')
+
+    # CameraACL wheres permit any operator on make, and eq and in on photo_id
+    with_camera_schema(proc { attribute :make, :json; attribute :photo_id, :unknown }) do
+      schema = query_schema(path)
+      schemer = schemer(schema)
+      assert JSONSchemer.valid_schema?(schema)
+
+      [
+        { 'make' => { 'eq' => { 'a' => 1 } } },
+        { 'make' => { 'has_key' => 'a' } },
+        { 'make' => true },
+        { 'photo_id' => 1 },
+        { 'photo_id' => 'a' },
+        { 'photo_id' => { 'eq' => 1 } },
+        { 'photo_id' => [1, 2] }
+      ].each do |where|
+        assert schemer.valid?({ 'where' => where, 'limit' => 1 }), where.inspect
+      end
+
+      [
+        # An object isn't a value to compare with, but operators
+        { 'make' => { 'a' => 1 } },
+        { 'make' => { 'bogus' => 1 } },
+        { 'photo_id' => { 'gt' => 1 } },
+        { 'photo_id' => { 'bogus' => 1 } }
+      ].each do |where|
+        assert_not schemer.valid?({ 'where' => where, 'limit' => 1 }), where.inspect
+      end
+    end
+  end
+
   test 'Controller#query_schema.json accepts the wheres the server accepts' do
     schemer = schemer(camera_schema)
     [
