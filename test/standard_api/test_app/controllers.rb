@@ -114,6 +114,7 @@ class CamerasController < ApplicationController
   class Schema < StandardAPI::Schema
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer'
+    association :photo
   end
 
 end

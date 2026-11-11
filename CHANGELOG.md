@@ -104,6 +104,11 @@
   Rendering or describing a model with no Schema raises
   `StandardAPI::MissingSchema`; a model with no controller declares one by name,
   `ToolCallSchema` for `ToolCall`.
+  A Schema declares the associations an include may render with `association`
+  and `associations`; one it doesn't declare isn't rendered or described.
+  `if` and `unless` hide one per record, and `schema:` narrows the included
+  records to what both it and their own Schema declare, so an ACL `excludes`
+  isn't needed to hide an association or reach into one.
   `schemas_for(record_or_model)` returns the result, for use without rendering a
   view, and the JSON Schemas, `schema.json` and `application/_record` are built
   from it: a record renders the attributes in `schemas_for(record)`, one per entry in

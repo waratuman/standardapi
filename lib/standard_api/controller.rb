@@ -285,14 +285,14 @@ module StandardAPI
     end
 
     # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record.
-    def excludes(record)
+    # takes the record so it can decide per record. +through+ are the Schemas
+    # an including record narrows it with (Schemas#schema_excludes).
+    def excludes(record, through: nil)
       acl_method = "#{model_name(record.class)}_excludes"
       excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
 
       # What a Schema hides is excluded too, so it stays out of validation errors
-      hidden = model_schema(record.class)&.hidden_attributes(record)
-      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
+      StandardAPI::Excludes.deep_merge(excluded, schema_excludes(record.class, record, through: through))
     end
 
     # True when an exclude rule could apply to +klass+, either from an ACL

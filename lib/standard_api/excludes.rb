@@ -1,6 +1,12 @@
 module StandardAPI
   module Excludes
 
+    # The key under which an exclude tree lists the Schemas, from a parent's
+    # +association ..., schema:+, that narrow the records it applies to. No
+    # attribute can be named it. The records apply them rather than forward
+    # them, and the Schemas of two parents are both applied.
+    SCHEMAS = '$schemas'.freeze
+
     # :x                            => { x: true }
     # [:x, :y]                      => { x: true, y: true }
     # { x: true, y: true }          => { x: true, y: true }
@@ -27,7 +33,7 @@ module StandardAPI
           # `make` on exactly the records it meant to show.
           when false, 'false', nil then nil
           else
-            sub = normalize(v)
+            sub = k.to_s == SCHEMAS ? Array(v).compact : normalize(v)
             sub.empty? ? nil : sub
           end
           next if value.nil?
@@ -70,6 +76,9 @@ module StandardAPI
         true
       elsif a.is_a?(Hash) && b.is_a?(Hash)
         deep_merge(a, b)
+      elsif a.is_a?(Array) && b.is_a?(Array)
+        # The Schemas of SCHEMAS
+        a | b
       else
         b
       end

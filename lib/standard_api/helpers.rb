@@ -208,8 +208,18 @@ module StandardAPI
     #   json.partial! 'application/record', record: photo.account,
     #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
     def resolve_excludes(record, inherited = nil)
-      own = respond_to?(:excludes) ? excludes(record) : nil
-      StandardAPI::Excludes.deep_merge(own, inherited)
+      through = inherited[StandardAPI::Excludes::SCHEMAS] if inherited.is_a?(Hash)
+      own = if !respond_to?(:excludes)
+        nil
+      elsif through
+        excludes(record, through: through)
+      else
+        excludes(record)
+      end
+
+      # The Schemas narrowing +record+ are applied here, not forwarded
+      excluded = StandardAPI::Excludes.deep_merge(own, inherited)
+      excluded.is_a?(Hash) ? excluded.except(StandardAPI::Excludes::SCHEMAS) : excluded
     end
 
     # The exclude sub-tree to forward for +key+, or nil when there is nothing

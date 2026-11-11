@@ -48,7 +48,25 @@ module StandardAPI
       schema.schemas(schemas, record)
     end
 
+    # What +model+'s Schema doesn't render of +record+, or of the model with
+    # nil, as an exclude tree: its hidden attributes and the excludes of its
+    # associations. +through+ are the Schemas an including record narrows it
+    # with, whose excludes are added, so they can only hide more.
+    def schema_excludes(model, record = nil, through: nil)
+      schemas = [model_schema(model)] + Array(through).map { |schema| narrowing_schema(schema, model) }
+      schemas.compact.reduce(StandardAPI::Excludes.normalize(nil)) do |excluded, schema|
+        hidden = schema.hidden_attributes(record).index_with(true)
+        StandardAPI::Excludes.deep_merge(excluded, StandardAPI::Excludes.deep_merge(hidden, schema.association_excludes(record)))
+      end
+    end
+
     private
+
+    # The instance of +schema+, given by an association's +schema+, for
+    # +model+ this request
+    def narrowing_schema(schema, model)
+      (@narrowing_schemas ||= {})[[schema, model]] ||= schema.new(self, model)
+    end
 
     # The Schema instance for +model+ this request, falling back to the one for
     # its base class (ie. an STI subclass), or nil if there is none

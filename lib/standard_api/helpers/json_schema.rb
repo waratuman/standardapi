@@ -338,7 +338,8 @@ module StandardAPI
 
       # schema/read
 
-      def json_schema_record_read(model, includes)
+      # +through+ are the Schemas an including model narrows +model+ with
+      def json_schema_record_read(model, includes, through = nil)
         if model_partial(model) != 'application/record'
           return {
             'type' => 'object',
@@ -346,7 +347,10 @@ module StandardAPI
           }
         end
 
-        properties = json_schema_definitions(model).transform_values do |definition|
+        # What the Schemas leave out of every record, ie. an association they
+        # don't declare, isn't described
+        excluded = controller.send(:schema_excludes, model, through: through)
+        properties = json_schema_definitions(model).reject { |name, _| excluded[name] == true }.transform_values do |definition|
           json_schema_attribute_read(model, definition)
         end
         # Columns are always rendered. Other attributes may not be loaded, ie.
@@ -357,6 +361,9 @@ module StandardAPI
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
           association = model.reflect_on_association(name)
+          next if association && excluded[name.to_s] == true
+
+          sub_through = excluded.dig(name.to_s, StandardAPI::Excludes::SCHEMAS)
           # #index only renders an include with a +when+ for the records that
           # match it
           required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')
@@ -365,18 +372,18 @@ module StandardAPI
           elsif association.polymorphic?
             { 'type' => ['object', 'null'] }
           elsif association.collection?
-            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes) }
+            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes, sub_through) }
           elsif model.validators_on(association.name).any? { |v| v.kind == :presence }
             # A required belongs_to (or a has_one validated for presence)
-            json_schema_record_read(association.klass, subincludes)
+            json_schema_record_read(association.klass, subincludes, sub_through)
           else
-            json_schema_nullable(json_schema_record_read(association.klass, subincludes))
+            json_schema_nullable(json_schema_record_read(association.klass, subincludes, sub_through))
           end
         end
 
         # An ACL exclude or a Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if excludes?(model)
+        required = [] if excludes?(model) || Array(through).any?(&:varies_by_requester?)
 
         properties['errors'] = {
           'type' => 'object',

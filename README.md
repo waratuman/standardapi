@@ -255,13 +255,15 @@ finds them, and every model it renders needs one:
         attribute :caption, comment: 'Shown under the photo' # use one and change it
         attribute :thumbnail_url, :string                    # add one
         attribute :location, if: :admin?                     # hide one, per request
+
+        associations :account, :properties                   # render these when included
       end
     end
 
-Like strong parameters, a Schema is explicit: only the attributes it declares
-are rendered or described, so a column added later stays hidden until it's
-listed. Types, defaults and validations of a declared attribute still come from
-the model.
+Like strong parameters, a Schema is explicit: only the attributes and
+associations it declares are rendered or described, so a column or association
+added later stays hidden until it's listed. Types, defaults and validations of
+a declared attribute still come from the model.
 
 `remove` takes back a declaration, such as one inherited from a parent Schema.
 
@@ -301,8 +303,9 @@ a `StandardAPI::Schema`.
 `attributes_for` declares attributes only known at runtime. Its key is a method
 name or Proc that reads `record` (`nil` for a model), and records with the same
 key share the result. The block runs on the instance once a request per key, is
-given the key, and declares with `attribute`, `attributes` and `remove`. `record`
-raises in the block, since its result is shared between records:
+given the key, and declares with `attribute`, `attributes`, `association`,
+`associations` and `remove`. `record` raises in the block, since its result is
+shared between records:
 
     attributes_for :account_id do |account_id|
       Field.where(account_id: account_id).each do |field|
@@ -330,12 +333,46 @@ fragments that include its model aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
 still decides whether it can be written, and filtered or ordered by, which can
-reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
-for associations.
+reveal its value.
+
+###### Associations
+
+An include of an association is only rendered if the Schema declares it with
+`association` or `associations`; one it doesn't declare is left out of the
+response and the read schema, as an undeclared attribute is. Its ACL `includes`
+still decide whether it can be asked for. An include of a method, rather than an
+association, isn't checked.
+
+`if` and `unless` hide an association per record, as they do an attribute:
+
+    association :comments, unless: -> { record&.locked? }
+
+The included records render with their own model's Schema, found from the
+association (or, for a polymorphic one, from each record's class). `schema`
+narrows them further, to what both it and their own Schema declare, so it can
+only hide more:
+
+    class NameSchema < StandardAPI::Schema
+      attributes :id, :name
+    end
+
+    association :account, schema: NameSchema
+    association :subject, schema: NameSchema                     # any model with an id and name
+    association :owner, schema: -> { NameSchema if redacted?(record) }
+
+It also narrows the associations of the included records: `NameSchema` declares
+none, so nothing can be included through `account`. Given a method name or
+Proc, it runs like a condition, on the record including them, and returns a
+Schema, or `nil` to render them with their own Schema alone.
+
+A narrowing Schema is passed to the included records' partial in the exclude
+tree, under `StandardAPI::Excludes::SCHEMAS`, and `resolve_excludes` applies it,
+so a custom partial that calls it is narrowed too.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless` or
-`attributes_for`. Override it when a Schema doesn't vary, so fragments can be
-cached.
+`attributes_for`, or an association whose `schema` is a method name, a Proc, or
+a Schema that varies. Override it when a Schema doesn't vary, so fragments can
+be cached.
 
 A Schema's definitions come only from its declarations. Defining `schemas` on
 a Schema raises `StandardAPI::InvalidConfiguration`, because an override could

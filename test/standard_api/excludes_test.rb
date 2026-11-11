@@ -4,6 +4,24 @@ class ExcludesTest < Minitest::Test
 
   # = normalize
 
+  def test_normalize_keeps_the_schemas_narrowing_a_record
+    schema = Class.new(StandardAPI::Schema)
+    normalized = StandardAPI::Excludes.normalize(account: { StandardAPI::Excludes::SCHEMAS => schema })
+    assert_equal [schema], normalized.dig('account', StandardAPI::Excludes::SCHEMAS)
+    assert_equal({}, StandardAPI::Excludes.normalize(account: { StandardAPI::Excludes::SCHEMAS => [] }).to_h)
+  end
+
+  def test_deep_merge_applies_the_schemas_of_both
+    a = Class.new(StandardAPI::Schema)
+    b = Class.new(StandardAPI::Schema)
+    merged = StandardAPI::Excludes.deep_merge(
+      { account: { StandardAPI::Excludes::SCHEMAS => [a], email: true } },
+      { account: { StandardAPI::Excludes::SCHEMAS => [b] } }
+    )
+    assert_equal [a, b], merged.dig('account', StandardAPI::Excludes::SCHEMAS)
+    assert_equal true, merged.dig('account', 'email')
+  end
+
   def test_normalize_nil_and_empty
     assert_equal({}, StandardAPI::Excludes.normalize(nil).to_h)
     assert_equal({}, StandardAPI::Excludes.normalize([]).to_h)
