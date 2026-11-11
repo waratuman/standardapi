@@ -285,6 +285,18 @@ type, naming an attribute the model doesn't have raises, as does an unknown
 option. A real attribute a query didn't select stays out of that record's
 definitions, whatever is declared for it.
 
+`value` renders something else in place of the record's value. It takes a
+method name or Proc that runs on the instance like a condition, reading the
+record from `record`:
+
+    attribute :email, value: -> { record.email if admin? }
+    attribute :issues, :json, value: :visible_issues
+
+It changes what's rendered, not the definition, so the type still comes from
+the model or the declaration. `serialize_attribute` reads values with
+`attribute_value(record, name)`; an override of it should too. A custom partial
+renders its own values, so isn't changed.
+
 Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
 private methods stay on the Schema rather than the controller.
 
@@ -369,7 +381,7 @@ A narrowing Schema is passed to the included records' partial in the exclude
 tree, under `StandardAPI::Excludes::SCHEMAS`, and `resolve_excludes` applies it,
 so a custom partial that calls it is narrowed too.
 
-`varies_by_requester?` is true for a Schema with `if`, `unless` or
+`varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
 `attributes_for`, or an association whose `schema` is a method name, a Proc, or
 a Schema that varies. Override it when a Schema doesn't vary, so fragments can
 be cached.

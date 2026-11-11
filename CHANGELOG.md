@@ -109,6 +109,8 @@
   `if` and `unless` hide one per record, and `schema:` narrows the included
   records to what both it and their own Schema declare, so an ACL `excludes`
   isn't needed to hide an association or reach into one.
+  `attribute ..., value:` renders a computed value in place of the record's;
+  `serialize_attribute` reads values with `attribute_value(record, name)`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a
   view, and the JSON Schemas, `schema.json` and `application/_record` are built
   from it: a record renders the attributes in `schemas_for(record)`, one per entry in

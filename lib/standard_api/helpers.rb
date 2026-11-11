@@ -19,8 +19,16 @@ module StandardAPI
       end
     end
 
+    # The value of attribute +name+ to render for +record+, from its Schema
+    # (Schema#value), so a declared +value+ renders in place of the record's.
+    # An override of serialize_attribute should read the value with this.
+    def attribute_value(record, name)
+      schema = controller.send(:model_schema, record.class) if respond_to?(:controller) && controller.respond_to?(:model_schema, true)
+      schema ? schema.value(record, name) : record.send(name)
+    end
+
     def serialize_attribute(json, record, name, type)
-      value = record.send(name)
+      value = attribute_value(record, name)
 
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end

@@ -45,22 +45,25 @@ module StandardAPI
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
       ASSOCIATION_OPTIONS = [:schema].freeze
 
-      # +association_options+ are each declared association's options
-      attr_reader :conditions, :association_options, :association_conditions
+      # +association_options+ are each declared association's options, and
+      # +values+ each attribute's declared +value+
+      attr_reader :conditions, :association_options, :association_conditions, :values
 
       def initialize
         @changes = {}
         @conditions = {}
+        @values = {}
         @association_options = {}
         @association_conditions = {}
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
       # when +type+ is given and the model doesn't have it. +if+ and +unless+
-      # hide it per record.
+      # hide it per record, and +value+ renders it in place of the record's.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
+        value = options.delete(:value)
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -68,6 +71,7 @@ module StandardAPI
         changes[:type] = type.to_s if type
         changes.merge!(options)
         (@conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
+        @values[name] = value if value
         self
       end
 
@@ -100,6 +104,7 @@ module StandardAPI
         names.map(&:to_s).each do |name|
           @changes.delete(name)
           @conditions.delete(name)
+          @values.delete(name)
           @association_options.delete(name)
           @association_conditions.delete(name)
         end
@@ -143,10 +148,17 @@ module StandardAPI
     class << self
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
       # Proc. Both run on the Schema instance, take no arguments and read the
-      # record from +record+, which is nil for a model.
+      # record from +record+, which is nil for a model. So does +value+, which
+      # is only run for a record.
       def attribute(name, type = nil, **options)
-        conditional = options.key?(:if) || options.key?(:unless)
-        add_step(varies: conditional) { attribute(name, type, **options) }
+        value = options[:value]
+        if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
+          raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
+        end
+
+        # A value can read the requester as a condition can
+        varies = options.key?(:if) || options.key?(:unless) || !value.nil?
+        add_step(varies: varies) { attribute(name, type, **options) }
       end
 
       def attributes(*names)
@@ -190,8 +202,8 @@ module StandardAPI
 
       # Whether the definitions could differ by requester, which fragment
       # caching has to know as its keys can't tell requesters apart. Assumed of
-      # conditions, attributes_for and an association's +schema+ given as a
-      # Symbol or Proc, or one that varies; override to say otherwise.
+      # conditions, values, attributes_for and an association's +schema+ given
+      # as a Symbol or Proc, or one that varies; override to say otherwise.
       def varies_by_requester?
         schema_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
       end
@@ -238,6 +250,13 @@ module StandardAPI
     # Names of the attributes +record+ doesn't render for this requester
     def hidden_attributes(record)
       builder_for(record).hidden_attributes(model) + failed_conditions(record)
+    end
+
+    # The value of attribute +name+ to render for +record+: its declared
+    # +value+, or else the record's own
+    def value(record, name)
+      value = builder_for(record).values[name.to_s]
+      value ? resolve(value, record) : record.send(name)
     end
 
     # The excludes of +record+'s associations, or a model's with nil: true for

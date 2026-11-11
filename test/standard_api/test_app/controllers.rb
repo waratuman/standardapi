@@ -9,7 +9,7 @@ class ApplicationController < ActionController::Base
     value = if attribute == 'description' && params["magic"] === "true"
       'See it changed!'
     else
-      record.send(attribute)
+      helpers.attribute_value(record, attribute)
     end
     
     json.set! attribute, type == :binary ? value&.unpack1('H*') : value
