@@ -101,6 +101,26 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_not schema.dig('properties', 'landlord').key?('$schema')
   end
 
+  test 'Controller#read_schema.json an include with a when is not required' do
+    path = read_schema_properties_path(format: 'json')
+    PropertiesController.any_instance.stubs(:property_wheres).returns([:name])
+    matching = create(:property, name: 'a')
+    other = create(:property, name: 'b')
+    include = { landlord: { when: { name: 'a' } } }
+
+    assert_includes read_schema(path, include: 'landlord')['required'], 'landlord'
+
+    schema = read_schema(path, include: include)
+    assert_not_includes schema['required'], 'landlord'
+    assert_includes schema['properties'].keys, 'landlord'
+
+    # #index only renders it for the records that match
+    get properties_path(format: 'json'), params: { include: include, limit: 10 }
+    records = JSON(response.body)
+    assert_equal [true, false], [matching, other].map { |p| records.find { |r| r['id'] == p.id }.key?('landlord') }
+    records.each { |record| assert JSONSchemer.schema(schema).valid?(record), record.inspect }
+  end
+
   test 'Controller#read_schema.json include has_one' do
     schema = read_schema(read_schema_properties_path(format: 'json'), include: 'landlord')
 
