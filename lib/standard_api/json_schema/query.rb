@@ -49,8 +49,13 @@ module StandardAPI
       # that model's schema, ie. a $ref to the caller's own URI. Returning nil
       # builds it into $defs as without +ref+.
       #
+      # With +ref+ the schema is one of a set that refer into each other, so
+      # the where, order and include of +model+ itself are in its $defs too,
+      # as its name without "::" followed by the kind, for the others to
+      # refer to:
+      #
       #   query_schema_for(Property, ref: ->(model, kind) {
-      #     { '$ref' => "standardmcp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+      #     { '$ref' => "standardmcp://schema/#{model.model_name.plural}#/$defs/#{model.name.gsub('::', '')}#{kind}" }
       #   })
       def query_schema_for(model, ref: nil)
         defs = Defs.new(model, ref)
@@ -65,6 +70,13 @@ module StandardAPI
         if include_permit.any?
           properties['include'] = include_schema(include_permit, model, defs,
             name: 'Include', prefix: schema_name(model, ''), options: false)
+        end
+
+        # What the other schemas of a set refer to
+        if ref
+          where_ref(model, defs)
+          order_ref(model, defs)
+          include_ref(model, defs)
         end
 
         properties['limit'] = {
