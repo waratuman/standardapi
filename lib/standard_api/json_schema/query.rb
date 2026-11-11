@@ -373,11 +373,12 @@ module StandardAPI
       # +options+ (+where+, +order+, +limit+, +distinct+, +distinct_on+,
       # +when+) that apply to included records; the top level has none.
       #
-      # The include of an association is named after the path to it, which can
-      # be the name of another include, ie. Camera's photo and a CameraPhoto
-      # model are both "CameraPhotoInclude". They share the name: what the
-      # second adds to the first is added to it in +defs+, so it accepts what
-      # either does. A property both have is the first's.
+      # The include of a method or a polymorphic association with its own
+      # permit is named after the path to it, which can be the name of
+      # another include, ie. Account's subject and an AccountSubject model are
+      # both "AccountSubjectInclude". They share the name: what the second
+      # adds to the first is added to it in +defs+, so it accepts what either
+      # does. A property both have is the first's.
       def include_schema(permit, model, defs, name:, prefix: name, options: true)
         names = permit.keys.map(&:to_s) - StandardAPI::Controller::RESERVED_INCLUDE_KEYS
         object = { '$ref' => "#/$defs/#{name}" }
