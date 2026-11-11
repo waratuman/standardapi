@@ -91,6 +91,15 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'schema/read.json, write.json and query.json are not found for a controller without a model' do
+    assert_nil SessionsController.model
+
+    %w(read write query).each do |schema|
+      get "/sessions/schema/#{schema}.json"
+      assert_response :not_found, schema
+    end
+  end
+
   test 'only declared attributes are used, in attribute order' do
     schema = empty_schema_class do
       attributes :make, :id

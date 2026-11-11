@@ -42,18 +42,25 @@ module StandardAPI
       end
     end
 
-    # JSON Schema of the record #show renders, with the +include+ param
+    # JSON Schema of the record #show renders, with the +include+ param. Not
+    # found for a controller without a model, which has nothing to describe.
     def read_schema
+      return head :not_found if model.nil?
+
       render json: read_schema_for(model, includes)
     end
 
     # JSON Schema of the params #create and #update accept
     def write_schema
+      return head :not_found if model.nil?
+
       render json: write_schema_for(model)
     end
 
     # JSON Schema of the params #index and #calculate accept
     def query_schema
+      return head :not_found if model.nil?
+
       render json: query_schema_for(model)
     end
 
