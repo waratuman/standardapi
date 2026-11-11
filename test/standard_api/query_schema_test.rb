@@ -95,6 +95,12 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_includes names, 'id'
     assert_includes names, 'property.id'
 
+    # The object is built once, into $defs
+    object = { '$ref' => '#/$defs/OrderObject' }
+    assert_equal object, schema.dig('properties', 'order', 'anyOf', 1)
+    assert_equal object, schema.dig('properties', 'order', 'anyOf', 2, 'items', 'anyOf', 1)
+    assert_equal 'object', schema.dig('$defs', 'OrderObject', 'type')
+
     assert schemer.valid?({ 'order' => 'id', 'limit' => 1 })
     assert schemer.valid?({ 'order' => { 'id' => 'desc' }, 'limit' => 1 })
     assert schemer.valid?({ 'order' => { 'id' => { 'desc' => 'nulls_last' } }, 'limit' => 1 })
@@ -105,6 +111,12 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#query_schema.json include' do
     schemer = schemer(camera_schema)
+
+    # The object is built once, into $defs
+    object = { '$ref' => '#/$defs/Include' }
+    assert_equal object, camera_schema.dig('properties', 'include', 'anyOf', 0)
+    assert_equal object, camera_schema.dig('properties', 'include', 'anyOf', 2, 'items', 'anyOf', 1)
+    assert_equal 'object', camera_schema.dig('$defs', 'Include', 'type')
 
     assert schemer.valid?({ 'include' => 'photo', 'limit' => 1 })
     assert schemer.valid?({ 'include' => { 'photo' => { 'account' => true } }, 'limit' => 1 })
@@ -123,6 +135,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
     # PhotoACL orders permit id, created_at and account_id
     assert_equal ['id', 'created_at', 'account_id'], schema.dig('$defs', 'PhotoOrder', 'anyOf', 0, 'enum')
+    assert_equal({ '$ref' => '#/$defs/PhotoOrderObject' }, schema.dig('$defs', 'PhotoOrder', 'anyOf', 1))
     assert schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'id' => 'desc' } } }, 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'format' => 'asc' } } }, 'limit' => 1 })
 
@@ -202,8 +215,8 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       { '$ref' => "test://#{model.model_name.plural}##{kind}" } if model == Photo
     }).as_json
 
-    # Only Camera's own where and when are built
-    assert_equal ['CameraWhere', 'CameraWhen'].sort, schema['$defs'].keys.sort
+    # Only Camera's own where, when and top-level include are built
+    assert_equal ['CameraWhere', 'CameraWhen', 'Include'].sort, schema['$defs'].keys.sort
     assert_equal({ '$ref' => 'test://photos#Where' }, resolve(schema, schema.dig('properties', 'where')).dig('anyOf', 0, 'properties', 'photo', 'anyOf', 1))
     assert_includes refs, [Photo, 'Include']
     assert_not_includes refs.map(&:first), Camera

@@ -59,11 +59,14 @@ module StandardAPI
 
         properties['where'] = where_ref(model, defs) if normalize_where_permit(wheres_for(model)).any?
 
-        order = order_schema(orders_for(model) | required_orders, model, defs)
+        order = order_schema(orders_for(model) | required_orders, model, defs, 'Order')
         properties['order'] = order if order
 
         include_permit = normalize_includes(includes_for(model))
-        properties['include'] = include_schema(include_permit, model, defs) if include_permit.any?
+        if include_permit.any?
+          properties['include'] = include_schema(include_permit, model, defs,
+            name: 'Include', prefix: schema_name(model, ''), options: false)
+        end
 
         properties['limit'] = {
           'type' => 'integer',
@@ -255,8 +258,10 @@ module StandardAPI
         end
       end
 
-      # Mirrors StandardAPI::Orders#sanitize_orders
-      def order_schema(permit, model, defs)
+      # Mirrors StandardAPI::Orders#sanitize_orders: a name, an object of them,
+      # or an Array of either. The object is built into +defs+ as +name+
+      # followed by "Object".
+      def order_schema(permit, model, defs, name)
         permit = Array(permit).flatten
         return nil if permit.empty?
 
@@ -265,32 +270,34 @@ module StandardAPI
 
         permit.each do |entry|
           if entry.is_a?(Hash)
-            entry.each do |name, subpermit|
-              name = name.to_s
-              names.concat(Array(subpermit).flatten.map { |column| "#{name}.#{column}" })
-              properties[name] = order_schema(subpermit, nil, defs)
+            entry.each do |key, subpermit|
+              key = key.to_s
+              names.concat(Array(subpermit).flatten.map { |column| "#{key}.#{column}" })
+              properties[key] = order_schema(subpermit, nil, defs, "#{name.delete_suffix('Order')}#{key.camelize}Order")
             end
             next
           end
 
-          name = entry.to_s
-          association = model&.reflect_on_association(name)
+          key = entry.to_s
+          association = model&.reflect_on_association(key)
           if association && !association.polymorphic?
             columns = Array(orders_for(association.klass)).flatten.reject { |x| x.is_a?(Hash) }
-            names.concat(columns.map { |column| "#{name}.#{column}" })
-            properties[name] = order_ref(association.klass, defs)
+            names.concat(columns.map { |column| "#{key}.#{column}" })
+            properties[key] = order_ref(association.klass, defs)
           else
-            names << name
-            properties[name] = direction_schema
+            names << key
+            properties[key] = direction_schema
           end
         end
 
-        object = {
-          'type' => 'object',
-          'properties' => properties,
-          'additionalProperties' => false,
-          'minProperties' => 1
-        }
+        object = def_ref(defs, "#{name}Object") do
+          {
+            'type' => 'object',
+            'properties' => properties,
+            'additionalProperties' => false,
+            'minProperties' => 1
+          }
+        end
         name_schema = { 'type' => 'string', 'enum' => names }
 
         {
@@ -303,8 +310,9 @@ module StandardAPI
       end
 
       def order_ref(model, defs)
-        external_ref(model, 'Order') || def_ref(defs, schema_name(model, 'Order')) do
-          order_schema(orders_for(model), model, defs) || { 'not' => {} }
+        name = schema_name(model, 'Order')
+        external_ref(model, 'Order') || def_ref(defs, name) do
+          order_schema(orders_for(model), model, defs, name) || { 'not' => {} }
         end
       end
 
@@ -327,17 +335,13 @@ module StandardAPI
       # Mirrors StandardAPI::Includes#sanitize_includes. +model+ is nil under a
       # polymorphic association, where a +where+ can't be checked.
       #
-      # The include of an association is an object built into +defs+ as +name+,
-      # with the options (+where+, +order+, +limit+, +distinct+, +distinct_on+,
-      # +when+) that apply to included records. The top level, without a
-      # +name+, has no options and is inline.
-      def include_schema(permit, model, defs, name: nil)
+      # The object is built into +defs+ as +name+, and the includes under it
+      # are named after +prefix+. The include of an association has the
+      # +options+ (+where+, +order+, +limit+, +distinct+, +distinct_on+,
+      # +when+) that apply to included records; the top level has none.
+      def include_schema(permit, model, defs, name:, prefix: name, options: true)
         names = permit.keys.map(&:to_s) - StandardAPI::Controller::RESERVED_INCLUDE_KEYS
-        object = if name
-          def_ref(defs, name) { include_object_schema(permit, model, defs, name, options: true) }
-        else
-          include_object_schema(permit, model, defs, model && schema_name(model, ''), options: false)
-        end
+        object = def_ref(defs, name) { include_object_schema(permit, model, defs, prefix, options: options) }
         name_schema = { 'type' => 'string', 'enum' => names }
 
         {
