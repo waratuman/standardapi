@@ -286,6 +286,10 @@ module StandardAPI
 
     # Resolve the excludes that apply to +record+. An ACL +excludes+ method
     # takes the record so it can decide per record.
+    #
+    # TODO: Remove ACL +excludes+ and hide everything through Schemas. That
+    # needs Schemas to hide associations and nested paths, which only ACL
+    # +excludes+ can do now; StandardAPI::Excludes can go with it.
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
       excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
