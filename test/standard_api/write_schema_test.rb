@@ -162,6 +162,29 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#write_schema.json leaves out a validation JSON Schema cannot state' do
+    string = { 'type' => 'string' }
+    integer = { 'type' => ['integer', 'null'] }
+    length = { kind: :length, options: { minimum: 5 } }
+
+    # One that doesn't always run, or that passes a blank value
+    [{ if: :published? }, { unless: -> { draft? } }, { on: :update }, { allow_blank: true }].each do |options|
+      validation = length.merge(options: length[:options].merge(options))
+      assert_equal string, camera_attribute_schema('make', [validation]), options.inspect
+    end
+    assert_equal string.merge('minLength' => 5), camera_attribute_schema('make', [length])
+
+    # An option given as a Symbol or a Proc
+    assert_equal string, camera_attribute_schema('make', [{ kind: :length, options: { maximum: :max_length } }])
+    assert_equal integer.merge('minimum' => 1), camera_attribute_schema('photo_id', [{ kind: :numericality, options: {
+      greater_than: :floor, less_than: -> { 10 }, greater_than_or_equal_to: 1
+    } }])
+
+    # An acceptance validation accepts nil unless told not to
+    assert_equal [true, nil], camera_attribute_schema('hidden', [{ kind: :acceptance, options: { allow_nil: true } }])['enum']
+    assert_equal true, camera_attribute_schema('hidden', [{ kind: :acceptance, options: { allow_nil: false } }])['const']
+  end
+
   test 'Controller#write_schema.json required on create' do
     assert_equal ['name'], property_schema['required']
     # schemas_for requires a NOT NULL column even with a default, as hidden
@@ -205,10 +228,12 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal 2, properties.dig('numericality', 'maximum')
     assert_equal 3, properties.dig('numericality', 'exclusiveMaximum')
     assert_equal ['concrete', 'metal', 'brick', nil], properties.dig('build_type', 'enum')
-    assert_equal true, properties.dig('agree_to_terms', 'const')
+    # Accepts nil, as an acceptance validation does unless told not to
+    assert_equal [true, nil], properties.dig('agree_to_terms', 'enum')
     assert_equal '\d{3}-\d{3}-\d{4}', properties.dig('phone_number', 'pattern')
-    assert_equal 9, properties.dig('phone_number', 'minLength')
-    assert_equal 12, properties.dig('phone_number', 'maxLength')
+    # Its length validation allows blank, which JSON Schema can't state
+    assert_nil properties.dig('phone_number', 'minLength')
+    assert_nil properties.dig('phone_number', 'maxLength')
   end
 
   test 'Controller#write_schema.json is a valid JSON Schema' do
