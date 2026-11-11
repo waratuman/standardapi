@@ -1,6 +1,6 @@
 module StandardAPI
   module Helpers
-    # Helpers for building `json_schema.json`, included in StandardAPI::Helpers
+    # Helpers for building the JSON Schemas, included in StandardAPI::Helpers
     module JSONSchemaHelper
 
       # The JSON Schema for a Helpers#schemas_for `type`, or an empty schema
@@ -27,7 +27,10 @@ module StandardAPI
           {type: 'string', format: 'date-time'}
         when 'interval'
           {type: 'string', format: 'duration'}
-        when 'json', 'jsonb', 'hstore'
+        when 'json', 'jsonb'
+          # Holds any JSON value: an object, an array or a scalar
+          {}
+        when 'hstore'
           {type: 'object'}
         when 'binary'
           {type: 'string', contentMediaType: 'application/octet-stream'}

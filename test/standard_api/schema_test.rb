@@ -72,10 +72,11 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'schema.json and json_schema.json follow a declared read_only' do
+  test 'schema.json and schema/write.json follow a declared read_only' do
     schema = empty_schema_class do
       attribute :photo_id, read_only: true
       attribute :id, read_only: false
+      attributes :make
     end
 
     with_schema(schema) do
@@ -83,10 +84,19 @@ class SchemaTest < ActionDispatch::IntegrationTest
       assert_equal true, attributes.dig('photo_id', 'readonly')
       assert_equal false, attributes.dig('id', 'readonly')
 
-      properties = camera_json('json_schema')['properties']
-      assert_equal ['id', 'photo_id'], properties.keys.sort
+      # CameraACL permits photo_id and make, but not id
+      properties = camera_json('schema/write').dig('properties', 'camera', 'properties')
       assert_equal true, properties.dig('photo_id', 'readOnly')
-      assert_nil properties.dig('id', 'readOnly')
+      assert_nil properties.dig('make', 'readOnly')
+    end
+  end
+
+  test 'schema/read.json, write.json and query.json are not found for a controller without a model' do
+    assert_nil SessionsController.model
+
+    %w(read write query).each do |schema|
+      get "/sessions/schema/#{schema}.json"
+      assert_response :not_found, schema
     end
   end
 
@@ -120,8 +130,8 @@ class SchemaTest < ActionDispatch::IntegrationTest
       assert_response :ok
       assert_equal ['id', 'make'], JSON(response.body).keys.sort
 
-      get json_schema_cameras_path(format: 'json')
-      assert_equal ['id', 'make'], JSON(response.body)['properties'].keys.sort
+      get read_schema_cameras_path(format: 'json')
+      assert_equal ['errors', 'id', 'make'], JSON(response.body)['properties'].keys.sort
     end
   end
 
@@ -422,7 +432,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal [retired.id, active.id], calls
   end
 
-  test 'record is nil for a model, so json_schema.json follows it' do
+  test 'record is nil for a model, so schema/read.json follows it' do
     seen = []
     schema = schema_class { attribute :make, if: -> { seen << record; false } }
 
@@ -430,7 +440,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_equal [nil], seen
 
     with_schema(schema) do
-      get json_schema_cameras_path(format: 'json')
+      get read_schema_cameras_path(format: 'json')
       assert_response :ok
       assert_not JSON(response.body)['properties'].key?('make')
     end

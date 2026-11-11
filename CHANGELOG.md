@@ -72,6 +72,14 @@
   `#calculate.json params[:where]` tests skip for a model whose ACL `wheres`
   don't permit filtering on `id`.
 
+- Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
+  `schema/query.json` (see Added). `schema/read.json` describes records as
+  rendered, with includes, as `json_schema.json` did; `schema/write.json` lists
+  only the attributes the ACL permits, where `json_schema.json` listed every
+  attribute and marked the rest `readOnly`. `include[only]` and
+  `include[except]` have no equivalent, and `:json_schema` in a route's `only`
+  or `except` raises Rails' `ArgumentError` for an unknown action.
+
 ### Added
 
 - ACL excludes can remove attributes and nested associations from serialized
@@ -97,12 +105,35 @@
   `StandardAPI::MissingSchema`; a model with no controller declares one by name,
   `ToolCallSchema` for `ToolCall`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a
-  view, and `json_schema.json`, `schema.json` and `application/_record` are built
+  view, and the JSON Schemas, `schema.json` and `application/_record` are built
   from it: a record renders the attributes in `schemas_for(record)`, one per entry in
   `record.attribute_names`, so an attribute a Schema removes isn't rendered and
   one it adds is read from the record. Each definition has one `type`, the
-  attribute's ActiveModel type, and a `comment`, which `json_schema.json`
-  renders as `description`.
+  attribute's ActiveModel type, and a `comment`, which the JSON Schemas
+  render as `description`.
+- Each resource serves three JSON Schemas (2020-12), built from its ACL and
+  Schema, each drawn only with the actions it describes:
+  - `schema/read.json`: a record as `#show` and `#index` render it, with the
+    `include` param checked against the ACL's `includes`. A column that
+    allows NULL, and a singular association unless its presence is
+    validated, allow `null`; decimals are strings, binary is hex, and an
+    enum lists its names.
+  - `schema/write.json`: the params `#create` and `#update` accept, with only
+    the attributes the ACL's `attributes` permit, their validations, and the
+    associations its `nested` permits. `required` is for a create. A
+    `read_only` definition is `readOnly`; an auto populated column isn't, and
+    isn't `required`.
+  - `schema/query.json`: the `where`, `order` and `include` the ACL's
+    `wheres`, `orders` and `includes` permit, following associations through
+    `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
+    params no ACL checks yet, marked as such.
+
+  Validations are valid JSON Schema: a `format` Regexp is its source, left out
+  when JavaScript wouldn't read it the same way, and a numeric `inclusion`
+  Range is `minimum` and `maximum`. A validation that doesn't always run
+  (`if`, `unless`, `on`) or allows blank, and an option given as a Symbol or
+  a Proc, is left out. `read_schema_for`, `write_schema_for` and
+  `query_schema_for` build them, and are public like `schemas_for`.
 
 ### Changed
 
@@ -110,43 +141,18 @@
   class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
-  and `json_schema.json` and `schema.json` describe it the same way.
+  and the JSON Schemas and `schema.json` describe it the same way.
 - `schema.json` lists only what the model's Schema declares, and `readonly` is
   the definition's `read_only`, so it's true for an `attr_readonly` attribute
   even when the ACL permits it. A column's `type` still comes from its SQL type
   unless the Schema declares another.
-- `json_schema.json` describes every attribute in `model.attribute_names`,
-  including those declared without a column, and types each by its ActiveModel
-  type rather than its column's SQL type. An `attribute` declaration that
-  casts a column differently is described by its cast, and a type with no JSON
-  Schema mapping gets an empty schema.
 
 ### Fixed
 
-- `json_schema.json` includes `false` column defaults, and no longer sets a
-  `null` default on enums without one. An array column's `readOnly`,
-  `default` and `description` describe the array rather than its items.
 - `read_only` is true for an `attr_readonly` attribute even when the ACL's
   `attributes` permit it, since Rails won't change it after create. `required`
   is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
   sent on create and can't be changed after.
-- `json_schema.json` no longer marks an auto populated column `readOnly`: the
-  database only fills it in when a create doesn't give one, so whether it can
-  be written is up to the ACL. It still isn't `required`.
-- `json_schema.json` is valid JSON Schema for `format` and `inclusion`
-  validations. A `format` Regexp was rendered in Ruby's syntax, ie.
-  `(?-mix:\d{3})`, which isn't an ECMA 262 pattern; it is now rendered as its
-  source, and left out when JavaScript wouldn't read it the same way (flags,
-  `\A`, `\z`, inline flag groups). An `inclusion` Range was rendered as a
-  String `enum`; a numeric Range is now `minimum` and `maximum`, and other
-  Ranges and Procs are left out.
-- `json_schema.json` describes the records StandardAPI renders: a column that
-  allows NULL, and a singular association that is included unless its
-  presence is validated (ie. a required `belongs_to`), allow `null`; a
-  decimal is a number or a String, since a BigDecimal renders as a String; and
-  an enum lists its names.
-- `json_schema.json` declares its dialect with
-  `"$schema": "https://json-schema.org/draft/2020-12/schema"` at its root.
 - The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
   a model has no ACL `attributes`, instead of always `true`.
 
