@@ -111,7 +111,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#query_schema.json order under an empty Hash permit accepts nothing' do
     camera_schema
-    defs = {}
+    defs = StandardAPI::JSONSchema::Query::Defs.new
     controller.send(:order_schema, [:id, { photos: [] }], Camera, defs, 'Order')
 
     assert_equal({ 'not' => {} }, defs.dig('OrderObject', 'properties', 'photos'))
@@ -139,7 +139,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#query_schema.json an include whose name is taken by another is added to it' do
     camera_schema
-    defs = {}
+    defs = StandardAPI::JSONSchema::Query::Defs.new
     ref = { '$ref' => '#/$defs/CameraPhotoInclude' }
 
     photo = controller.send(:include_schema, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
@@ -251,6 +251,21 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
     # Returning nil builds it, as without ref
     assert_equal camera_schema, controller.query_schema_for(Camera, ref: ->(*) { nil }).as_json
+  end
+
+  test 'Controller#query_schema_for can be called from the ref of another' do
+    camera_schema
+    ref = ->(model, kind) { { '$ref' => "test://#{model.model_name.plural}##{kind}" } }
+    expected = controller.query_schema_for(Camera, ref: ref).as_json
+
+    built = []
+    schema = controller.query_schema_for(Camera, ref: ->(model, kind) {
+      built << controller.query_schema_for(model).as_json
+      ref.call(model, kind)
+    }).as_json
+
+    assert_not_empty built
+    assert_equal expected, schema
   end
 
 end
