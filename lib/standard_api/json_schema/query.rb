@@ -260,8 +260,9 @@ module StandardAPI
 
       # Mirrors StandardAPI::Orders#sanitize_orders: a name, an object of them,
       # or an Array of either. The object is built into +defs+ as +name+
-      # followed by "Object".
-      def order_schema(permit, model, defs, name)
+      # followed by "Object"; under a Hash in +permit+, which has no name of
+      # its own, it's inline.
+      def order_schema(permit, model, defs, name = nil)
         permit = Array(permit).flatten
         return nil if permit.empty?
 
@@ -273,7 +274,7 @@ module StandardAPI
             entry.each do |key, subpermit|
               key = key.to_s
               names.concat(Array(subpermit).flatten.map { |column| "#{key}.#{column}" })
-              properties[key] = order_schema(subpermit, nil, defs, "#{name.delete_suffix('Order')}#{key.camelize}Order")
+              properties[key] = order_schema(subpermit, nil, defs)
             end
             next
           end
@@ -290,14 +291,13 @@ module StandardAPI
           end
         end
 
-        object = def_ref(defs, "#{name}Object") do
-          {
-            'type' => 'object',
-            'properties' => properties,
-            'additionalProperties' => false,
-            'minProperties' => 1
-          }
-        end
+        object = {
+          'type' => 'object',
+          'properties' => properties,
+          'additionalProperties' => false,
+          'minProperties' => 1
+        }
+        object = def_ref(defs, "#{name}Object") { object } if name
         name_schema = { 'type' => 'string', 'enum' => names }
 
         {
