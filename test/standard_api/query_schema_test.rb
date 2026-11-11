@@ -87,6 +87,29 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#query_schema.json describes the wheres of a model without a Schema' do
+    camera_schema
+    # A model that is only filtered on needs no Schema, as nothing of it is
+    # rendered
+    model = Class.new(ActiveRecord::Base) do
+      self.table_name = 'photos'
+      def self.name = 'Snapshot'
+    end
+    controller.define_singleton_method(:snapshot_wheres) { [:id, { format: [:eq] }] }
+    assert_nil controller.send(:model_schema, model)
+
+    defs = StandardAPI::JSONSchema::Query::Defs.new
+    assert_equal({ '$ref' => '#/$defs/SnapshotWhere' }, controller.send(:where_ref, model, defs))
+    properties = defs.dig('SnapshotWhere', 'anyOf', 0, 'properties')
+
+    assert_equal ['id', 'format'], properties.keys
+    # Its values aren't described, and its operators are still the ACL's
+    assert_equal({}, properties.dig('id', 'anyOf', 0))
+    assert_equal ['eq'], properties.dig('format', 'anyOf').last['properties'].keys
+    assert_equal({ 'type' => 'object', 'properties' => { 'id' => {}, 'format' => {} }, 'additionalProperties' => false },
+      controller.send(:when_schema, model))
+  end
+
   test 'Controller#query_schema.json order' do
     schema = query_schema(query_schema_account_path(format: 'json'))
     schemer = schemer(schema)

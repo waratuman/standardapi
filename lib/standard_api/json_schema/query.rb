@@ -217,10 +217,17 @@ module StandardAPI
         exists ? { 'anyOf' => [exists, filter] } : filter
       end
 
+      # The definition of the attribute +name+ of +model+, or nil without one.
+      # A model can be filtered on without a Schema, as nothing of it is
+      # rendered, and then its values aren't described.
+      def filter_definition(model, name)
+        definitions_for(model)[name] if model_schema(model)
+      end
+
       # +operators+ are canonical names, as normalize_where_permit gives them,
       # or :all
       def column_where_schema(model, column, operators)
-        definition = definitions_for(model)[column.name]
+        definition = filter_definition(model, column.name)
         operators = column_operators(column, definition) if operators == :all
         operators = operators.map(&:to_s)
         value = definition ? definition_value_schema(model, definition) : {}
@@ -438,7 +445,7 @@ module StandardAPI
           next if !model.attribute_names.include?(key)
           next if operators != :all && !operators.include?('eq')
 
-          definition = definitions_for(model)[key]
+          definition = filter_definition(model, key)
           properties[key] = definition ? attribute_read_schema(model, definition) : {}
         end
 
