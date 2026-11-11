@@ -226,8 +226,20 @@ module StandardAPI
         value = definition ? definition_value_schema(model, definition) : {}
         value = { 'type' => 'array', 'items' => value } if column.array
 
+        # A Hash is read as operators (Wheres#where_operators), so a bare value
+        # isn't one: an object, ie. of a json column, is compared with an
+        # operator
+        bare = if value['type'] == 'object'
+          nil
+        elsif value.key?('type') || value.key?('enum')
+          value
+        else
+          { 'not' => { 'type' => 'object' } }
+        end
+
         any_of = []
-        any_of << value << { 'type' => ['boolean', 'null'] } if operators.include?('eq')
+        any_of << bare if bare && operators.include?('eq')
+        any_of << { 'type' => ['boolean', 'null'] } if operators.include?('eq')
         any_of << { 'type' => 'array', 'items' => value } if operators.include?('in') && !column.array
         any_of << {
           'type' => 'object',
