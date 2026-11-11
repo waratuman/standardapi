@@ -573,8 +573,12 @@ leaves other models to the caller:
 
     query_schema_for(Property, ref: ->(model, kind) {
       # kind is "Where", "Order" or "Include"; nil builds it into $defs
-      { '$ref' => "myapp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+      { '$ref' => "myapp://schema/#{model.model_name.plural}#/$defs/#{model.name.gsub('::', '')}#{kind}" }
     })
+
+A schema built with `ref:` also has the where, order and include of its own
+model in `$defs`, as `PropertyWhere`, `PropertyOrder` and `PropertyInclude`,
+so the schemas of the other models can refer to them.
 
 # Testing
 

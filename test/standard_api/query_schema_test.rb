@@ -276,14 +276,40 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       { '$ref' => "test://#{model.model_name.plural}##{kind}" } if model == Photo
     }).as_json
 
-    # Only Camera's own where, when and top-level include are built
-    assert_equal ['CameraWhere', 'CameraWhen', 'Include'].sort, schema['$defs'].keys.sort
+    # Only Camera's own are built: what its params use, and its where, order
+    # and include for the schemas of other models to refer to
+    assert_equal ['CameraWhere', 'CameraWhen', 'Include', 'CameraOrder', 'CameraInclude'].sort, schema['$defs'].keys.sort
     assert_equal({ '$ref' => 'test://photos#Where' }, resolve(schema, schema.dig('properties', 'where')).dig('anyOf', 0, 'properties', 'photo', 'anyOf', 1))
     assert_includes refs, [Photo, 'Include']
     assert_not_includes refs.map(&:first), Camera
 
     # Returning nil builds it, as without ref
-    assert_equal camera_schema, controller.query_schema_for(Camera, ref: ->(*) { nil }).as_json
+    built = controller.query_schema_for(Camera, ref: ->(*) { nil }).as_json
+    assert_equal camera_schema.except('$defs'), built.except('$defs')
+    assert_equal camera_schema['$defs'], built['$defs'].slice(*camera_schema['$defs'].keys)
+  end
+
+  test 'Controller#query_schema_for with ref has what the schemas of other models refer to' do
+    camera_schema
+    refs = []
+    ref = ->(model, kind) {
+      refs << [model, kind]
+      { '$ref' => "test://#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
+    }
+    controller.query_schema_for(Camera, ref: ref)
+    assert_not_empty refs
+
+    # Each is in the $defs of the schema it points to
+    refs.uniq.each do |model, kind|
+      schema = controller.query_schema_for(model, ref: ref).as_json
+      assert_includes schema['$defs'].keys, "#{model.name}#{kind}"
+    end
+
+    # The include is the one of an association, with its options, not the
+    # top level's
+    schema = controller.query_schema_for(Photo, ref: ref).as_json
+    assert_includes schema.dig('$defs', 'PhotoInclude', 'properties').keys, 'limit'
+    assert_not_includes schema.dig('$defs', 'Include', 'properties').keys, 'limit'
   end
 
   test 'Controller#query_schema_for can be called from the ref of another' do
