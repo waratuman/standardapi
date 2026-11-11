@@ -103,7 +103,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'schema narrows records a custom partial renders, through resolve_excludes' do
+  test 'schema narrows records a custom partial renders, through schema_for' do
     property = create(:property, photos: [create(:photo, format: 'jpg')])
 
     schema = property_schema { association :photos, schema: Class.new(StandardAPI::Schema) { attributes :id } }
@@ -162,7 +162,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
   end
 
   test 'an association with an unknown option or a schema that is not a Schema raises' do
-    assert_raises(ArgumentError) { property_schema { association :landlord, sideways: true }.new(nil, Property).association_excludes(nil) }
+    assert_raises(ArgumentError) { property_schema { association :landlord, sideways: true }.new(nil, Property).association?(nil, :landlord) }
     assert_raises(ArgumentError) { property_schema { association :landlord, schema: Account } }
   end
 

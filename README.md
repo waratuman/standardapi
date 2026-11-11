@@ -207,23 +207,34 @@ method isn't used.
 **Schemas are enforced in `application/_record` only.** If you have written a
 custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
-partial has to apply what the Schema hides. Two helpers are provided:
+partial has to ask the record's schema what it renders:
 
-    excluded = resolve_excludes(photo, local_assigns[:excludes])
+    schema = schema_for(photo, local_assigns[:schemas])
 
-    json.set! :caption, photo.caption unless excluded[:caption] == true
+    json.set! :caption, photo.caption if schema.attribute?(:caption)
 
-    # forward what narrows the records of an association
-    if includes[:account] && excluded[:account] != true
+    # pass on what narrows the records of an association
+    if includes[:account] && schema.include?(:account)
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], excludes: sub_excludes(excluded, :account)
+        includes: includes[:account], schemas: schema.narrowing_for(:account)
     end
 
-`resolve_excludes` gives what the record's Schema, and any Schemas narrowing it
-that the parent partial passed down, don't render, as `name => true`;
-`sub_excludes` returns what to forward for a given association.
+`schema_for(record, schemas)` gives a `StandardAPI::Schema::Record`: what the
+record's Schema declares, less what the Schemas narrowing it hide, which the
+parent partial passes down as the `schemas` local.
+
+- `attributes` are the definitions of what it renders, and `attribute?(name)`
+  tells if one does.
+- `include?(name)` tells if an include renders. An include that isn't an
+  association always does.
+- `narrowing_for(name)` gives the Schemas to pass on to an association's
+  records.
+- `hidden?(name)` tells if it hides an attribute or association of the model.
+- `errors` are the record's validation errors, less those on what it hides.
+
+`application/_record` is built on it, and
 `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is a complete
-worked example.
+worked example of a custom partial.
 
 Fragment caching is disabled automatically for any response a Schema that
 varies by requester or a `mask_for` row mask could affect, since cache keys are
@@ -290,8 +301,8 @@ The Schema runs on one instance per model for the length of a request. A method
 it doesn't define goes to its `controller`, private ones and ACL methods
 included, so `params` and `admin?` just work. The Schema's own methods win, so
 `attributes`, `model` and `schemas` are its own; call `controller.model` for the
-controller's. Don't call `schema_excludes`, `resolve_excludes` or `schemas_for`
-from a condition, as they call back into the Schema.
+controller's. Don't call `schema_for` or `schemas_for` from a condition, as
+they call back into the Schema.
 
 Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
@@ -363,9 +374,9 @@ none, so nothing can be included through `account`. Given a method name or
 Proc, it runs like a condition, on the record including them, and returns a
 Schema, or `nil` to render them with their own Schema alone.
 
-A narrowing Schema is passed to the included records' partial in the exclude
-tree, under `StandardAPI::Excludes::SCHEMAS`, and `resolve_excludes` applies it,
-so a custom partial that calls it is narrowed too.
+A narrowing Schema is passed to the included records' partial as the `schemas`
+local, and `schema_for(record, local_assigns[:schemas])` applies it, so a custom
+partial that calls it is narrowed too.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
 `attributes_for`, or an association whose `schema` is a method name, a Proc, or
@@ -453,9 +464,11 @@ it hid into the Schema:
       association :account, schema: AccountWithoutEmailSchema
     end
 
-A custom partial calls `resolve_excludes(record, local_assigns[:excludes])` as
-before, and `Controller#excludes(record)` is now
-`schema_excludes(record.class, record)`.
+A custom partial asks `schema_for(record, local_assigns[:schemas])` what it
+renders, instead of applying `resolve_excludes` (see
+[Custom partials](#custom-partials)), and passes `schemas:` to nested records
+instead of `excludes:`. `Controller#excludes(record)` is now
+`schema_for(record).hidden?(name)`.
 
 `ApplicationHelper#excludes` is no longer used, and the app won't boot while
 it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave

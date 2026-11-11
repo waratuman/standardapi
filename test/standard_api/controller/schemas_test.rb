@@ -75,8 +75,8 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
     Object.send(:remove_const, :StringSchema)
   end
 
-  test "a model with no Schema doesn't raise when only its excludes are asked for" do
-    assert_equal({}, ApplicationController.new.schema_excludes(unschemaed_model, unschemaed_model.new))
+  test "a model with no Schema doesn't raise when only what it hides is asked for" do
+    assert_not ApplicationController.new.schema_for(unschemaed_model.new).hidden?(:name)
   end
 
   test 'an STI subclass uses the Schema of its base class' do

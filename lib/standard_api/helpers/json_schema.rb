@@ -349,9 +349,9 @@ module StandardAPI
 
         # What the Schemas leave out of every record, ie. an association they
         # don't declare, isn't described
-        excluded = controller.send(:schema_excludes, model, through: through)
-        properties = json_schema_definitions(model).reject { |name, _| excluded[name] == true }.transform_values do |definition|
-          json_schema_attribute_read(model, definition)
+        schema = controller.schema_for(model, through)
+        properties = schema.attributes.to_h do |definition|
+          [definition[:name].to_s, json_schema_attribute_read(model, definition)]
         end
         # Columns are always rendered. Other attributes may not be loaded, ie.
         # under a partial select, or may be ones the Schema adds.
@@ -361,9 +361,9 @@ module StandardAPI
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
           association = model.reflect_on_association(name)
-          next if association && excluded[name.to_s] == true
+          next if association && !schema.include?(name)
 
-          sub_through = excluded.dig(name.to_s, StandardAPI::Excludes::SCHEMAS)
+          sub_through = schema.narrowing_for(name)
           # #index only renders an include with a +when+ for the records that
           # match it
           required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')

@@ -454,10 +454,10 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
 
-    excluded = PropertiesController.new.schema_excludes(Property, property)
-    assert_equal true, excluded[:name]
-    assert_equal true, excluded[:description]
-    assert_not excluded.key?(:size)
+    schema = PropertiesController.new.schema_for(property)
+    assert schema.hidden?(:name)
+    assert schema.hidden?(:description)
+    assert_not schema.hidden?(:size)
   end
 
   test "a hidden attribute's validation error is withheld" do

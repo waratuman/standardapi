@@ -8,9 +8,11 @@
 - Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
   `excludes`. What's rendered is up to the model's Schema, which can hide an
   attribute or association per record and narrow included records. An ACL
-  `excludes` method isn't used. `schema_excludes(model, record)` gives what a Schema hides, and
-  `resolve_excludes` is built on it. `apply_excludes` is removed: an include
-  that resolves to a plain value is rendered whole.
+  `excludes` method isn't used. `StandardAPI::Excludes`, `resolve_excludes`,
+  `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
+  custom partial asks `schema_for(record, local_assigns[:schemas])` what it
+  renders, and passes `schemas:` rather than `excludes:` to nested records. An
+  include that resolves to a plain value is rendered whole.
 - Remove `ApplicationHelper#excludes`. While it's defined,
   `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
   boot; leave what it hid out of each model's Schema instead.
@@ -85,8 +87,10 @@
 
 ### Added
 
-- Exclude-aware serialization helpers for custom model partials, which apply
-  what the record's Schema hides.
+- `schema_for(record_or_model, schemas)` gives a `StandardAPI::Schema::Record`,
+  what a record renders: `attributes`, `attribute?`, `include?`,
+  `narrowing_for`, `hidden?` and `errors`. `application/_record` and custom
+  partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs

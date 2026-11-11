@@ -200,48 +200,6 @@ module StandardAPI
     end
     private :attribute_schema
 
-    # What +record+'s Schema, and the Schemas narrowing it, don't render, as
-    # name => true, inside a partial (Schemas#schema_excludes). +inherited+ is
-    # the `excludes` local the parent partial passed down, which carries the
-    # narrowing Schemas.
-    #
-    # Custom model partials MUST call this and honour the result. StandardAPI
-    # enforces it in application/_record only; it cannot filter attributes a
-    # hand-written partial serializes itself.
-    #
-    #   excluded = resolve_excludes(photo, local_assigns[:excludes])
-    #
-    #   json.set! :format, photo.format unless excluded[:format] == true
-    #
-    #   # forward what narrows a nested record
-    #   json.partial! 'application/record', record: photo.account,
-    #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
-    def resolve_excludes(record, inherited = nil)
-      return StandardAPI::Excludes.normalize(nil) if !respond_to?(:schema_excludes)
-
-      through = inherited[StandardAPI::Excludes::SCHEMAS] if inherited.is_a?(Hash)
-      schema_excludes(record.class, record, through: through)
-    end
-
-    # What to forward to the records included through +key+: the Schemas
-    # narrowing them, or nil. nil too for a terminal `true`, which means the
-    # key is dropped entirely and should never be rendered.
-    def sub_excludes(excluded, key)
-      value = excluded[key]
-      value.is_a?(Hash) ? value : nil
-    end
-
-    # Drop validation errors belonging to an excluded attribute. An error key
-    # names the attribute it came from, and its message usually quotes the
-    # value, so serializing the errors untouched hands back exactly what the
-    # Schema was hiding. Nested keys like `photos.caption` are matched on
-    # their leading segment.
-    def reject_excluded_errors(errors, excluded)
-      return errors if excluded.blank?
-
-      errors.reject { |attribute, _| excluded[attribute.to_s.split('.').first] == true }
-    end
-
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?
@@ -259,14 +217,14 @@ module StandardAPI
       end
     end
 
-    # +excludes+ is the exclude sub-tree the parent partial is forwarding for
-    # this relation, if any. Its presence alone makes the fragment specific to
-    # this requester.
-    def can_cache_relation?(record, relation, subincludes, excludes = nil)
+    # +schemas+ are the Schemas narrowing the records of this relation
+    # (Schema::Record#narrowing_for). A fragment they narrow isn't cached, as
+    # its key doesn't include them.
+    def can_cache_relation?(record, relation, subincludes, schemas = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if excludes.present?
+      return false if schemas.present?
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?

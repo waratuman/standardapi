@@ -13,7 +13,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.include StandardAPI::Schemas
-      klass.helper_method :includes, :schema_excludes, :excludes?, :excludes_affect?,
+      klass.helper_method :includes, :schema_for, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -300,7 +300,7 @@ module StandardAPI
     # True when rendering +klass+ with +includes+ could be affected by a
     # Schema that varies by requester, anywhere in the rendered tree.
     #
-    # Schemas#schema_excludes is resolved per record and may depend on the
+    # Schemas#schema_for is resolved per record and may depend on the
     # current user, but the fragment cache keys in the views are built from
     # record timestamps only. Caching a fragment whose contents depend on the
     # requester would let one requester's response be served to another, so

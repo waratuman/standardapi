@@ -136,11 +136,6 @@ module StandardAPI
       def hidden_attributes(model)
         model.attribute_names - @changes.keys
       end
-
-      # The model's associations these declarations leave out
-      def hidden_associations(model)
-        model.reflect_on_all_associations.map { |association| association.name.to_s } - @association_options.keys
-      end
     end
 
     class_attribute :schema_steps, instance_accessor: false, default: [].freeze
@@ -259,23 +254,18 @@ module StandardAPI
       value ? resolve(value, record) : record.send(name)
     end
 
-    # The excludes of +record+'s associations, or a model's with nil: true for
-    # one it doesn't render for this requester, and for one rendered through a
-    # +schema+, that Schema under Excludes::SCHEMAS, for the included records
-    # to apply
-    def association_excludes(record)
-      builder = builder_for(record)
-      excluded = builder.hidden_associations(model).index_with(true)
-      failed = failed_association_conditions(record)
+    # Whether +record+, or a model with nil, renders an include of association
+    # +name+ for this requester: it's declared and its conditions pass
+    def association?(record, name)
+      name = name.to_s
+      builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
+    end
 
-      builder.association_options.each do |name, options|
-        next excluded[name] = true if failed.include?(name)
-
-        schema = options[:schema]
-        schema = resolve(schema, record) if schema.is_a?(Proc) || schema.is_a?(Symbol)
-        excluded[name] = { StandardAPI::Excludes::SCHEMAS => [schema] } if schema
-      end
-      excluded
+    # The Schema class the association +name+ narrows the records +record+
+    # includes through it with, or nil
+    def association_schema(record, name)
+      schema = builder_for(record).association_options.dig(name.to_s, :schema)
+      schema.is_a?(Proc) || schema.is_a?(Symbol) ? resolve(schema, record) : schema
     end
 
     private
@@ -356,3 +346,5 @@ module StandardAPI
 
   end
 end
+
+require 'standard_api/schema/record'
