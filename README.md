@@ -199,8 +199,8 @@ be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
 An ACL decides what can be written, filtered, ordered and included. What's
-shown is up to the model's Schema (see [Schemas](#schemas)); an ACL that
-defines `excludes` raises `StandardAPI::InvalidConfiguration` when it's loaded.
+shown is up to the model's Schema (see [Schemas](#schemas)); an ACL `excludes`
+method isn't used.
 
 ##### Custom partials
 
@@ -438,8 +438,8 @@ a Schema declares another, so it reports `datetime` for date and time columns,
 
 `Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
 model's Schema, which renders only what it declares and can hide an attribute
-or association per record. An ACL that defines `excludes` raises
-`StandardAPI::InvalidConfiguration` when it's loaded:
+or association per record. An ACL `excludes` method isn't used, so move what
+it hid into the Schema:
 
     # Before, in PhotoACL
     def excludes(photo)

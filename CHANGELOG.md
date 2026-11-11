@@ -8,8 +8,7 @@
 - Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
   `excludes`. What's rendered is up to the model's Schema, which can hide an
   attribute or association per record and narrow included records. An ACL
-  that defines `excludes` raises `StandardAPI::InvalidConfiguration` when it's
-  loaded. `schema_excludes(model, record)` gives what a Schema hides, and
+  `excludes` method isn't used. `schema_excludes(model, record)` gives what a Schema hides, and
   `resolve_excludes` is built on it. `apply_excludes` is removed: an include
   that resolves to a plain value is rendered whole.
 - Remove `ApplicationHelper#excludes`. While it's defined,

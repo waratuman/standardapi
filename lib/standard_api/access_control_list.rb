@@ -36,10 +36,6 @@ module StandardAPI
     # Raises if another ACL included into +application_controller+ defines
     # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      if mod.method_defined?(:excludes, false) || mod.private_method_defined?(:excludes, false)
-        raise StandardAPI::InvalidConfiguration, "#{mod.name}#excludes is no longer supported, so it would hide nothing. Leave what it hid out of the model's Schema, or hide it with if, unless or an association's schema"
-      end
-
       [:orders, :includes, :wheres, :attributes].each do |m|
         next if !mod.instance_methods.include?(m)
         mod.send :alias_method, "#{prefix}_#{m}".to_sym, m

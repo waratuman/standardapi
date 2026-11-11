@@ -15,18 +15,6 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     ApplicationHelper.module_eval { remove_method :excludes }
   end
 
-  test "an ACL that defines excludes raises" do
-    acl = Module.new do
-      def self.name = 'ThingACL'
-      def excludes(record) = { format: true }
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      StandardAPI::AccessControlList.include_acl(Class.new(ApplicationController), acl, 'thing')
-    end
-    assert_match(/ThingACL#excludes is no longer supported/, error.message)
-  end
-
   # = Schema conditions
   #
   # These use the Camera resource, which isn't exercised by the generic
