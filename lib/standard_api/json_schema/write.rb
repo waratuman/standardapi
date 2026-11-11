@@ -37,7 +37,9 @@ module StandardAPI
 
         properties = {}
         required = []
-        properties['id'] = attribute_write_schema(model, model.primary_key) if nested && model.primary_key
+        # Identifies the nested record to update, so is sent though it isn't
+        # one of the ACL's attributes
+        properties['id'] = attribute_write_schema(model, model.primary_key, permitted: true) if nested && model.primary_key
         definitions = definitions_for(model)
 
         Array(model_attributes(model)).flatten.each do |entry|
@@ -66,7 +68,9 @@ module StandardAPI
       # validations, or {} if the Schema doesn't declare it. It's readOnly
       # when the definition is read only: an attr_readonly attribute, which
       # can be set on create but not changed, or one the Schema says is.
-      def attribute_write_schema(model, name)
+      # +permitted+ is for an attribute the ACL's +nested+ permits rather
+      # than its +attributes+, which the definition has as read only.
+      def attribute_write_schema(model, name, permitted: false)
         definition = definitions_for(model)[name.to_s]
         return {} if !definition
 
@@ -76,7 +80,7 @@ module StandardAPI
         schema = nullable(schema) if definition[:null] != false
 
         # For an array these describe the array, not its items
-        schema['readOnly'] = true if definition[:read_only]
+        schema['readOnly'] = true if definition[:read_only] && !permitted
         schema['default'] = definition[:default] if !definition[:default].nil?
         schema['description'] = definition[:comment] if definition[:comment]
         schema
@@ -92,7 +96,7 @@ module StandardAPI
           next if !association
 
           if association.belongs_to?
-            schemas[association.foreign_key.to_s] = attribute_write_schema(model, association.foreign_key.to_s)
+            schemas[association.foreign_key.to_s] = attribute_write_schema(model, association.foreign_key.to_s, permitted: true)
             schemas[association.foreign_type.to_s] = { 'type' => 'string' } if association.polymorphic?
           end
           next if association.polymorphic?

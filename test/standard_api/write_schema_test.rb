@@ -109,6 +109,17 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal({}, camera_schema.dig('properties', 'created_at'))
   end
 
+  test 'Controller#write_schema.json what nested permits of a nested record is not readOnly' do
+    photo = property_schema.dig('properties', 'photos', 'items', 'properties')
+
+    # Neither is one of PhotoACL's attributes, which the definition has as
+    # read only: the id says which photo to update, and PhotoACL nested
+    # permits its account
+    assert_equal({ 'type' => 'integer' }, photo['id'])
+    assert_equal({ 'type' => ['integer', 'null'] }, photo['account_id'])
+    assert_equal({ 'type' => 'integer' }, property_schema.dig('properties', 'accounts', 'items', 'properties', 'id'))
+  end
+
   test 'Controller#write_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do
     Camera.stubs(:readonly_attribute?).returns(false)
     Camera.stubs(:readonly_attribute?).with('make').returns(true)
