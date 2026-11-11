@@ -46,15 +46,26 @@ module StandardAPI
 
     # The validations of a definition, as JSON Schema. A presence validation
     # is in the definition's +required+.
+    #
+    # Only what JSON Schema can state is: a validation that doesn't always
+    # run (+if+, +unless+, +on+) or that passes a blank value (+allow_blank+)
+    # is left out, as is an option given as a Symbol or a Proc, so the schema
+    # never rejects what the model accepts.
     def apply_validations(schema, model, definition)
       Array(definition[:validations]).each do |v|
         options = v[:options]
+        next if options[:if] || options[:unless] || options[:on] || options[:allow_blank]
+
         case v[:kind]
         when :numericality
-          schema['exclusiveMinimum'] = options[:greater_than] if options[:greater_than]
-          schema['exclusiveMaximum'] = options[:less_than] if options[:less_than]
-          schema['minimum'] = options[:greater_than_or_equal_to] if options[:greater_than_or_equal_to]
-          schema['maximum'] = options[:less_than_or_equal_to] if options[:less_than_or_equal_to]
+          {
+            greater_than: 'exclusiveMinimum',
+            less_than: 'exclusiveMaximum',
+            greater_than_or_equal_to: 'minimum',
+            less_than_or_equal_to: 'maximum'
+          }.each do |option, keyword|
+            schema[keyword] = options[option] if options[option].is_a?(Numeric)
+          end
         when :inclusion
           case options[:in]
           when Array
@@ -68,7 +79,12 @@ module StandardAPI
             end
           end
         when :acceptance
-          schema['const'] = true
+          # Accepts nil unless told not to
+          if options[:allow_nil] == false
+            schema['const'] = true
+          else
+            schema['enum'] = [true, nil]
+          end
         when :format
           # JSON Schema patterns are ECMA 262, so only a Regexp JavaScript reads
           # the same way: no flags, inline flag groups like (?i), \A, \z, \Z, \G
@@ -80,8 +96,8 @@ module StandardAPI
             Rails.logger.warn("#{model.name}##{definition[:name]} format #{with.inspect} isn't an ECMA 262 pattern, so it's left out of the JSON Schema")
           end
         when :length
-          schema['minLength'] = options[:minimum] if options[:minimum]
-          schema['maxLength'] = options[:maximum] if options[:maximum]
+          schema['minLength'] = options[:minimum] if options[:minimum].is_a?(Integer)
+          schema['maxLength'] = options[:maximum] if options[:maximum].is_a?(Integer)
         when :presence
           # Already counted in the definition's +required+
         else
@@ -92,7 +108,7 @@ module StandardAPI
 
     def nullable(schema)
       schema = schema.dup
-      schema['enum'] += [nil] if schema['enum']
+      schema['enum'] |= [nil] if schema['enum']
 
       case schema['type']
       when String then schema['type'] = [schema['type'], 'null']
