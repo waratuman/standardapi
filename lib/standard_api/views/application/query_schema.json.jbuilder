@@ -7,7 +7,7 @@ defs = {}
 order = json_schema_orders(model) | json_schema_required_orders
 include_permit = json_schema_includes(model)
 
-json.set! '$schema', StandardAPI::Helpers::JSONSchemaHelper::DIALECT
+json.set! '$schema', StandardAPI::Helpers::JSONSchema::DIALECT
 json.set! 'title', model.model_name.human.pluralize
 json.set! 'type', 'object'
 json.set! 'properties' do

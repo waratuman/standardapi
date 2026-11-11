@@ -10,7 +10,7 @@ module StandardAPI
     # in it, ie. an attribute from its definition in schemas_for(model), and
     # read the controller's ACL for the views, so each schema only describes
     # what the ACL permits.
-    module JSONSchemaHelper
+    module JSONSchema
 
       DIALECT = 'https://json-schema.org/draft/2020-12/schema'.freeze
 

@@ -568,7 +568,7 @@ The schemas are rendered by the `application/read_schema`, `write_schema` and
 and turbostreamer like the other views. A controller can override a template
 in its own view path (`app/views/photos/read_schema.json.jbuilder`). The
 values in them come from the `json_schema_*` helpers in
-`StandardAPI::Helpers::JSONSchemaHelper`. To validate params in-process, render the view, ie.
+`StandardAPI::Helpers::JSONSchema`. To validate params in-process, render the view, ie.
 `render_to_string(:query_schema, formats: :json)`.
 
 # Testing
