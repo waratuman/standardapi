@@ -15,7 +15,11 @@ module StandardAPI
 
       private
 
-      def record_read_schema(model, includes)
+      # +excluded+ is whether an exclude of a record including this one could
+      # apply to it, as an ACL +excludes+ can reach into what it includes
+      def record_read_schema(model, includes, excluded = false)
+        excluded ||= excludes?(model)
+
         if model_partial(model) != 'application/record'
           return {
             'type' => 'object',
@@ -40,18 +44,18 @@ module StandardAPI
           elsif association.polymorphic?
             { 'type' => ['object', 'null'] }
           elsif association.collection?
-            { 'type' => 'array', 'items' => record_read_schema(association.klass, subincludes) }
+            { 'type' => 'array', 'items' => record_read_schema(association.klass, subincludes, excluded) }
           elsif model.validators_on(association.name).any? { |v| v.kind == :presence }
             # A required belongs_to (or a has_one validated for presence)
-            record_read_schema(association.klass, subincludes)
+            record_read_schema(association.klass, subincludes, excluded)
           else
-            nullable(record_read_schema(association.klass, subincludes))
+            nullable(record_read_schema(association.klass, subincludes, excluded))
           end
         end
 
         # An ACL exclude or a Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if excludes?(model)
+        required = [] if excluded
 
         properties['errors'] = {
           'type' => 'object',

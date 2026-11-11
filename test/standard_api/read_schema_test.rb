@@ -60,6 +60,19 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_includes schema['properties'].keys, 'make'
   end
 
+  test 'Controller#read_schema.json with excludes requires nothing of what it includes' do
+    path = read_schema_properties_path(format: 'json')
+    assert_includes read_schema(path, include: 'landlord').dig('properties', 'landlord', 'required'), 'email'
+
+    # An ACL excludes can reach into an include, ie. { landlord: [:email] }
+    PropertiesController.any_instance.stubs(:property_excludes).returns({ landlord: [:email] })
+    schema = read_schema(path, include: 'landlord')
+
+    assert_not schema.key?('required')
+    assert_not schema.dig('properties', 'landlord').key?('required')
+    assert_includes schema.dig('properties', 'landlord', 'properties').keys, 'email'
+  end
+
   test 'Controller#read_schema.json is served at schema/read.json' do
     get '/properties/schema/read.json'
     assert_response :ok
