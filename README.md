@@ -563,6 +563,13 @@ conditions see being `nil`.
   required unless there is a `default_limit`, or the query has a `select`
   (`#calculate`).
 
+  It describes one form of each param, the canonical one. The server takes
+  others that it doesn't list, so params using them work but don't validate:
+  an operator's aliases (ie. `greater_than` or `gteq` for `gt` and `gte`), an
+  order by a dotted key (`{ "property.name": "asc" }`) or by an association's
+  name alone, an upper-case direction (`DESC`), and a single value where an
+  array column takes an array.
+
 The schemas are built by `read_schema_for(model, includes)`,
 `write_schema_for(model)` and `query_schema_for(model)`, which are public like
 `schemas_for`. Called on a controller handling a request, they give what the
