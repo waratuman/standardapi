@@ -274,7 +274,7 @@ module StandardAPI
             entry.each do |key, subpermit|
               key = key.to_s
               names.concat(Array(subpermit).flatten.map { |column| "#{key}.#{column}" })
-              properties[key] = order_schema(subpermit, nil, defs)
+              properties[key] = order_schema(subpermit, nil, defs) || { 'not' => {} }
             end
             next
           end

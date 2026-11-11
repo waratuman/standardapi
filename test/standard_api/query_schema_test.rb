@@ -109,6 +109,14 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_not schemer.valid?({ 'order' => { 'id' => 'sideways' }, 'limit' => 1 })
   end
 
+  test 'Controller#query_schema.json order under an empty Hash permit accepts nothing' do
+    camera_schema
+    defs = {}
+    controller.send(:order_schema, [:id, { photos: [] }], Camera, defs, 'Order')
+
+    assert_equal({ 'not' => {} }, defs.dig('OrderObject', 'properties', 'photos'))
+  end
+
   test 'Controller#query_schema.json include' do
     schemer = schemer(camera_schema)
 
