@@ -55,38 +55,6 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_nil query_schema(query_schema_references_path(format: 'json')).dig('properties', 'where')
   end
 
-  test 'Controller#query_schema.json accepts the wheres the server accepts' do
-    schemer = schemer(camera_schema)
-    [
-      { 'where' => { 'make' => 'Sony' } },
-      { 'where' => { 'make' => { 'ilike' => 'so%' } } },
-      { 'where' => { 'photo_id' => [1, 2] } },
-      { 'where' => [{ 'make' => 'Sony' }, 'OR', { 'id' => 1 }] },
-      { 'where' => { 'photo' => { 'account_id' => 1 } } },
-      { 'where' => { 'photo' => true } }
-    ].each do |query|
-      assert schemer.valid?(query.merge('limit' => 1)), query.inspect
-
-      get cameras_path(format: 'json'), params: query.merge(limit: 1)
-      assert_response :ok, query.inspect
-    end
-  end
-
-  test 'Controller#query_schema.json rejects the wheres the server rejects' do
-    schemer = schemer(camera_schema)
-    [
-      { 'where' => { 'hidden' => true } },
-      { 'where' => { 'photo_id' => { 'gt' => 1 } } },
-      { 'where' => { 'photo' => { 'format' => 'jpg' } } },
-      { 'where' => [{ 'make' => 'Sony' }, 'OR', { 'hidden' => true }] }
-    ].each do |query|
-      assert_not schemer.valid?(query.merge('limit' => 1)), query.inspect
-
-      get cameras_path(format: 'json'), params: query.merge(limit: 1)
-      assert_response :bad_request, query.inspect
-    end
-  end
-
   test 'Controller#query_schema.json where reads an object as operators' do
     path = query_schema_cameras_path(format: 'json')
 
@@ -117,6 +85,38 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       ].each do |where|
         assert_not schemer.valid?({ 'where' => where, 'limit' => 1 }), where.inspect
       end
+    end
+  end
+
+  test 'Controller#query_schema.json accepts the wheres the server accepts' do
+    schemer = schemer(camera_schema)
+    [
+      { 'where' => { 'make' => 'Sony' } },
+      { 'where' => { 'make' => { 'ilike' => 'so%' } } },
+      { 'where' => { 'photo_id' => [1, 2] } },
+      { 'where' => [{ 'make' => 'Sony' }, 'OR', { 'id' => 1 }] },
+      { 'where' => { 'photo' => { 'account_id' => 1 } } },
+      { 'where' => { 'photo' => true } }
+    ].each do |query|
+      assert schemer.valid?(query.merge('limit' => 1)), query.inspect
+
+      get cameras_path(format: 'json'), params: query.merge(limit: 1)
+      assert_response :ok, query.inspect
+    end
+  end
+
+  test 'Controller#query_schema.json rejects the wheres the server rejects' do
+    schemer = schemer(camera_schema)
+    [
+      { 'where' => { 'hidden' => true } },
+      { 'where' => { 'photo_id' => { 'gt' => 1 } } },
+      { 'where' => { 'photo' => { 'format' => 'jpg' } } },
+      { 'where' => [{ 'make' => 'Sony' }, 'OR', { 'hidden' => true }] }
+    ].each do |query|
+      assert_not schemer.valid?(query.merge('limit' => 1)), query.inspect
+
+      get cameras_path(format: 'json'), params: query.merge(limit: 1)
+      assert_response :bad_request, query.inspect
     end
   end
 
