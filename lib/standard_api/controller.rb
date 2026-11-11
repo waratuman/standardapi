@@ -3,7 +3,6 @@ module StandardAPI
     include StandardAPI::Orders
     include StandardAPI::Includes
     include StandardAPI::Wheres
-    include StandardAPI::JSONSchema
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
@@ -16,7 +15,6 @@ module StandardAPI
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
-      klass.helper_method(*StandardAPI::JSONSchema::HELPERS)
       klass.before_action :set_standardapi_headers
       klass.before_action :includes, only: [:create, :update, :create_resource]
 
