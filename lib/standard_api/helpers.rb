@@ -19,8 +19,16 @@ module StandardAPI
       end
     end
 
+    # The value of attribute +name+ to render for +record+, from its Schema
+    # (Schema#value), so a declared +value+ renders in place of the record's.
+    # An override of serialize_attribute should read the value with this.
+    def attribute_value(record, name)
+      schema = controller.send(:model_schema, record.class) if respond_to?(:controller) && controller.respond_to?(:model_schema, true)
+      schema ? schema.value(record, name) : record.send(name)
+    end
+
     def serialize_attribute(json, record, name, type)
-      value = record.send(name)
+      value = attribute_value(record, name)
 
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
@@ -192,69 +200,6 @@ module StandardAPI
     end
     private :attribute_schema
 
-    # The excludes that apply to +record+ inside a partial: the record's own
-    # ACL excludes deep-merged with whatever the parent partial passed down as
-    # the `excludes` local.
-    #
-    # Custom model partials MUST call this and honour the result. StandardAPI
-    # enforces excludes in application/_record only; it cannot filter
-    # attributes a hand-written partial serializes itself.
-    #
-    #   excluded = resolve_excludes(photo, local_assigns[:excludes])
-    #
-    #   json.set! :format, photo.format unless excluded[:format] == true
-    #
-    #   # forward the sub-tree when rendering a nested record
-    #   json.partial! 'application/record', record: photo.account,
-    #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
-    def resolve_excludes(record, inherited = nil)
-      own = respond_to?(:excludes) ? excludes(record) : nil
-      StandardAPI::Excludes.deep_merge(own, inherited)
-    end
-
-    # The exclude sub-tree to forward for +key+, or nil when there is nothing
-    # to forward. Returns nil for a terminal `true` — that case means the key
-    # is dropped entirely and should never be rendered.
-    def sub_excludes(excluded, key)
-      value = excluded[key]
-      value.is_a?(Hash) ? value : nil
-    end
-
-    # Apply an exclude sub-tree to a plain JSON value.
-    #
-    # An include can resolve to something that isn't a record — a method
-    # returning a Hash or an Array of Hashes — in which case there is no
-    # partial to enforce the excludes and the value would otherwise be
-    # serialized whole.
-    def apply_excludes(value, excluded)
-      return value if excluded.blank?
-
-      case value
-      when Array
-        value.map { |v| apply_excludes(v, excluded) }
-      when Hash
-        value.each_with_object({}) do |(key, v), result|
-          sub = excluded[key]
-          next if sub == true
-
-          result[key] = sub.is_a?(Hash) ? apply_excludes(v, sub) : v
-        end
-      else
-        value
-      end
-    end
-
-    # Drop validation errors belonging to an excluded attribute. An error key
-    # names the attribute it came from, and its message usually quotes the
-    # value, so serializing the errors untouched hands back exactly what the
-    # exclude was hiding. Nested keys like `photos.caption` are matched on
-    # their leading segment.
-    def reject_excluded_errors(errors, excluded)
-      return errors if excluded.blank?
-
-      errors.reject { |attribute, _| excluded[attribute.to_s.split('.').first] == true }
-    end
-
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?
@@ -272,14 +217,14 @@ module StandardAPI
       end
     end
 
-    # +excludes+ is the exclude sub-tree the parent partial is forwarding for
-    # this relation, if any. Its presence alone makes the fragment specific to
-    # this requester.
-    def can_cache_relation?(record, relation, subincludes, excludes = nil)
+    # +schemas+ are the Schemas narrowing the records of this relation
+    # (Schema::Record#narrowing_for). A fragment they narrow isn't cached, as
+    # its key doesn't include them.
+    def can_cache_relation?(record, relation, subincludes, schemas = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if excludes.present?
+      return false if schemas.present?
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?
@@ -295,7 +240,7 @@ module StandardAPI
     end
 
     # False when rendering +klass+ with +includes+ could vary by requester,
-    # through an ACL exclude rule or a row mask. Cache keys are built from
+    # through a Schema that varies or a row mask. Cache keys are built from
     # record timestamps and the include digest alone, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.

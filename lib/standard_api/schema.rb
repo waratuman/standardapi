@@ -2,10 +2,11 @@ require 'active_support/core_ext/class/attribute'
 require 'active_support/core_ext/hash/keys'
 
 module StandardAPI
-  # Declares how a model's attributes are described and rendered. Nest a
-  # subclass in the model's controller; StandardAPI::Schemas finds it. Like
-  # strong parameters, only what it declares is used, so a new column stays
-  # hidden until it's listed. Types and validations still come from the model.
+  # Declares how a model's attributes and associations are described and
+  # rendered. Nest a subclass in the model's controller; StandardAPI::Schemas
+  # finds it. Like strong parameters, only what it declares is used, so a new
+  # column or association stays hidden until it's listed. Types and
+  # validations still come from the model.
   #
   #   class PhotosController < ApplicationController
   #     class Schema < StandardAPI::Schema
@@ -13,6 +14,10 @@ module StandardAPI
   #       attribute :caption, comment: 'Shown under the photo'
   #       attribute :thumbnail_url, :string
   #       attribute :location, if: :admin?
+  #
+  #       associations :camera, :properties
+  #       association :account, schema: AccountNameSchema
+  #       association :comments, unless: -> { record&.locked? }
   #
   #       attributes_for :account_id do |account_id|
   #         Field.where(account_id: account_id).each do |field|
@@ -38,20 +43,27 @@ module StandardAPI
         read_only: true, required: false, validations: [].freeze
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
+      ASSOCIATION_OPTIONS = [:schema].freeze
 
-      attr_reader :conditions
+      # +association_options+ are each declared association's options, and
+      # +values+ each attribute's declared +value+
+      attr_reader :conditions, :association_options, :association_conditions, :values
 
       def initialize
         @changes = {}
         @conditions = {}
+        @values = {}
+        @association_options = {}
+        @association_conditions = {}
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
       # when +type+ is given and the model doesn't have it. +if+ and +unless+
-      # hide it per record.
+      # hide it per record, and +value+ renders it in place of the record's.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
+        value = options.delete(:value)
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -59,6 +71,7 @@ module StandardAPI
         changes[:type] = type.to_s if type
         changes.merge!(options)
         (@conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
+        @values[name] = value if value
         self
       end
 
@@ -67,11 +80,33 @@ module StandardAPI
         self
       end
 
+      # Declare the association +name+, so an include of it is rendered. +if+
+      # and +unless+ hide it per record. +schema+ narrows the included
+      # records: they render only what both it and their own Schema declare.
+      def association(name, **options)
+        name = name.to_s
+        conditions = options.extract!(:if, :unless)
+        unknown = options.keys - ASSOCIATION_OPTIONS
+        raise ArgumentError, "unknown options for association #{name}: #{unknown.join(', ')}" if !unknown.empty?
+
+        (@association_options[name] ||= {}).merge!(options)
+        (@association_conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
+        self
+      end
+
+      def associations(*names)
+        names.each { |name| association(name) }
+        self
+      end
+
       # Take back a declaration, ie. one inherited from a parent Schema
       def remove(*names)
         names.map(&:to_s).each do |name|
           @changes.delete(name)
           @conditions.delete(name)
+          @values.delete(name)
+          @association_options.delete(name)
+          @association_conditions.delete(name)
         end
         self
       end
@@ -108,14 +143,40 @@ module StandardAPI
     class << self
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
       # Proc. Both run on the Schema instance, take no arguments and read the
-      # record from +record+, which is nil for a model.
+      # record from +record+, which is nil for a model. So does +value+, which
+      # is only run for a record.
       def attribute(name, type = nil, **options)
-        conditional = options.key?(:if) || options.key?(:unless)
-        add_step(varies: conditional) { attribute(name, type, **options) }
+        value = options[:value]
+        if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
+          raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
+        end
+
+        # A value can read the requester as a condition can
+        varies = options.key?(:if) || options.key?(:unless) || !value.nil?
+        add_step(varies: varies) { attribute(name, type, **options) }
       end
 
       def attributes(*names)
         add_step { attributes(*names) }
+      end
+
+      # See Builder#association. +schema+ is a Schema class, or a Symbol or
+      # Proc run like a condition, on the record including them, that returns
+      # one or nil to render the included records with their own Schema alone.
+      def association(name, **options)
+        schema = options[:schema]
+        if schema && !schema.is_a?(Proc) && !schema.is_a?(Symbol) && !(schema.is_a?(Class) && schema < StandardAPI::Schema)
+          raise ArgumentError, "the schema of association #{name} must be a subclass of StandardAPI::Schema, a Symbol or a Proc"
+        end
+
+        varies = options.key?(:if) || options.key?(:unless) || schema.is_a?(Proc) || schema.is_a?(Symbol)
+        # A narrowing Schema can vary too, and may not be fully declared yet
+        varies ||= -> { schema.varies_by_requester? } if schema.is_a?(Class)
+        add_step(varies: varies) { association(name, **options) }
+      end
+
+      def associations(*names)
+        add_step { associations(*names) }
       end
 
       def remove(*names)
@@ -125,7 +186,8 @@ module StandardAPI
       # Declare attributes only known at runtime. +key+ is a Symbol or Proc that
       # reads +record+ (nil for a model), and records with the same result share
       # them: the block runs on the Schema instance once a request per key, is
-      # given the key, and declares with +attribute+, +attributes+ and +remove+.
+      # given the key, and declares with +attribute+, +attributes+,
+      # +association+, +associations+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
@@ -135,9 +197,10 @@ module StandardAPI
 
       # Whether the definitions could differ by requester, which fragment
       # caching has to know as its keys can't tell requesters apart. Assumed of
-      # conditions and attributes_for; override to say otherwise.
+      # conditions, values, attributes_for and an association's +schema+ given
+      # as a Symbol or Proc, or one that varies; override to say otherwise.
       def varies_by_requester?
-        schema_steps.any? { |step| step[:varies] }
+        schema_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
       end
 
       private
@@ -164,6 +227,7 @@ module StandardAPI
       @builders = {}
       @applied = {}.compare_by_identity
       @failed = {}.compare_by_identity
+      @failed_associations = {}.compare_by_identity
     end
 
     # The definitions to use for +record+, or nil for a model, from
@@ -181,6 +245,27 @@ module StandardAPI
     # Names of the attributes +record+ doesn't render for this requester
     def hidden_attributes(record)
       builder_for(record).hidden_attributes(model) + failed_conditions(record)
+    end
+
+    # The value of attribute +name+ to render for +record+: its declared
+    # +value+, or else the record's own
+    def value(record, name)
+      value = builder_for(record).values[name.to_s]
+      value ? resolve(value, record) : record.send(name)
+    end
+
+    # Whether +record+, or a model with nil, renders an include of association
+    # +name+ for this requester: it's declared and its conditions pass
+    def association?(record, name)
+      name = name.to_s
+      builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
+    end
+
+    # The Schema class the association +name+ narrows the records +record+
+    # includes through it with, or nil
+    def association_schema(record, name)
+      schema = builder_for(record).association_options.dig(name.to_s, :schema)
+      schema.is_a?(Proc) || schema.is_a?(Symbol) ? resolve(schema, record) : schema
     end
 
     private
@@ -209,6 +294,14 @@ module StandardAPI
       declarations.attributes(*names)
     end
 
+    def association(name, **options)
+      declarations.association(name, **options)
+    end
+
+    def associations(*names)
+      declarations.associations(*names)
+    end
+
     def remove(*names)
       declarations.remove(*names)
     end
@@ -218,8 +311,16 @@ module StandardAPI
     end
 
     def failed_conditions(record)
-      @failed[record] ||= builder_for(record).conditions.filter_map do |name, conditions|
-        name if conditions.any? { |kind, condition| !!resolve(condition, record) == (kind == :unless) }
+      @failed[record] ||= failed(builder_for(record).conditions, record)
+    end
+
+    def failed_association_conditions(record)
+      @failed_associations[record] ||= failed(builder_for(record).association_conditions, record)
+    end
+
+    def failed(conditions, record)
+      conditions.filter_map do |name, list|
+        name if list.any? { |kind, condition| !!resolve(condition, record) == (kind == :unless) }
       end
     end
 
@@ -245,3 +346,5 @@ module StandardAPI
 
   end
 end
+
+require 'standard_api/schema/record'

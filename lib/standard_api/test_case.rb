@@ -149,17 +149,17 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
+    schema = @controller.schema_for(record)
     record.attributes.select do |x|
-      excluded[x] != true
+      !schema.hidden?(x)
     end
   end
 
   def update_attributes(record)
     return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
+    schema = @controller.schema_for(record)
     record.attributes.select do |x|
-      !record.class.readonly_attributes.include?(x.to_s) && excluded[x] != true
+      !record.class.readonly_attributes.include?(x.to_s) && !schema.hidden?(x)
     end
   end
   alias_method :create_attributes, :update_attributes

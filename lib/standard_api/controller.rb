@@ -13,7 +13,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.include StandardAPI::Schemas
-      klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
+      klass.helper_method :includes, :schema_for, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -284,20 +284,8 @@ module StandardAPI
       end
     end
 
-    # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record.
-    def excludes(record)
-      acl_method = "#{model_name(record.class)}_excludes"
-      excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
-
-      # What a Schema hides is excluded too, so it stays out of validation errors
-      hidden = model_schema(record.class)&.hidden_attributes(record)
-      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
-    end
-
-    # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method or from a Schema whose definitions could vary by
-    # requester.
+    # True when what +klass+'s Schema hides could differ by requester
+    # (Schema.varies_by_requester?).
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -306,19 +294,17 @@ module StandardAPI
       @excludes_defined ||= {}
       return @excludes_defined[klass] if @excludes_defined.key?(klass)
 
-      @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        !!model_schema(klass)&.class&.varies_by_requester?
+      @excludes_defined[klass] = !!model_schema(klass)&.class&.varies_by_requester?
     end
 
-    # True when rendering +klass+ with +includes+ could be affected by an
-    # exclude rule, anywhere in the rendered tree.
+    # True when rendering +klass+ with +includes+ could be affected by a
+    # Schema that varies by requester, anywhere in the rendered tree.
     #
-    # #excludes is resolved per record and may depend on the current user, but
-    # the fragment cache keys in the views are built from record timestamps
-    # only. Caching a fragment whose contents depend on the requester would let
-    # one requester's response be served to another, so the views use this to
-    # skip caching entirely whenever excludes are in play. Apps that define no
-    # excludes are unaffected and keep caching.
+    # Schemas#schema_for is resolved per record and may depend on the
+    # current user, but the fragment cache keys in the views are built from
+    # record timestamps only. Caching a fragment whose contents depend on the
+    # requester would let one requester's response be served to another, so
+    # the views use this to skip caching entirely whenever it could.
     def excludes_affect?(klass, includes)
       return true if excludes?(klass)
 

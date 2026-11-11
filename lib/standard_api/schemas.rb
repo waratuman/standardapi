@@ -48,7 +48,22 @@ module StandardAPI
       schema.schemas(schemas, record)
     end
 
+    # What +record_or_model+ renders (a Schema::Record; for a model, the record
+    # is nil): its model's Schema, narrowed by +through+, the Schema classes
+    # the association that included it gives, so they can only hide more.
+    def schema_for(record_or_model, through = nil)
+      model, record = record_or_model.is_a?(Class) ? [record_or_model, nil] : [record_or_model.class, record_or_model]
+      narrowing = Array(through).map { |schema| narrowing_schema(schema, model) }
+      StandardAPI::Schema::Record.new(self, model, record, model_schema(model), narrowing)
+    end
+
     private
+
+    # The instance of +schema+, given by an association's +schema+, for
+    # +model+ this request
+    def narrowing_schema(schema, model)
+      (@narrowing_schemas ||= {})[[schema, model]] ||= schema.new(self, model)
+    end
 
     # The Schema instance for +model+ this request, falling back to the one for
     # its base class (ie. an STI subclass), or nil if there is none

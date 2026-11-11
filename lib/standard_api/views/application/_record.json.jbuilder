@@ -1,20 +1,18 @@
-excluded = resolve_excludes(record, local_assigns[:excludes])
-schemas_for(record).each do |schema|
-  next if excluded[schema[:name]] == true
-
-  serialize_attribute(json, record, schema[:name], schema[:type]&.to_sym)
+schema = schema_for(record, local_assigns[:schemas])
+schema.attributes.each do |definition|
+  serialize_attribute(json, record, definition[:name], definition[:type]&.to_sym)
 end
 
 includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
-  next if excluded[inc] == true
+  next if !schema.include?(inc)
 
-  sub_excluded = sub_excludes(excluded, inc)
+  narrowing = schema.narrowing_for(inc)
 
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection
     if association.collection?
-      can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
+      can_cache = can_cache_relation?(record, inc, subinc, narrowing)
       json.set! inc do
         json.cache_if!(can_cache, can_cache ? association_cache_key(record, inc, subinc) : nil) do
           partial = model_partial(association.klass)
@@ -36,11 +34,11 @@ includes.each do |inc, subinc|
           sub_records = sub_records.distinct if subinc['distinct']
           sub_records = sub_records.distinct_on(subinc['distinct_on']) if subinc['distinct_on']
 
-          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc, excludes: sub_excluded }
+          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: subinc, schemas: narrowing }
         end
       end
     else
-      can_cache = can_cache_relation?(record, inc, subinc, sub_excluded)
+      can_cache = can_cache_relation?(record, inc, subinc, narrowing)
       cache_key = nil
 
       if can_cache
@@ -61,7 +59,7 @@ includes.each do |inc, subinc|
             json.null!
           else
             partial = model_partial(value)
-            json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, excludes: sub_excluded
+            json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, schemas: narrowing
           end
         end
       end
@@ -74,10 +72,10 @@ includes.each do |inc, subinc|
       elsif value.is_a?(ActiveModel::Model)
         json.set! inc do
           partial = model_partial(value)
-          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, excludes: sub_excluded
+          json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc, schemas: narrowing
         end
       else
-        json.set! inc, apply_excludes(value.as_json, sub_excluded)
+        json.set! inc, value.as_json
       end
     end
   end
@@ -85,8 +83,5 @@ includes.each do |inc, subinc|
 end
 
 if !record.errors.blank?
-  errs = record.errors.to_hash
-  errs.default_proc = nil
-  errs = reject_excluded_errors(errs, excluded)
-  json.set! 'errors', errs
+  json.set! 'errors', schema.errors
 end

@@ -9,7 +9,7 @@ class ApplicationController < ActionController::Base
     value = if attribute == 'description' && params["magic"] === "true"
       'See it changed!'
     else
-      record.send(attribute)
+      helpers.attribute_value(record, attribute)
     end
     
     json.set! attribute, type == :binary ? value&.unpack1('H*') : value
@@ -109,11 +109,52 @@ end
 
 class CamerasController < ApplicationController
 
+  # An account, without its email
+  class AccountWithoutEmailSchema < StandardAPI::Schema
+    attributes(*(Account.attribute_names - %w[email]))
+    associations(*Account.reflect_on_all_associations.map(&:name))
+  end
+
+  # A photo, without its format
+  class PhotoWithoutFormatSchema < StandardAPI::Schema
+    attributes(*(Photo.attribute_names - %w[format]))
+    associations(*Photo.reflect_on_all_associations.map(&:name))
+  end
+
+  # The photo of a hidden camera: no format or created_at, nor the email of
+  # its account
+  class HiddenPhotoSchema < StandardAPI::Schema
+    attributes(*(Photo.attribute_names - %w[format created_at]))
+    associations :properties, :camera
+    association :account, schema: AccountWithoutEmailSchema
+  end
+
   # Adjusts the attribute definitions schemas_for(Camera), the JSON Schemas and
-  # rendered cameras are built from
+  # rendered cameras are built from, and hides per record what the Camera tests
+  # exercise in isolation from Property/Account, which are exercised by the
+  # much larger StandardAPI::TestCase generic suite.
   class Schema < StandardAPI::Schema
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
-    attribute :make, comment: 'The manufacturer'
+    attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
+    association :photo, unless: -> { record&.retired? }, schema: :photo_schema
+
+    private
+
+    # `photos/_photo` is a custom partial, so the photo is only narrowed
+    # because that partial resolves and applies it. The account goes one level
+    # deeper, into application/_record.
+    #
+    # The header stands in for a Schema that varies by *requester* (current
+    # user, role, token) rather than by record. That is the case fragment
+    # caching has to defend against, since the cache keys are built from
+    # record timestamps alone and cannot tell two requesters apart.
+    def photo_schema
+      if record&.hidden?
+        HiddenPhotoSchema
+      elsif request.headers['X-Hide-Photo-Format'] == '1'
+        PhotoWithoutFormatSchema
+      end
+    end
   end
 
 end
