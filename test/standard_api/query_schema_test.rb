@@ -235,14 +235,22 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'Controller#query_schema.json group_by lists the model columns' do
+  test 'Controller#query_schema.json group_by and join name no columns or associations' do
     schema = camera_schema
     schemer = schemer(schema)
 
-    assert_equal Camera.column_names, schema.dig('properties', 'group_by', 'anyOf', 0, 'enum')
-    assert schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => ['make', 'hidden'] })
-    assert_not schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => 'cameras.make' })
+    # A Schema needn't declare a column, nor an ACL permit an association,
+    # so neither is listed
+    assert_equal({ 'type' => 'string' }, schema.dig('properties', 'group_by', 'anyOf', 0))
+    assert_equal 'string', schema.dig('properties', 'join', 'type')
+    assert_no_match(/photo_id|hidden|retired|"photo"/, schema['properties'].slice('group_by', 'join').to_json)
 
+    assert schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => ['make', 'hidden'] })
+    assert schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => 'make' })
+    assert_not schemer.valid?({ 'select' => { 'count' => '*' }, 'group_by' => 1 })
+    assert_not schemer.valid?({ 'join' => ['photo'], 'limit' => 1 })
+
+    # The server still only groups by a column of the model
     get calculate_cameras_path(format: 'json'), params: { select: { count: '*' }, group_by: 'cameras.make' }
     assert_response :bad_request
   end
@@ -254,7 +262,6 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       assert_match 'Not checked by the ACL.', properties.dig(name, 'description'), name
     end
     assert_no_match 'Not checked by the ACL.', properties.dig('group_by', 'description')
-    assert_equal ['photo'], properties.dig('join', 'enum')
   end
 
   test 'Controller#query_schema.json include when lists the attributes the ACL wheres permit an eq on' do
@@ -291,7 +298,6 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       assert_response :ok, query.inspect
     end
 
-    assert_not schemer.valid?({ 'join' => 'camera', 'limit' => 1 })
     assert_not schemer.valid?({ 'select' => { 'median' => 'id' } })
   end
 
