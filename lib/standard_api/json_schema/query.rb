@@ -53,8 +53,7 @@ module StandardAPI
       #     { '$ref' => "standardmcp://schema/#{model.model_name.plural}#/$defs/#{model.name}#{kind}" }
       #   })
       def query_schema_for(model, ref: nil)
-        @schema_ref = ref && [model, ref]
-        defs = {}
+        defs = Defs.new(model, ref)
         properties = {}
 
         properties['where'] = where_ref(model, defs) if normalize_where_permit(wheres_for(model)).any?
@@ -100,22 +99,32 @@ module StandardAPI
           # #index needs a limit when there is no default; #calculate, which
           # takes a select, doesn't
           'anyOf' => ([{ 'required' => ['limit'] }, { 'required' => ['select'] }] if resource_limit && !default_limit),
-          '$defs' => (defs if defs.any?)
+          '$defs' => (defs.to_h if defs.any?)
         }.compact
-      ensure
-        @schema_ref = @include_sources = nil
+      end
+
+      # The $defs of a query schema, with what building them needs to know:
+      # the +ref+ query_schema_for was given, the model it was given for, and
+      # the includes each name was built for. Each query_schema_for has its
+      # own, so one can be built while another is.
+      class Defs < Hash
+        attr_reader :include_sources
+
+        def initialize(root = nil, ref = nil)
+          super()
+          @root = root
+          @ref = ref
+          @include_sources = {}
+        end
+
+        # The schema +ref+ gives for the +kind+ of +model+, or nil to build
+        # it. The model being described is always built.
+        def external_ref(model, kind)
+          @ref.call(model, kind) if @ref && model != @root
+        end
       end
 
       private
-
-      # The schema query_schema_for's +ref+ gives for the +kind+ of +model+, or
-      # nil to build it. The model being described is always built.
-      def external_ref(model, kind)
-        root, ref = @schema_ref
-        return nil if !ref || model == root
-
-        ref.call(model, kind)
-      end
 
       def schema_name(model, kind)
         "#{model.name.gsub('::', '')}#{kind}"
@@ -132,7 +141,7 @@ module StandardAPI
       end
 
       def where_ref(model, defs)
-        external_ref(model, 'Where') || def_ref(defs, schema_name(model, 'Where')) { where_schema(model, defs) }
+        defs.external_ref(model, 'Where') || def_ref(defs, schema_name(model, 'Where')) { where_schema(model, defs) }
       end
 
       # Mirrors StandardAPI::Wheres#check_wheres: a Hash of permitted keys, or
@@ -311,7 +320,7 @@ module StandardAPI
 
       def order_ref(model, defs)
         name = schema_name(model, 'Order')
-        external_ref(model, 'Order') || def_ref(defs, name) do
+        defs.external_ref(model, 'Order') || def_ref(defs, name) do
           order_schema(orders_for(model), model, defs, name) || { 'not' => {} }
         end
       end
@@ -352,7 +361,7 @@ module StandardAPI
         # The name is taken before the include is built, as what's built may
         # refer back to it
         shared = defs[name] ||= { 'type' => 'object', 'properties' => {}, 'additionalProperties' => false }
-        sources = (@include_sources ||= {})[name] ||= []
+        sources = defs.include_sources[name] ||= []
         source = [permit, model, options]
         if !sources.include?(source)
           sources << source
@@ -437,7 +446,7 @@ module StandardAPI
       end
 
       def include_ref(model, defs)
-        external_ref(model, 'Include') ||
+        defs.external_ref(model, 'Include') ||
           include_schema(normalize_includes(includes_for(model)), model, defs, name: schema_name(model, 'Include'))
       end
 
