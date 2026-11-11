@@ -27,7 +27,10 @@ module StandardAPI
           {type: 'string', format: 'date-time'}
         when 'interval'
           {type: 'string', format: 'duration'}
-        when 'json', 'jsonb', 'hstore'
+        when 'json', 'jsonb'
+          # Holds any JSON value: an object, an array or a scalar
+          {}
+        when 'hstore'
           {type: 'object'}
         when 'binary'
           {type: 'string', contentMediaType: 'application/octet-stream'}

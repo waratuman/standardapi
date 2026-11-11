@@ -51,6 +51,24 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_equal({}, properties['custom_binary'])
   end
 
+  test 'Controller#read_schema.json a json column is any JSON value' do
+    assert_equal({}, controller_helpers.json_schema_for_type('json'))
+    assert_equal({}, controller_helpers.json_schema_for_type('jsonb'))
+    assert_equal({ type: 'object' }, controller_helpers.json_schema_for_type('hstore'))
+
+    with_camera_schema(proc { attribute :make, :json }) do
+      make = read_schema(read_schema_cameras_path(format: 'json')).dig('properties', 'make')
+      assert_not make.key?('type')
+
+      schemer = JSONSchemer.schema(make)
+      [{ 'a' => 1 }, [1, 2], 'a', 1, nil].each { |value| assert schemer.valid?(value), value.inspect }
+    end
+  end
+
+  def controller_helpers
+    ApplicationController.new.helpers
+  end
+
   test 'Controller#read_schema.json with excludes requires nothing' do
     schema = read_schema(read_schema_cameras_path(format: 'json'))
 
