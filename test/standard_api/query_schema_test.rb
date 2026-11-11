@@ -190,6 +190,37 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_equal properties, defs.dig('CameraPhotoInclude', 'properties').except('photo')
   end
 
+  test 'Controller#query_schema.json an include with nothing to include of its own takes a when' do
+    schema = query_schema(query_schema_properties_path(format: 'json'))
+    schemer = schemer(schema)
+    property = create(:property)
+
+    # PropertyACL includes permit english_name, a method, by name
+    assert_equal({ '$ref' => '#/$defs/PropertyWhen' },
+      schema.dig('$defs', 'Include', 'properties', 'english_name', 'anyOf', 1, 'properties', 'when'))
+
+    [
+      { 'english_name' => true },
+      { 'english_name' => { 'when' => { 'id' => property.id } } }
+    ].each do |include|
+      assert schemer.valid?({ 'include' => include, 'limit' => 1 }), include.inspect
+
+      get properties_path(format: 'json'), params: { include: include, limit: 1 }
+      assert_response :ok, include.inspect
+    end
+
+    # PropertyACL wheres don't permit name
+    include = { 'english_name' => { 'when' => { 'name' => 'a' } } }
+    assert_not schemer.valid?({ 'include' => include, 'limit' => 1 })
+    get properties_path(format: 'json'), params: { include: include, limit: 1 }
+    assert_response :bad_request
+
+    # Nothing else is presented, as it has no records of its own to limit or
+    # filter
+    assert_not schemer.valid?({ 'include' => { 'english_name' => { 'limit' => 1 } }, 'limit' => 1 })
+    assert_not schemer.valid?({ 'include' => { 'english_name' => { 'where' => { 'id' => 1 } } }, 'limit' => 1 })
+  end
+
   test 'Controller#query_schema.json include order is checked against the included model ACL orders' do
     schema = camera_schema
     schemer = schemer(schema)

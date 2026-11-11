@@ -410,9 +410,16 @@ module StandardAPI
           end
 
           # The +when+ of an include is checked against the model it's on, and
-          # the include's schema is shared by every model including it
-          if sub && model
-            sub = { 'allOf' => [sub, { 'properties' => { 'when' => when_ref(model, defs) } }] }
+          # the include's schema is shared by every model including it. An
+          # include with nothing to include of its own, ie. a method or a
+          # polymorphic association permitted by name, still takes a +when+.
+          if model
+            condition = { 'when' => when_ref(model, defs) }
+            sub = if sub
+              { 'allOf' => [sub, { 'properties' => condition }] }
+            else
+              { 'type' => 'object', 'properties' => condition, 'additionalProperties' => false }
+            end
           end
 
           included = { 'enum' => [true, 'true'] }
