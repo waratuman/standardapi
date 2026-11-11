@@ -6,7 +6,11 @@
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
 - Replace `Controller#excludes_for(klass)` with per-record ACL
-  `excludes(record)` rules.
+  `excludes(record)` rules. A zero-arity ACL `excludes` raises
+  `ArgumentError`; accept the record argument.
+- Remove `ApplicationHelper#excludes`. While it's defined,
+  `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
+  boot; leave what it hid out of each model's Schema instead.
 - Ordering through an association listed by name in ACL `orders`, ie.
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
@@ -68,6 +72,14 @@
   `#calculate.json params[:where]` tests skip for a model whose ACL `wheres`
   don't permit filtering on `id`.
 
+- Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
+  `schema/query.json` (see Added). `schema/read.json` describes records as
+  rendered, with includes, as `json_schema.json` did; `schema/write.json` lists
+  only the attributes the ACL permits, where `json_schema.json` listed every
+  attribute and marked the rest `readOnly`. `include[only]` and
+  `include[except]` have no equivalent, and `:json_schema` in a route's `only`
+  or `except` raises Rails' `ArgumentError` for an unknown action.
+
 ### Added
 
 - ACL excludes can remove attributes and nested associations from serialized
@@ -78,10 +90,71 @@
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
+- A controller can nest a subclass of `StandardAPI::Schema`
+  (`PhotosController::Schema`), found by `StandardAPI::Schemas`, the sibling
+  of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
+  to declare its model's attribute definitions. Like strong parameters only
+  declared attributes are used. `attributes` declares them, `attribute` can
+  also change or add one, `remove` drops one, and
+  `attributes_for`
+  declares those only known at runtime, once a request per key. `if` and `unless` hide an attribute
+  per record, or per requester: hidden attributes join the record's excludes,
+  and a Schema that could vary by requester turns off fragment caching for its
+  model. Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
+  Rendering or describing a model with no Schema raises
+  `StandardAPI::MissingSchema`; a model with no controller declares one by name,
+  `ToolCallSchema` for `ToolCall`.
+  `schemas_for(record_or_model)` returns the result, for use without rendering a
+  view, and the JSON Schemas, `schema.json` and `application/_record` are built
+  from it: a record renders the attributes in `schemas_for(record)`, one per entry in
+  `record.attribute_names`, so an attribute a Schema removes isn't rendered and
+  one it adds is read from the record. Each definition has one `type`, the
+  attribute's ActiveModel type, and a `comment`, which the JSON Schemas
+  render as `description`.
+- Each resource serves three JSON Schemas (2020-12), built from its ACL and
+  Schema, each drawn only with the actions it describes:
+  - `schema/read.json`: a record as `#show` and `#index` render it, with the
+    `include` param checked against the ACL's `includes`. A column that
+    allows NULL, and a singular association unless its presence is
+    validated, allow `null`; decimals are strings, binary is hex, and an
+    enum lists its names.
+  - `schema/write.json`: the params `#create` and `#update` accept, with only
+    the attributes the ACL's `attributes` permit, their validations, and the
+    associations its `nested` permits. `required` is for a create. A
+    `read_only` definition is `readOnly`; an auto populated column isn't, and
+    isn't `required`.
+  - `schema/query.json`: the `where`, `order` and `include` the ACL's
+    `wheres`, `orders` and `includes` permit, following associations through
+    `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
+    params no ACL checks yet, marked as such.
 
-### Deprecated
+  Validations are valid JSON Schema: a `format` Regexp is its source, left out
+  when JavaScript wouldn't read it the same way, and a numeric `inclusion`
+  Range is `minimum` and `maximum`. A validation that doesn't always run
+  (`if`, `unless`, `on`) or allows blank, and an option given as a Symbol or
+  a Proc, is left out. `read_schema_for`, `write_schema_for` and
+  `query_schema_for` build them, and are public like `schemas_for`.
 
-- Zero-arity ACL `excludes` methods. Accept the record argument instead.
+### Changed
+
+- The ACL `attributes` and Schema lookups fall back to the base
+  class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+  subclass without an ACL of its own can now be created and updated with the
+  attributes its base class's ACL permits, where before it permitted none,
+  and the JSON Schemas and `schema.json` describe it the same way.
+- `schema.json` lists only what the model's Schema declares, and `readonly` is
+  the definition's `read_only`, so it's true for an `attr_readonly` attribute
+  even when the ACL permits it. A column's `type` still comes from its SQL type
+  unless the Schema declares another.
+
+### Fixed
+
+- `read_only` is true for an `attr_readonly` attribute even when the ACL's
+  `attributes` permit it, since Rails won't change it after create. `required`
+  is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
+  sent on create and can't be changed after.
+- The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
+  a model has no ACL `attributes`, instead of always `true`.
 
 ### Security
 

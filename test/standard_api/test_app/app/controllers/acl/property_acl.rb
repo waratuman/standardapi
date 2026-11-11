@@ -1,7 +1,7 @@
 module PropertyACL
 
   # Attributes allowed to be updated
-  def attributes
+  def attributes(record = nil)
     [ :name,
       :aliases,
       :description,

@@ -1,10 +1,10 @@
 json.object! do
 
   excluded = resolve_excludes(record, local_assigns[:excludes])
-  record.attribute_names.each do |name|
-    next if excluded[name] == true
+  schemas_for(record).each do |schema|
+    next if excluded[schema[:name]] == true
 
-    serialize_attribute(json, record, name, record.type_for_attribute(name).type)
+    serialize_attribute(json, record, schema[:name], schema[:type]&.to_sym)
   end
 
   includes.each do |inc, subinc|

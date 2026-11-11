@@ -8,9 +8,11 @@ module StandardAPI
     # scope the query rather than name a relation.
     RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
 
-    delegate :preloadables, :model_partial, to: :helpers
+    delegate :preloadables, :model_partial, :schemas_for,
+      :read_schema_for, :write_schema_for, :query_schema_for, to: :helpers
 
     def self.included(klass)
+      klass.include StandardAPI::Schemas
       klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
@@ -40,9 +42,26 @@ module StandardAPI
       end
     end
 
-    def json_schema
-      Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = normalize_includes(params[:include] || {})
+    # JSON Schema of the record #show renders, with the +include+ param. Not
+    # found for a controller without a model, which has nothing to describe.
+    def read_schema
+      return head :not_found if model.nil?
+
+      render json: read_schema_for(model, includes)
+    end
+
+    # JSON Schema of the params #create and #update accept
+    def write_schema
+      return head :not_found if model.nil?
+
+      render json: write_schema_for(model)
+    end
+
+    # JSON Schema of the params #index and #calculate accept
+    def query_schema
+      return head :not_found if model.nil?
+
+      render json: query_schema_for(model)
     end
 
     def index
@@ -208,6 +227,16 @@ module StandardAPI
       # end
     end
 
+    # The prefix +model+'s ACL methods are renamed under, and its Schema is
+    # registered under
+    def model_name(model)
+      if model.model_name.singular.starts_with?('habtm_')
+        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
+      else
+        model.model_name.singular
+      end
+    end
+
     module ClassMethods
 
       def model
@@ -256,42 +285,19 @@ module StandardAPI
     end
 
     # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record; a zero-arity definition is
-    # still supported but deprecated, matching #model_attributes.
+    # takes the record so it can decide per record.
     def excludes(record)
       acl_method = "#{model_name(record.class)}_excludes"
-      raw = if self.respond_to?(acl_method, true)
-        if self.method(acl_method).arity == 0
-          logger.warn <<~NOTE.strip_heredoc
-            DEPRECATION WARNING: #{ record.class.name }ACL#excludes() has been deprecated, use #{ record.class.name }ACL#excludes(record) instead
-          NOTE
-          self.send(acl_method)
-        else
-          self.send(acl_method, record)
-        end
-      else
-        application_helper_excludes[model_name(record.class)] || []
-      end
-      StandardAPI::Excludes.normalize(raw)
-    end
+      excluded = StandardAPI::Excludes.normalize(respond_to?(acl_method, true) ? send(acl_method, record) : [])
 
-    # ApplicationHelper#excludes is keyed by model and takes no record, so it
-    # is the same for every record in a response. Build it once per request:
-    # #excludes runs per rendered record, and the anonymous class this needs
-    # is not free to make — each one invalidates Ruby's global method cache.
-    def application_helper_excludes
-      return @application_helper_excludes if defined?(@application_helper_excludes)
-
-      @application_helper_excludes =
-        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        else
-          ActiveSupport::HashWithIndifferentAccess.new
-        end
+      # What a Schema hides is excluded too, so it stays out of validation errors
+      hidden = model_schema(record.class)&.hidden_attributes(record)
+      hidden.blank? ? excluded : StandardAPI::Excludes.deep_merge(excluded, hidden.index_with(true))
     end
 
     # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method or from ApplicationHelper#excludes.
+    # +excludes+ method or from a Schema whose definitions could vary by
+    # requester.
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -301,7 +307,7 @@ module StandardAPI
       return @excludes_defined[klass] if @excludes_defined.key?(klass)
 
       @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
+        !!model_schema(klass)&.class&.varies_by_requester?
     end
 
     # True when rendering +klass+ with +includes+ could be affected by an

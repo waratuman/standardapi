@@ -1,5 +1,23 @@
 module StandardAPI
   module Helpers
+    include StandardAPI::Helpers::JSONSchema
+
+    # Yield the base controller (the topmost class including +owner+), the
+    # +const+ module nested in it (ie. PhotosController::ACL) and the model's
+    # prefix for each controller with one, so AccessControlList and Schemas
+    # can make it available to every controller.
+    def self.each_nested(owner, const)
+      ActionController::Metal.descendants.each do |controller|
+        next if !controller.const_defined?(const, false)
+
+        # Only a controller using StandardAPI has a model; any other
+        # controller's constant is none of our business
+        base = controller.ancestors.grep(Class).select { |c| c.include?(owner) }.last
+        next if !base || !controller.model
+
+        yield base, controller.const_get(const, false), controller.model.model_name.singular
+      end
+    end
 
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
@@ -60,6 +78,119 @@ module StandardAPI
         'application/record'
       end
     end
+
+    # The attributes of +model+ as StandardAPI exposes them. The JSON Schemas
+    # (Helpers::JSONSchema) are built from this, so code that needs the
+    # same information (an MCP tool describing a model, say) can read it
+    # directly instead of fetching a schema and parsing it back.
+    #
+    # application/_record renders a record from `schemas_for(record)`, so the
+    # definitions are also what a record is rendered with: an attribute its
+    # Schema leaves out isn't rendered, and one it adds is read from the record
+    # by name.
+    #
+    # Given a model, returns an Array of Hashes, one per attribute in
+    # `model.attribute_names` order: the columns, then any attributes declared
+    # without one. Given a record, one per attribute in
+    # `record.attribute_names`, which is what its query selected: a record
+    # loaded with `select(:id)` has only `id`, and one loaded with
+    # `select('*, 1 AS rank')` also has `rank`. The model types every
+    # attribute, so one it doesn't have, like `rank`, has a nil `type`.
+    #
+    #   name            String   the attribute name
+    #   type            String   the ActiveModel type,
+    #                            `type_for_attribute(name).type`, so it is the
+    #                            same on every adapter and keeps "date", "time"
+    #                            and "datetime" apart. "string" for an enum. nil
+    #                            for a type that doesn't name itself
+    #   enum            Array    the names an enum accepts, or nil if the
+    #                            attribute isn't an enum
+    #   default         Object   the column default, cast to Ruby. For an enum,
+    #                            the name of the default value
+    #   primary_key     Boolean
+    #   null            Boolean  whether the column allows NULL
+    #   array           Boolean  whether the column is an array; "type" is then
+    #                            the type of its elements
+    #   comment         String   the column comment, or nil
+    #   auto_populated  Boolean  whether the database fills the column in
+    #                            itself, ie. a serial id or a column with a
+    #                            function default
+    #   read_only       Boolean  true when the attribute can't be changed
+    #                            through the API: it is missing from the ACL's
+    #                            `attributes`, or the model marks it readonly
+    #                            (`attr_readonly`)
+    #   required        Boolean  true when a create must set it: the column is
+    #                            NOT NULL and writable on create (permitted by
+    #                            the ACL, not auto populated; an
+    #                            `attr_readonly` attribute can be set on
+    #                            create), or it has a presence
+    #                            validation, or an acceptance validation
+    #                            without `allow_nil`
+    #   validations     Array    the model's validations of the attribute, as
+    #                            `{ kind: :length, options: { maximum: 12 } }`
+    #
+    # An attribute with no column has nil `default`, `null`, `comment` and
+    # `auto_populated`.
+    #
+    # The ACL is consulted without a record, as `attributes(nil)`, so
+    # `read_only` is the model wide answer. The model's StandardAPI::Schema then
+    # applies its declarations for the record (nil for a model). A model with no
+    # Schema raises StandardAPI::MissingSchema.
+    #
+    # Definitions are built once per model and set of attribute names in a
+    # view context, so records loaded by the same query share them. The Schema
+    # caches what it makes of them, so this doesn't cache its result.
+    def schemas_for(record_or_model)
+      if record_or_model.is_a?(Class)
+        model = record_or_model
+        names = model.attribute_names
+      else
+        record = record_or_model
+        model = record.class
+        names = record.attribute_names
+      end
+
+      @default_schemas_for ||= {}
+      schemas = @default_schemas_for[[model, names]] ||= begin
+        permitted_attributes = controller.model_attributes(model)&.map(&:to_s)
+
+        columns = model.columns_hash
+        names.map do |name|
+          attribute_schema(model, name, columns[name], permitted_attributes.nil? || permitted_attributes.include?(name))
+        end
+      end
+
+      controller.model_schemas(model, schemas, record)
+    end
+
+    def attribute_schema(model, name, column, permitted)
+      attribute_type = model.type_for_attribute(name)
+      enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
+      default = column_default_value(column, model) if column
+      auto_populated = (!!column.auto_populated? if column)
+      validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
+
+      read_only = !permitted || model.readonly_attribute?(name)
+      writable_on_create = permitted && !auto_populated
+
+      {
+        name: name,
+        type: enum ? 'string' : attribute_type.type&.to_s,
+        enum: enum&.keys,
+        default: enum ? enum.key(default) : default,
+        primary_key: name == model.primary_key,
+        null: column&.null,
+        array: column ? column.array : false,
+        comment: column&.comment,
+        auto_populated: auto_populated,
+        read_only: read_only,
+        required: (column&.null == false && writable_on_create) || validations.any? { |v|
+          v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
+        },
+        validations: validations
+      }
+    end
+    private :attribute_schema
 
     # The excludes that apply to +record+ inside a partial: the record's own
     # ACL excludes deep-merged with whatever the parent partial passed down as
@@ -262,6 +393,17 @@ module StandardAPI
       end
     end
 
+    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # column keeps its SQL based type, unless a Schema declared another.
+    def schema_json_type(model, schema)
+      column = model.columns_hash[schema[:name]]
+      attribute_type = model.type_for_attribute(schema[:name])
+      built = attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? 'string' : attribute_type.type&.to_s
+      return schema[:type] if !column || schema[:type] != built
+
+      attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? built : json_column_type(column.sql_type)
+    end
+
     def json_column_type(sql_type)
       case sql_type.to_s.downcase
       when 'binary', 'bytea', 'blob'
@@ -300,48 +442,6 @@ module StandardAPI
         'string'
       when /\Ageometry/
         'ewkb'
-      end
-    end
-    
-    # For JSON Schema
-    def json_column_schema(sql_type)
-      case sql_type.to_s.downcase
-      when 'binary', 'bytea', 'blob'
-        # TODO contentMediaType correct?
-        # contentEncoding?
-        # https://json-schema.org/understanding-json-schema/reference/non_json_data
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      when 'duration'
-        {type: 'string', format: 'duration'}
-      when 'text'
-        {type: 'string'}
-      when 'json', 'jsonb'
-        {type: 'object'}
-      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
-        {type: 'integer'}
-      when 'hstore'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'object'}
-      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
-        {type: 'string', format: 'date-time'}
-      when 'date'
-        {type: 'string', format: 'date'}
-      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
-        {type: 'number'}
-      when 'inet'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'ltree'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'boolean'
-        {type: 'boolean'}
-      when 'uuid'
-        {type: 'string', format: 'uuid'}
-      when /\A(?:character varying|varchar)(\(\d+\))?$/
-        {type: 'string'}
-      when /\Ageometry/
-        {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end
 

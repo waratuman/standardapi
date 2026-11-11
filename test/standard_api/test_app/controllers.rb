@@ -58,7 +58,7 @@ end
 
 class PhotosController < ApplicationController
 
-  def photo_attributes
+  def photo_attributes(record = nil)
     [ :id, :account_id, :property_id, :format ]
   end
 
@@ -108,4 +108,12 @@ class UuidModelController < ApplicationController
 end
 
 class CamerasController < ApplicationController
+
+  # Adjusts the attribute definitions schemas_for(Camera), the JSON Schemas and
+  # rendered cameras are built from
+  class Schema < StandardAPI::Schema
+    attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
+    attribute :make, comment: 'The manufacturer'
+  end
+
 end

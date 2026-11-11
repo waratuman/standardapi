@@ -67,12 +67,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'include StandardAPI includes Controller and AccessControlList' do
+  test 'include StandardAPI includes Controller, AccessControlList and Schemas' do
     klass = Class.new(ActionController::Base) do
       include StandardAPI
     end
     assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
     assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
+    assert klass.ancestors.include?(StandardAPI::Schemas), "Expected StandardAPI::Schemas to be included"
   end
 
   test 'StandardAPI-Version' do
@@ -248,20 +249,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        if column.comment
-          assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        # CamerasController::Schema declares a comment of its own
+        comment = model == Camera && column.name == 'make' ? 'The manufacturer' : column.comment
+        if comment
+          assert_equal comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
         end
 
-        if column.respond_to?(:auto_populated?)
-          assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
-        end
+        assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
       end
     end
 
     assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
     assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
+    # ReferenceACL defines no attributes, so readonly comes from the model
+    assert_equal false, schema['models']['Reference']['attributes']['key']['readonly']
 
     assert_equal [
       {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}

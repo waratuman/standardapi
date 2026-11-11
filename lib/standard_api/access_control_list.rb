@@ -26,15 +26,8 @@ module StandardAPI
     # loaded for their ACL to be found, so the Railtie calls this once they
     # are, at boot and after each reload.
     def self.load!
-      ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(:ACL, false)
-
-        # Only a controller using StandardAPI has a model; any other
-        # controller's ACL constant is none of our business
-        base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
-        next if !base || !controller.model
-
-        include_acl(base, controller.const_get(:ACL, false), controller.model.model_name.singular)
+      Helpers.each_nested(self, :ACL) do |base, mod, prefix|
+        include_acl(base, mod, prefix)
       end
     end
 
@@ -86,8 +79,9 @@ module StandardAPI
     # +nil+. A zero-arity +attributes+ definition is still supported but
     # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
     def model_attributes(model, record = nil)
-      method_name = "#{model_name(model)}_attributes"
-      return nil if !self.respond_to?(method_name, true)
+      # An STI subclass falls back to its base class's ACL
+      method_name = [model, model.base_class].uniq.map { |k| "#{model_name(k)}_attributes" }.find { |m| respond_to?(m, true) }
+      return nil if !method_name
 
       if self.method(method_name).arity == 0
         logger.warn <<~NOTE.strip_heredoc
@@ -168,14 +162,6 @@ module StandardAPI
       end
 
       permitted_params
-    end
-
-    def model_name(model)
-      if model.model_name.singular.starts_with?('habtm_')
-        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
-      else
-        model.model_name.singular
-      end
     end
 
   end

@@ -1,0 +1,262 @@
+require 'standard_api/test_helper'
+
+class WriteSchemaTest < ActionDispatch::IntegrationTest
+
+  def write_schema(path)
+    get path
+    assert_response :ok
+    JSON(response.body)
+  end
+
+  def property_schema
+    write_schema(write_schema_properties_path(format: 'json')).dig('properties', 'property')
+  end
+
+  def camera_schema
+    write_schema(write_schema_cameras_path(format: 'json')).dig('properties', 'camera')
+  end
+
+  # The JSON Schema of +name+ in cameras' schema/write.json, with the
+  # +validations+ declared on it and no description
+  def camera_attribute_schema(name, validations)
+    with_camera_schema(proc { attribute name, validations: validations, comment: nil }) do
+      camera_schema.dig('properties', name)
+    end
+  end
+
+  test 'Controller#write_schema_for is public and gives what schema/write.json renders' do
+    assert_equal camera_schema, controller.write_schema_for(Camera).as_json.dig('properties', 'camera')
+  end
+
+  test 'Controller#write_schema.json is served at schema/write.json' do
+    get '/cameras/schema/write.json'
+    assert_response :ok
+    assert_equal 'camera', JSON(response.body)['properties'].keys.first
+  end
+
+  test 'Controller#write_schema.json is a JSON Schema of the model param' do
+    schema = write_schema(write_schema_cameras_path(format: 'json'))
+
+    assert_equal 'https://json-schema.org/draft/2020-12/schema', schema['$schema']
+    assert_equal 'object', schema['type']
+    assert_equal ['camera'], schema['properties'].keys
+    assert_equal false, schema.dig('properties', 'camera', 'additionalProperties')
+  end
+
+  test 'Controller#write_schema.json only lists attributes the ACL permits' do
+    assert_equal ['make', 'hidden', 'retired', 'photo_id'], camera_schema['properties'].keys
+  end
+
+  test 'Controller#write_schema.json without ACL attributes lists none' do
+    schema = write_schema(write_schema_references_path(format: 'json'))
+
+    assert_equal({}, schema.dig('properties', 'reference', 'properties'))
+  end
+
+  test 'Controller#write_schema.json table description' do
+    skip "Adapter does not support comments on databases" if !mariadb? && !postgres?
+
+    schema = write_schema(write_schema_documents_path(format: 'json'))
+    assert_equal 'I <3 Documents', schema['description']
+  end
+
+  test 'Controller#write_schema.json types' do
+    properties = property_schema['properties']
+
+    assert_equal ['string', 'null'], properties.dig('name', 'type')
+    # A decimal may be sent as a number or a String
+    assert_equal ['number', 'string', 'null'], properties.dig('size', 'type')
+    assert_equal 'string', camera_schema.dig('properties', 'make', 'type')
+  end
+
+  test 'Controller#write_schema.json defaults' do
+    properties = property_schema['properties']
+
+    assert_equal 2, properties.dig('numericality', 'default')
+    assert_equal false, properties.dig('active', 'default')
+    assert_nil properties['description']['default']
+  end
+
+  test 'Controller#write_schema.json array' do
+    skip "array columns are a Postgres-only feature" if !postgres?
+
+    aliases = property_schema.dig('properties', 'aliases')
+    assert_equal ['array', 'null'], aliases['type']
+    # The default describes the array, not its elements
+    assert_equal [], aliases['default']
+    assert_equal({ 'type' => 'string' }, aliases['items'])
+  end
+
+  test "Controller#write_schema.json description from the Schema's comment" do
+    assert_equal 'The manufacturer', camera_schema.dig('properties', 'make', 'description')
+  end
+
+  test 'Controller#write_schema.json lists an attribute a Schema adds when the ACL permits it' do
+    CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :thumbnail_url])
+
+    # null defaults to true, and an added attribute is read only unless it says
+    with_camera_schema(proc { attribute :thumbnail_url, :string }) do
+      assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, camera_schema.dig('properties', 'thumbnail_url'))
+    end
+    with_camera_schema(proc { attribute :thumbnail_url, :string, read_only: false }) do
+      assert_equal({ 'type' => ['string', 'null'] }, camera_schema.dig('properties', 'thumbnail_url'))
+    end
+  end
+
+  test "Controller#write_schema.json describes an attribute the ACL permits but the Schema doesn't declare as anything" do
+    CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :created_at])
+
+    assert_equal({}, camera_schema.dig('properties', 'created_at'))
+  end
+
+  test 'Controller#write_schema.json what nested permits of a nested record is not readOnly' do
+    photo = property_schema.dig('properties', 'photos', 'items', 'properties')
+
+    # Neither is one of PhotoACL's attributes, which the definition has as
+    # read only: the id says which photo to update, and PhotoACL nested
+    # permits its account
+    assert_equal({ 'type' => 'integer' }, photo['id'])
+    assert_equal({ 'type' => ['integer', 'null'] }, photo['account_id'])
+    assert_equal({ 'type' => 'integer' }, property_schema.dig('properties', 'accounts', 'items', 'properties', 'id'))
+  end
+
+  test 'Controller#write_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do
+    Camera.stubs(:readonly_attribute?).returns(false)
+    Camera.stubs(:readonly_attribute?).with('make').returns(true)
+
+    schema = camera_schema
+    assert_equal true, schema.dig('properties', 'make', 'readOnly')
+    assert_includes schema['required'], 'make'
+  end
+
+  test 'Controller#write_schema.json an auto populated attribute the ACL permits is not readOnly or required' do
+    CamerasController.any_instance.stubs(:camera_attributes).returns([:id, :make])
+
+    schema = camera_schema
+    # id is filled in by the database, but can be given
+    assert_nil schema.dig('properties', 'id', 'readOnly')
+    assert_not_includes schema['required'], 'id'
+  end
+
+  test 'Controller#write_schema.json inclusion validations' do
+    inclusion = ->(values) { [{ kind: :inclusion, options: { in: values } }] }
+
+    assert_equal %w[a b], camera_attribute_schema('make', inclusion.(%w[a b]))['enum']
+    # photo_id allows NULL
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 1, 'maximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1..10)))
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 1, 'exclusiveMaximum' => 10 }, camera_attribute_schema('photo_id', inclusion.(1...10)))
+    assert_equal({ 'type' => ['integer', 'null'], 'minimum' => 5 }, camera_attribute_schema('photo_id', inclusion.(5..)))
+    # JSON Schema can't describe a Range of Strings or a Proc
+    assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.('a'..'z')))
+    assert_equal({ 'type' => 'string' }, camera_attribute_schema('make', inclusion.(->(_) { %w[a] })))
+  end
+
+  test 'Controller#write_schema.json format validations' do
+    format = ->(with) { [{ kind: :format, options: { with: with } }] }
+
+    assert_equal '\\d{3}-\\d{4}', camera_attribute_schema('make', format.(/\d{3}-\d{4}/))['pattern']
+    assert_equal '(?:a|b)c', camera_attribute_schema('make', format.(/(?:a|b)c/))['pattern']
+    # JavaScript doesn't read these the way Ruby does
+    [/\A\d+\z/, /(?i)abc/, /abc/i, /\h+/, ->(_) { /x/ }].each do |with|
+      assert_nil camera_attribute_schema('make', format.(with))['pattern'], with.inspect
+    end
+  end
+
+  test 'Controller#write_schema.json leaves out a validation JSON Schema cannot state' do
+    string = { 'type' => 'string' }
+    integer = { 'type' => ['integer', 'null'] }
+    length = { kind: :length, options: { minimum: 5 } }
+
+    # One that doesn't always run, or that passes a blank value
+    [{ if: :published? }, { unless: -> { draft? } }, { on: :update }, { allow_blank: true }].each do |options|
+      validation = length.merge(options: length[:options].merge(options))
+      assert_equal string, camera_attribute_schema('make', [validation]), options.inspect
+    end
+    assert_equal string.merge('minLength' => 5), camera_attribute_schema('make', [length])
+
+    # An option given as a Symbol or a Proc
+    assert_equal string, camera_attribute_schema('make', [{ kind: :length, options: { maximum: :max_length } }])
+    assert_equal integer.merge('minimum' => 1), camera_attribute_schema('photo_id', [{ kind: :numericality, options: {
+      greater_than: :floor, less_than: -> { 10 }, greater_than_or_equal_to: 1
+    } }])
+
+    # An acceptance validation accepts nil unless told not to
+    assert_equal [true, nil], camera_attribute_schema('hidden', [{ kind: :acceptance, options: { allow_nil: true } }])['enum']
+    assert_equal true, camera_attribute_schema('hidden', [{ kind: :acceptance, options: { allow_nil: false } }])['const']
+  end
+
+  test 'Controller#write_schema.json required on create' do
+    assert_equal ['name'], property_schema['required']
+    # schemas_for requires a NOT NULL column even with a default, as hidden
+    # and retired have
+    assert_equal ['make', 'hidden', 'retired'], camera_schema['required']
+  end
+
+  test 'Controller#write_schema.json nested attributes' do
+    properties = property_schema['properties']
+
+    assert_equal ['array', 'null'], properties.dig('accounts', 'type')
+    assert_equal ['id', 'property_id', 'name'], properties.dig('accounts', 'items', 'properties').keys
+    assert_equal 'integer', properties.dig('account_ids', 'items', 'type')
+
+    photo = properties.dig('photos', 'items', 'properties')
+    assert_equal ['id', 'format', 'account_id', 'account', 'camera'], photo.keys
+    assert_equal ['integer', 'null'], photo.dig('account_id', 'type')
+    assert_equal ['object', 'null'], photo.dig('account', 'type')
+    assert_nil properties.dig('photos', 'items', 'required')
+  end
+
+  test 'Controller#write_schema.json enum' do
+    DocumentsController.any_instance.stubs(:document_attributes).returns([:level, :rating])
+    properties = write_schema(write_schema_documents_path(format: 'json')).dig('properties', 'document', 'properties')
+
+    assert_equal 'string', properties.dig('level', 'type')
+    assert_equal ['public', 'secret'], properties.dig('level', 'enum')
+    assert_equal 'public', properties.dig('level', 'default')
+    assert_equal ['string', 'null'], properties.dig('rating', 'type')
+    assert_equal ['poor', 'ok', 'good', nil], properties.dig('rating', 'enum')
+  end
+
+  test 'Controller#write_schema.json validations' do
+    PropertiesController.any_instance.stubs(:property_attributes).returns([
+      :numericality, :build_type, :agree_to_terms, :phone_number
+    ])
+    properties = property_schema['properties']
+
+    assert_equal 1, properties.dig('numericality', 'exclusiveMinimum')
+    assert_equal 2, properties.dig('numericality', 'minimum')
+    assert_equal 2, properties.dig('numericality', 'maximum')
+    assert_equal 3, properties.dig('numericality', 'exclusiveMaximum')
+    assert_equal ['concrete', 'metal', 'brick', nil], properties.dig('build_type', 'enum')
+    # Accepts nil, as an acceptance validation does unless told not to
+    assert_equal [true, nil], properties.dig('agree_to_terms', 'enum')
+    assert_equal '\d{3}-\d{3}-\d{4}', properties.dig('phone_number', 'pattern')
+    # Its length validation allows blank, which JSON Schema can't state
+    assert_nil properties.dig('phone_number', 'minLength')
+    assert_nil properties.dig('phone_number', 'maxLength')
+  end
+
+  test 'Controller#write_schema.json is a valid JSON Schema' do
+    %w(properties photos documents references cameras).each do |resources|
+      schema = write_schema(send("write_schema_#{resources}_path", format: 'json'))
+
+      assert JSONSchemer.valid_schema?(schema), JSONSchemer.validate_schema(schema).map { |e| "#{resources} #{e['error']}" }.join("\n")
+    end
+  end
+
+  test 'Controller#create.json params validate against Controller#write_schema.json' do
+    schemer = JSONSchemer.schema(write_schema(write_schema_properties_path(format: 'json')))
+    params = { 'property' => {
+      'name' => 'Tower', 'size' => 10.5, 'active' => true,
+      'accounts' => [{ 'name' => 'Tenant' }]
+    } }
+
+    assert_empty schemer.validate(params).map { |e| e['error'] }
+    assert_not schemer.valid?({ 'property' => { 'name' => 'Tower', 'created_at' => '2026-01-01' } })
+    assert_not schemer.valid?({ 'property' => { 'description' => 'no name' } })
+
+    post properties_path(format: 'json'), params: params, as: :json
+    assert_response :created
+  end
+
+end
