@@ -104,7 +104,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
     assert_equal ['id', 'format'], properties.keys
     # Its values aren't described, and its operators are still the ACL's
-    assert_equal({}, properties.dig('id', 'anyOf', 0))
+    assert_equal({ 'anyOf' => [{}, { 'type' => 'null' }] }, properties.dig('id', 'anyOf').last.dig('properties', 'eq'))
     assert_equal ['eq'], properties.dig('format', 'anyOf').last['properties'].keys
     assert_equal({ 'type' => 'object', 'properties' => { 'id' => {}, 'format' => {} }, 'additionalProperties' => false },
       controller.send(:when_schema, model))
