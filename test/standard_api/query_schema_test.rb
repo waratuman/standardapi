@@ -144,8 +144,8 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#query_schema.json order under an empty Hash permit accepts nothing' do
     camera_schema
-    defs = StandardAPI::JSONSchema::Query::Defs.new
-    controller.send(:order_schema, [:id, { photos: [] }], Camera, defs, 'Order')
+    defs = StandardAPI::Helpers::JSONSchema::Defs.new
+    controller.helpers.send(:json_schema_order, [:id, { photos: [] }], Camera, defs, 'Order')
 
     assert_equal({ 'not' => {} }, defs.dig('OrderObject', 'properties', 'photos'))
   end
@@ -172,19 +172,19 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#query_schema.json an include whose name is taken by another is added to it' do
     camera_schema
-    defs = StandardAPI::JSONSchema::Query::Defs.new
+    defs = StandardAPI::Helpers::JSONSchema::Defs.new
     ref = { '$ref' => '#/$defs/CameraPhotoInclude' }
 
-    photo = controller.send(:include_schema, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
+    photo = controller.helpers.send(:json_schema_include, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
     assert_equal ref, photo.dig('anyOf', 0)
     properties = defs.dig('CameraPhotoInclude', 'properties').dup
 
     # The same include again changes nothing
-    controller.send(:include_schema, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
+    controller.helpers.send(:json_schema_include, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
     assert_equal properties, defs.dig('CameraPhotoInclude', 'properties')
 
     # Another include adds what it permits, and what both have is unchanged
-    other = controller.send(:include_schema, { 'photo' => {} }, Camera, defs, name: 'CameraPhotoInclude')
+    other = controller.helpers.send(:json_schema_include, { 'photo' => {} }, Camera, defs, name: 'CameraPhotoInclude')
     assert_equal ref, other.dig('anyOf', 0)
     assert_equal properties.keys + ['photo'], defs.dig('CameraPhotoInclude', 'properties').keys
     assert_equal properties, defs.dig('CameraPhotoInclude', 'properties').except('photo')

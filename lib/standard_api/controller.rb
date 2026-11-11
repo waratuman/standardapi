@@ -3,13 +3,13 @@ module StandardAPI
     include StandardAPI::Orders
     include StandardAPI::Includes
     include StandardAPI::Wheres
-    include StandardAPI::JSONSchema
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
     RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
 
-    delegate :preloadables, :model_partial, :schemas_for, to: :helpers
+    delegate :preloadables, :model_partial, :schemas_for,
+      :read_schema_for, :write_schema_for, :query_schema_for, to: :helpers
 
     def self.included(klass)
       klass.include StandardAPI::Schemas

@@ -1,6 +1,6 @@
 module StandardAPI
   module Helpers
-    include StandardAPI::Helpers::JSONSchemaHelper
+    include StandardAPI::Helpers::JSONSchema
 
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
@@ -80,7 +80,7 @@ module StandardAPI
     end
 
     # The attributes of +model+ as StandardAPI exposes them. The JSON Schemas
-    # (StandardAPI::JSONSchema) are built from this, so code that needs the
+    # (Helpers::JSONSchema) are built from this, so code that needs the
     # same information (an MCP tool describing a model, say) can read it
     # directly instead of fetching a schema and parsing it back.
     #
