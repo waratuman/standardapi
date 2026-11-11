@@ -2,8 +2,8 @@ require 'standard_api/test_helper'
 
 class WriteSchemaTest < ActionDispatch::IntegrationTest
 
-  def write_schema(path, **params)
-    get path, params: params
+  def write_schema(path)
+    get path
     assert_response :ok
     JSON(response.body)
   end
@@ -25,9 +25,7 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#write_schema_for is public and gives what schema/write.json renders' do
-    schema = camera_schema
-
-    assert_equal schema, controller.write_schema_for(Camera).as_json.dig('properties', 'camera')
+    assert_equal camera_schema, controller.write_schema_for(Camera).as_json.dig('properties', 'camera')
   end
 
   test 'Controller#write_schema.json is served at schema/write.json' do
@@ -46,9 +44,7 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#write_schema.json only lists attributes the ACL permits' do
-    schema = write_schema(write_schema_cameras_path(format: 'json'))
-
-    assert_equal ['make', 'hidden', 'retired', 'photo_id'], schema.dig('properties', 'camera', 'properties').keys
+    assert_equal ['make', 'hidden', 'retired', 'photo_id'], camera_schema['properties'].keys
   end
 
   test 'Controller#write_schema.json without ACL attributes lists none' do
@@ -70,7 +66,7 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal ['string', 'null'], properties.dig('name', 'type')
     # A decimal may be sent as a number or a String
     assert_equal ['number', 'string', 'null'], properties.dig('size', 'type')
-    assert_equal 'string', write_schema(write_schema_cameras_path(format: 'json')).dig('properties', 'camera', 'properties', 'make', 'type')
+    assert_equal 'string', camera_schema.dig('properties', 'make', 'type')
   end
 
   test 'Controller#write_schema.json defaults' do

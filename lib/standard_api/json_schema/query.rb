@@ -118,18 +118,18 @@ module StandardAPI
         "#{model.name.gsub('::', '')}#{kind}"
       end
 
-      # A $ref to the where schema of +model+, built into +defs+ the first time
-      def where_ref(model, defs)
-        if schema = external_ref(model, 'Where')
-          return schema
-        end
-
-        name = schema_name(model, 'Where')
+      # A $ref to +name+ in +defs+, which the block builds the first time. The
+      # name is taken before it's built, as what's built may refer back to it.
+      def def_ref(defs, name)
         if !defs.key?(name)
           defs[name] = nil
-          defs[name] = where_schema(model, defs)
+          defs[name] = yield
         end
         { '$ref' => "#/$defs/#{name}" }
+      end
+
+      def where_ref(model, defs)
+        external_ref(model, 'Where') || def_ref(defs, schema_name(model, 'Where')) { where_schema(model, defs) }
       end
 
       # Mirrors StandardAPI::Wheres#check_wheres: a Hash of permitted keys, or
@@ -303,16 +303,9 @@ module StandardAPI
       end
 
       def order_ref(model, defs)
-        if schema = external_ref(model, 'Order')
-          return schema
+        external_ref(model, 'Order') || def_ref(defs, schema_name(model, 'Order')) do
+          order_schema(orders_for(model), model, defs) || { 'not' => {} }
         end
-
-        name = schema_name(model, 'Order')
-        if !defs.key?(name)
-          defs[name] = nil
-          defs[name] = order_schema(orders_for(model), model, defs) || { 'not' => {} }
-        end
-        { '$ref' => "#/$defs/#{name}" }
       end
 
       def direction_schema
@@ -341,11 +334,7 @@ module StandardAPI
       def include_schema(permit, model, defs, name: nil)
         names = permit.keys.map(&:to_s) - StandardAPI::Controller::RESERVED_INCLUDE_KEYS
         object = if name
-          if !defs.key?(name)
-            defs[name] = nil
-            defs[name] = include_object_schema(permit, model, defs, name, options: true)
-          end
-          { '$ref' => "#/$defs/#{name}" }
+          def_ref(defs, name) { include_object_schema(permit, model, defs, name, options: true) }
         else
           include_object_schema(permit, model, defs, model && schema_name(model, ''), options: false)
         end
@@ -405,12 +394,9 @@ module StandardAPI
         { 'type' => 'object', 'properties' => properties, 'additionalProperties' => false }
       end
 
-      # A $ref to the +when+ of an include on +model+, built into +defs+ the
-      # first time
+      # A $ref to the +when+ of an include on +model+
       def when_ref(model, defs)
-        name = schema_name(model, 'When')
-        defs[name] ||= when_schema(model)
-        { '$ref' => "#/$defs/#{name}" }
+        def_ref(defs, schema_name(model, 'When')) { when_schema(model) }
       end
 
       # Mirrors StandardAPI::Includes#check_include_when: the attributes of
@@ -430,11 +416,8 @@ module StandardAPI
       end
 
       def include_ref(model, defs)
-        if schema = external_ref(model, 'Include')
-          return schema
-        end
-
-        include_schema(normalize_includes(includes_for(model)), model, defs, name: schema_name(model, 'Include'))
+        external_ref(model, 'Include') ||
+          include_schema(normalize_includes(includes_for(model)), model, defs, name: schema_name(model, 'Include'))
       end
 
       # +schema+, described as a param the ACL doesn't check

@@ -23,9 +23,8 @@ module StandardAPI
           }
         end
 
-        properties = {}
-        definitions_for(model).each do |name, definition|
-          properties[name] = attribute_read_schema(model, definition)
+        properties = definitions_for(model).transform_values do |definition|
+          attribute_read_schema(model, definition)
         end
         # Columns are always rendered. Other attributes may not be loaded, ie.
         # under a partial select, or may be ones the Schema adds.

@@ -210,8 +210,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     get property_path(property, format: 'json'), params: { include: includes }
     assert_response :ok
 
-    errors = schemer.validate(JSON(response.body)).map { |e| e['error'] }
-    assert_empty errors
+    assert_empty schemer.validate(JSON(response.body)).map { |e| e['error'] }
   end
 
   test 'records of each resource validate against their read_schema.json' do

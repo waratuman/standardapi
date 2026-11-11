@@ -48,13 +48,11 @@ module StandardAPI
           else
             name = entry.to_s
             properties[name] = attribute_write_schema(model, name)
-            required << name if !nested && definitions[name]&.[](:required)
+            required << name if !nested && definitions.dig(name, :required)
           end
         end
 
-        nested_write_schemas(model, path + [model]).each do |name, schema|
-          properties[name] = schema
-        end
+        properties.merge!(nested_write_schemas(model, path + [model]))
 
         {
           'type' => 'object',
@@ -114,9 +112,8 @@ module StandardAPI
         end
       end
 
+      # Of a collection, which is never polymorphic
       def id_schema(association)
-        return {} if association.polymorphic?
-
         definition = definitions_for(association.klass)[association.klass.primary_key]
         definition ? definition_value_schema(association.klass, definition) : {}
       end

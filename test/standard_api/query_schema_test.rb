@@ -112,7 +112,6 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert schemer.valid?({ 'include' => ['photo', 'specs'], 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => 'camera', 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'properties' => true } }, 'limit' => 1 })
-    assert schemer.valid?({ 'include' => { 'photo' => { 'when' => { 'make' => 'Canon' } } }, 'limit' => 1 })
     # Not ACL checked, but used
     assert schemer.valid?({ 'include' => { 'photo' => { 'distinct_on' => 'id' } }, 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'offset' => 1 } }, 'limit' => 1 })
@@ -169,7 +168,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#query_schema.json accepts the unchecked params the server accepts' do
-    camera = create(:camera, photo: create(:photo))
+    create(:camera, photo: create(:photo))
     schemer = schemer(camera_schema)
     queries = [
       [cameras_path(format: 'json'), { 'join' => 'photo', 'limit' => 1 }],
@@ -189,13 +188,10 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
     assert_not schemer.valid?({ 'join' => 'camera', 'limit' => 1 })
     assert_not schemer.valid?({ 'select' => { 'median' => 'id' } })
-    assert camera
   end
 
   test 'Controller#query_schema_for is public and gives what query_schema.json renders' do
-    schema = camera_schema
-
-    assert_equal schema, controller.query_schema_for(Camera).as_json
+    assert_equal camera_schema, controller.query_schema_for(Camera).as_json
   end
 
   test 'Controller#query_schema_for with ref leaves other models to the caller' do

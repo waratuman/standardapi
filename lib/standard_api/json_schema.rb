@@ -1,3 +1,7 @@
+require 'standard_api/json_schema/read'
+require 'standard_api/json_schema/write'
+require 'standard_api/json_schema/query'
+
 module StandardAPI
   # Included in StandardAPI::Controller. Builds the JSON Schemas served at
   # schema/read, schema/write and schema/query, each from the ACL, so it only
@@ -13,15 +17,6 @@ module StandardAPI
 
     DIALECT = 'https://json-schema.org/draft/2020-12/schema'.freeze
 
-  end
-end
-
-require 'standard_api/json_schema/read'
-require 'standard_api/json_schema/write'
-require 'standard_api/json_schema/query'
-
-module StandardAPI
-  module JSONSchema
     include Read
     include Write
     include Query
@@ -97,9 +92,7 @@ module StandardAPI
 
     def nullable(schema)
       schema = schema.dup
-      if schema['enum']
-        schema['enum'] = schema['enum'] + [nil]
-      end
+      schema['enum'] += [nil] if schema['enum']
 
       case schema['type']
       when String then schema['type'] = [schema['type'], 'null']
