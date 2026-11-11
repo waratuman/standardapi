@@ -7,16 +7,7 @@ permit = Array(permit).flatten
 if permit.empty?
   json.set! 'not', {}
 else
-  names = permit.flat_map do |entry|
-    if entry.is_a?(Hash)
-      entry.flat_map { |name, subpermit| Array(subpermit).flatten.map { |column| "#{name}.#{column}" } }
-    elsif (association = model&.reflect_on_association(entry.to_s)) && !association.polymorphic?
-      json_schema_orders(association.klass).reject { |x| x.is_a?(Hash) }.map { |column| "#{entry}.#{column}" }
-    else
-      [entry.to_s]
-    end
-  end
-  name_schema = { 'type' => 'string', 'enum' => names }
+  name_schema = { 'type' => 'string', 'enum' => json_schema_order_names(model, permit) }
 
   json.set! 'anyOf' do
     json.array! do

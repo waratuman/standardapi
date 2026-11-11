@@ -169,7 +169,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#query_schema.json accepts the unchecked params the server accepts' do
-    camera = create(:camera, photo: create(:photo))
+    create(:camera, photo: create(:photo))
     schemer = schemer(camera_schema)
     queries = [
       [cameras_path(format: 'json'), { 'join' => 'photo', 'limit' => 1 }],
@@ -189,7 +189,6 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
 
     assert_not schemer.valid?({ 'join' => 'camera', 'limit' => 1 })
     assert_not schemer.valid?({ 'select' => { 'median' => 'id' } })
-    assert camera
   end
 
 end

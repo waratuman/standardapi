@@ -10,8 +10,7 @@ json.set! 'properties' do
         end
       end
     elsif (association = model&.reflect_on_association(entry.to_s)) && !association.polymorphic?
-      json.set! entry.to_s, json_schema_ref(defs, json_schema_name(association.klass, 'Order'), 'order',
-        permit: json_schema_orders(association.klass), model: association.klass)
+      json.set! entry.to_s, json_schema_order_ref(defs, association.klass)
     else
       json.set! entry.to_s, json_schema_direction
     end

@@ -210,6 +210,113 @@ module StandardAPI
         { 'anyOf' => any_of }
       end
 
+      # The JSON Schema of a where on +association+: the wheres of its model,
+      # or whether it has any records where activerecord-filter can test that
+      def json_schema_association_where(defs, association)
+        exists = if association.belongs_to?
+          { 'type' => ['boolean', 'null'], 'description' => 'Whether there is one' }
+        elsif association.macro == :has_many && association.active_record.column_names.include?((association.counter_cache_column || "#{association.plural_name}_count").to_s)
+          # activerecord-filter tests a has_many with its counter cache
+          { 'type' => 'boolean', 'description' => 'Whether there are any' }
+        end
+
+        filter = if association.polymorphic?
+          {
+            'type' => 'object',
+            'properties' => {
+              'as' => { 'type' => 'string', 'description' => 'The model to filter on' }
+            },
+            'required' => ['as'],
+            'description' => 'Filtered by the wheres of the model named by `as`'
+          }
+        else
+          json_schema_where_ref(defs, association.klass)
+        end
+
+        exists ? { 'anyOf' => [exists, filter] } : filter
+      end
+
+      # The names +permit+ lets +model+ be ordered by, an association's as
+      # "association.column". +model+ is nil under a Hash in +permit+.
+      def json_schema_order_names(model, permit)
+        permit.flat_map do |entry|
+          if entry.is_a?(Hash)
+            entry.flat_map { |name, subpermit| Array(subpermit).flatten.map { |column| "#{name}.#{column}" } }
+          elsif (association = model&.reflect_on_association(entry.to_s)) && !association.polymorphic?
+            json_schema_orders(association.klass).reject { |x| x.is_a?(Hash) }.map { |column| "#{entry}.#{column}" }
+          else
+            [entry.to_s]
+          end
+        end
+      end
+
+      # The application/json_schema/_include locals for the include of the
+      # association +name+ of +model+, permitted +subpermit+, or nil if it can
+      # only be included as true. Named after +prefix+, unless it's the
+      # include of the association's model.
+      def json_schema_include_locals(model, name, subpermit, prefix)
+        association = model&.reflect_on_association(name)
+        sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
+
+        if association && !association.polymorphic?
+          if subpermit.empty?
+            klass = association.klass
+            { permit: json_schema_includes(klass), model: klass, name: json_schema_name(klass, 'Include') }
+          else
+            { permit: subpermit, model: association.klass, name: sub_name }
+          end
+        elsif subpermit.present?
+          { permit: subpermit, model: nil, name: sub_name }
+        end
+      end
+
+      # The options of an include of +model+, which is nil under a polymorphic
+      # association
+      def json_schema_include_options(defs, model)
+        options = {}
+        options['where'] = json_schema_where_ref(defs, model) if model && json_schema_wheres(model).any?
+        options['order'] = json_schema_order_ref(defs, model) if model && json_schema_orders(model).any?
+        options['limit'] = { 'type' => 'integer', 'minimum' => 0 }
+        options['distinct'] = { 'type' => 'boolean' }
+
+        # Passed through by #sanitize_includes, but not checked by the ACL
+        options['distinct_on'] = json_schema_unchecked(json_schema_columns, 'Columns to select distinct included records on, passed to `distinct_on`.')
+        options['when'] = {
+          'type' => 'object',
+          'description' => 'Only include for the including records whose rendered value of each attribute equals the given value. #index only.'
+        }
+        options
+      end
+
+      # The params of #index and #calculate that are the same whatever the ACL
+      # permits
+      def json_schema_query_options(model)
+        column_name = { 'type' => 'string', 'enum' => model.column_names }
+
+        {
+          'limit' => {
+            'type' => 'integer',
+            'minimum' => 0,
+            'maximum' => resource_limit,
+            'default' => default_limit
+          }.compact,
+          'offset' => { 'type' => 'integer', 'minimum' => 0 },
+          'distinct' => { 'type' => 'boolean' },
+          # Mirrors Controller#group_by, which only accepts the model's columns
+          'group_by' => {
+            'anyOf' => [column_name, { 'type' => 'array', 'items' => column_name }],
+            'description' => 'Columns of the model to group by. #calculate returns an object keyed by group.'
+          },
+          # Used by #resources and #calculate_selects, but not checked by the ACL
+          'distinct_on' => json_schema_unchecked(json_schema_columns, 'Columns to select distinct rows on, passed to `distinct_on`. Takes precedence over `distinct`.'),
+          'join' => json_schema_unchecked(
+            { 'type' => 'string', 'enum' => model.reflect_on_all_associations.map { |a| a.name.to_s } },
+            'An association to inner join, passed to `joins`.'
+          ),
+          'select' => json_schema_unchecked(json_schema_select, 'The calculations #calculate returns.')
+        }
+      end
+
       # $defs
 
       # The name in $defs of the +kind+ ("Where", "Order", "When" or
@@ -224,6 +331,14 @@ module StandardAPI
       def json_schema_ref(defs, name, partial, **locals)
         defs[name] ||= { partial: "application/json_schema/#{partial}", locals: locals }
         { '$ref' => "#/$defs/#{name}" }
+      end
+
+      def json_schema_where_ref(defs, model)
+        json_schema_ref(defs, json_schema_name(model, 'Where'), 'where', model: model)
+      end
+
+      def json_schema_order_ref(defs, model)
+        json_schema_ref(defs, json_schema_name(model, 'Order'), 'order', permit: json_schema_orders(model), model: model)
       end
 
       # Fixed schemas
@@ -249,7 +364,7 @@ module StandardAPI
         schema.merge('description' => "#{description} Not checked by the ACL.")
       end
 
-      # A column, or columns, as a name or "table.column"
+      # A String or an Array of them, ie. columns as a name or "table.column"
       def json_schema_columns
         { 'anyOf' => [{ 'type' => 'string' }, { 'type' => 'array', 'items' => { 'type' => 'string' } }] }
       end
@@ -363,14 +478,12 @@ module StandardAPI
       end
 
       def json_schema_operator_value(operator, value)
-        strings = { 'anyOf' => [{ 'type' => 'string' }, { 'type' => 'array', 'items' => { 'type' => 'string' } }] }
-
         case operator
         when 'eq', 'neq' then { 'anyOf' => [value, { 'type' => 'null' }] }
         when 'gt', 'gte', 'lt', 'lte' then value
         when 'in', 'not_in' then { 'type' => 'array', 'items' => value }
         when 'like', 'ilike', 'has_key' then { 'type' => 'string' }
-        when 'has_keys', 'has_any_key', 'ts_match' then strings
+        when 'has_keys', 'has_any_key', 'ts_match' then json_schema_columns
         when 'contains', 'contained_by', 'excludes', 'overlaps', 'not_overlaps'
           value['type'] == 'array' ? value : {}
         else

@@ -8,19 +8,8 @@ json.set! 'properties' do
   permit.each do |name, subpermit|
     next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
-    association = model&.reflect_on_association(name)
-    sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
     # The include partial's locals
-    sub = if association && !association.polymorphic?
-      if subpermit.empty?
-        klass = association.klass
-        { permit: json_schema_includes(klass), model: klass, name: json_schema_name(klass, 'Include') }
-      else
-        { permit: subpermit, model: association.klass, name: sub_name }
-      end
-    elsif subpermit.present?
-      { permit: subpermit, model: nil, name: sub_name }
-    end
+    sub = json_schema_include_locals(model, name, subpermit, prefix)
 
     included = { 'enum' => [true, 'true'] }
     if !sub
@@ -51,23 +40,6 @@ json.set! 'properties' do
     end
   end
 
-  if options
-    if model && json_schema_wheres(model).any?
-      json.set! 'where', json_schema_ref(defs, json_schema_name(model, 'Where'), 'where', model: model)
-    end
-    if model && json_schema_orders(model).any?
-      json.set! 'order', json_schema_ref(defs, json_schema_name(model, 'Order'), 'order',
-        permit: json_schema_orders(model), model: model)
-    end
-    json.set! 'limit', { 'type' => 'integer', 'minimum' => 0 }
-    json.set! 'distinct', { 'type' => 'boolean' }
-
-    # Passed through by #sanitize_includes, but not checked by the ACL
-    json.set! 'distinct_on', json_schema_unchecked(json_schema_columns, 'Columns to select distinct included records on, passed to `distinct_on`.')
-    json.set! 'when', {
-      'type' => 'object',
-      'description' => 'Only include for the including records whose rendered value of each attribute equals the given value. #index only.'
-    }
-  end
+  json.merge! json_schema_include_options(defs, model) if options
 end
 json.set! 'additionalProperties', false

@@ -20,27 +20,7 @@ json.set! 'anyOf' do
             pattern_properties["^#{Regexp.escape(key)}\\..+$"] = schema
           end
         elsif association = model.reflect_on_association(key)
-          exists = if association.belongs_to?
-            { 'type' => ['boolean', 'null'], 'description' => 'Whether there is one' }
-          elsif association.macro == :has_many && association.active_record.column_names.include?((association.counter_cache_column || "#{association.plural_name}_count").to_s)
-            # activerecord-filter tests a has_many with its counter cache
-            { 'type' => 'boolean', 'description' => 'Whether there are any' }
-          end
-
-          filter = if association.polymorphic?
-            {
-              'type' => 'object',
-              'properties' => {
-                'as' => { 'type' => 'string', 'description' => 'The model to filter on' }
-              },
-              'required' => ['as'],
-              'description' => 'Filtered by the wheres of the model named by `as`'
-            }
-          else
-            json_schema_ref(defs, json_schema_name(association.klass, 'Where'), 'where', model: association.klass)
-          end
-
-          json.set! key, exists ? { 'anyOf' => [exists, filter] } : filter
+          json.set! key, json_schema_association_where(defs, association)
 
           if association.collection?
             ids_key = "#{key.singularize}_ids"
@@ -62,7 +42,7 @@ json.set! 'anyOf' do
   json.child! do
     json.merge!({
       'type' => 'array',
-      'items' => { 'anyOf' => [{ 'enum' => ['AND', 'OR'] }, { '$ref' => "#/$defs/#{json_schema_name(model, 'Where')}" }] }
+      'items' => { 'anyOf' => [{ 'enum' => ['AND', 'OR'] }, json_schema_where_ref(defs, model)] }
     })
   end
 end
