@@ -8,36 +8,7 @@ json.set! 'properties' do
   permit.each do |name, subpermit|
     next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
-    # The include partial's locals
-    sub = json_schema_include_locals(model, name, subpermit, prefix)
-
-    included = { 'enum' => [true, 'true'] }
-    if !sub
-      json.set! name.to_s, included
-      next
-    end
-
-    json.set! name.to_s do
-      json.set! 'anyOf' do
-        json.child! { json.merge! included }
-        json.child! do
-          if model
-            # The +when+ of an include is checked against the model it's on,
-            # and the include's schema is shared by every model including it
-            json.set! 'allOf' do
-              json.child! do
-                json.partial!('application/json_schema/include', sub.merge(defs: defs))
-              end
-              json.child! do
-                json.merge!({ 'properties' => { 'when' => json_schema_ref(defs, json_schema_name(model, 'When'), 'when', model: model) } })
-              end
-            end
-          else
-            json.partial!('application/json_schema/include', sub.merge(defs: defs))
-          end
-        end
-      end
-    end
+    json.set! name.to_s, json_schema_association_include(defs, model, name, subpermit, prefix)
   end
 
   json.merge! json_schema_include_options(defs, model) if options

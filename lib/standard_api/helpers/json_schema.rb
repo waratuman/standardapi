@@ -236,6 +236,21 @@ module StandardAPI
         exists ? { 'anyOf' => [exists, filter] } : filter
       end
 
+      # Mirrors StandardAPI::Orders#sanitize_orders: a name +permit+ lists, an
+      # object of them, or an Array of either. The object is rendered into
+      # $defs as +name+ followed by "Object", by
+      # application/json_schema/_order_object. +model+ is nil under a Hash in
+      # +permit+. An empty +permit+ accepts nothing.
+      def json_schema_order(defs, permit, model, name)
+        permit = Array(permit).flatten
+        return { 'not' => {} } if permit.empty?
+
+        names = { 'type' => 'string', 'enum' => json_schema_order_names(model, permit) }
+        object = json_schema_ref(defs, "#{name}Object", 'order_object', permit: permit, model: model, name: name)
+
+        { 'anyOf' => [names, object, { 'type' => 'array', 'items' => { 'anyOf' => [names, object] } }] }
+      end
+
       # The names +permit+ lets +model+ be ordered by, an association's as
       # "association.column". +model+ is nil under a Hash in +permit+.
       def json_schema_order_names(model, permit)
@@ -250,24 +265,64 @@ module StandardAPI
         end
       end
 
-      # The application/json_schema/_include locals for the include of the
-      # association +name+ of +model+, permitted +subpermit+, or nil if it can
-      # only be included as true. Named after +prefix+, unless it's the
-      # include of the association's model.
-      def json_schema_include_locals(model, name, subpermit, prefix)
+      # Mirrors StandardAPI::Includes#sanitize_includes: an object of the
+      # associations +permit+ lists, a name, or an Array of either. +model+ is
+      # nil under a polymorphic association, where a +where+ can't be checked.
+      #
+      # The object is rendered into $defs as +name+, by
+      # application/json_schema/_include_object, and the includes under it are
+      # named after +prefix+. The include of an association has the +options+
+      # (+where+, +order+, +limit+, +distinct+, +distinct_on+, +when+) that
+      # apply to included records; the top level has none.
+      def json_schema_include(defs, permit, model, name:, prefix: name, options: true)
+        names = { 'type' => 'string', 'enum' => permit.keys.map(&:to_s) - StandardAPI::Controller::RESERVED_INCLUDE_KEYS }
+        object = json_schema_ref(defs, name, 'include_object', permit: permit, model: model, prefix: prefix, options: options)
+
+        { 'anyOf' => [object, names, { 'type' => 'array', 'items' => { 'anyOf' => [names, object] } }] }
+      end
+
+      # What the association +name+ of +model+, permitted +subpermit+, can be
+      # included as: true, or its own include. That is named after +prefix+,
+      # unless it's the include of the association's model.
+      def json_schema_association_include(defs, model, name, subpermit, prefix)
         association = model&.reflect_on_association(name)
         sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
 
-        if association && !association.polymorphic?
+        sub = if association && !association.polymorphic?
           if subpermit.empty?
             klass = association.klass
-            { permit: json_schema_includes(klass), model: klass, name: json_schema_name(klass, 'Include') }
+            json_schema_include(defs, json_schema_includes(klass), klass, name: json_schema_name(klass, 'Include'))
           else
-            { permit: subpermit, model: association.klass, name: sub_name }
+            json_schema_include(defs, subpermit, association.klass, name: sub_name)
           end
         elsif subpermit.present?
-          { permit: subpermit, model: nil, name: sub_name }
+          json_schema_include(defs, subpermit, nil, name: sub_name)
         end
+
+        # The +when+ of an include is checked against the model it's on, and
+        # the include's schema is shared by every model including it
+        if sub && model
+          sub = { 'allOf' => [sub, { 'properties' => { 'when' => json_schema_when_ref(defs, model) } }] }
+        end
+
+        included = { 'enum' => [true, 'true'] }
+        sub ? { 'anyOf' => [included, sub] } : included
+      end
+
+      # Mirrors StandardAPI::Includes#check_include_when: the attributes of
+      # +model+ its ACL wheres permit an +eq+ on, each compared with its value
+      # as application/_record renders it
+      def json_schema_when(model)
+        definitions = json_schema_definitions(model)
+        properties = {}
+        json_schema_wheres(model).each do |key, operators|
+          next if !model.attribute_names.include?(key)
+          next if operators != :all && !operators.include?('eq')
+
+          properties[key] = definitions[key] ? json_schema_attribute_read(model, definitions[key]) : {}
+        end
+
+        { 'type' => 'object', 'properties' => properties, 'additionalProperties' => false }
       end
 
       # The options of an include of +model+, which is nil under a polymorphic
@@ -320,7 +375,8 @@ module StandardAPI
       # $defs
 
       # The name in $defs of the +kind+ ("Where", "Order", "When" or
-      # "Include") of +model+
+      # "Include") of +model+. The top level's order object and include are
+      # "OrderObject" and "Include".
       def json_schema_name(model, kind)
         "#{model.name.gsub('::', '')}#{kind}"
       end
@@ -337,8 +393,20 @@ module StandardAPI
         json_schema_ref(defs, json_schema_name(model, 'Where'), 'where', model: model)
       end
 
+      # A $ref to +name+ in $defs, where it is the schema the block gives the
+      # first time
+      def json_schema_def(defs, name)
+        defs[name] ||= { schema: yield }
+        { '$ref' => "#/$defs/#{name}" }
+      end
+
       def json_schema_order_ref(defs, model)
-        json_schema_ref(defs, json_schema_name(model, 'Order'), 'order', permit: json_schema_orders(model), model: model)
+        name = json_schema_name(model, 'Order')
+        json_schema_def(defs, name) { json_schema_order(defs, json_schema_orders(model), model, name) }
+      end
+
+      def json_schema_when_ref(defs, model)
+        json_schema_def(defs, json_schema_name(model, 'When')) { json_schema_when(model) }
       end
 
       # Fixed schemas

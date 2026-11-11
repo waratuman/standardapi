@@ -15,16 +15,11 @@ json.set! 'properties' do
     json.set! 'where', json_schema_where_ref(defs, model)
   end
 
-  if order.any?
-    json.set! 'order' do
-      json.partial!('application/json_schema/order', permit: order, model: model, defs: defs)
-    end
-  end
+  json.set! 'order', json_schema_order(defs, order, model, 'Order') if order.any?
 
   if include_permit.any?
-    json.set! 'include' do
-      json.partial!('application/json_schema/include', permit: include_permit, model: model, defs: defs, name: nil)
-    end
+    json.set! 'include', json_schema_include(defs, include_permit, model,
+      name: 'Include', prefix: json_schema_name(model, ''), options: false)
   end
 
   json.merge! json_schema_query_options(model)
@@ -36,15 +31,20 @@ if resource_limit && !default_limit
   json.set! 'anyOf', [{ 'required' => ['limit'] }, { 'required' => ['select'] }]
 end
 
-# Rendering a def can refer to more, so render until none are left
+# Rendering a def can refer to more, so render until none are left. A def is
+# a schema, or a partial to render
 if defs.any?
   json.set! '$defs' do
     rendered = 0
     while rendered < defs.size
       name = defs.keys[rendered]
       rendered += 1
-      json.set! name do
-        json.partial!(defs[name][:partial], defs[name][:locals].merge(defs: defs))
+      if defs[name][:schema]
+        json.set! name, defs[name][:schema]
+      else
+        json.set! name do
+          json.partial!(defs[name][:partial], defs[name][:locals].merge(defs: defs))
+        end
       end
     end
   end
