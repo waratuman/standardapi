@@ -553,7 +553,8 @@ conditions see being `nil`.
 - **`schema/query.json`** describes `where`, `order` and `include` as the
   ACL's `wheres`, `orders` and `includes` permit them, following associations
   into the associated models' ACLs through `$defs`, plus `limit`, `offset`,
-  `distinct`, and `group_by` as the model's columns. An include's `where` and
+  `distinct` and `group_by`. Columns to `group_by` and associations to `join`
+  aren't listed by name, as not all of them need be exposed. An include's `where` and
   `order` are those the included model's ACL permits. A column permitted with
   any operator lists the operators that apply to its type. An include's `when`
   lists the attributes of the model it's on that its ACL `wheres` permit an
