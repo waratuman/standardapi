@@ -137,6 +137,26 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'offset' => 1 } }, 'limit' => 1 })
   end
 
+  test 'Controller#query_schema.json an include whose name is taken by another is added to it' do
+    camera_schema
+    defs = {}
+    ref = { '$ref' => '#/$defs/CameraPhotoInclude' }
+
+    photo = controller.send(:include_schema, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
+    assert_equal ref, photo.dig('anyOf', 0)
+    properties = defs.dig('CameraPhotoInclude', 'properties').dup
+
+    # The same include again changes nothing
+    controller.send(:include_schema, { 'account' => {} }, Photo, defs, name: 'CameraPhotoInclude')
+    assert_equal properties, defs.dig('CameraPhotoInclude', 'properties')
+
+    # Another include adds what it permits, and what both have is unchanged
+    other = controller.send(:include_schema, { 'photo' => {} }, Camera, defs, name: 'CameraPhotoInclude')
+    assert_equal ref, other.dig('anyOf', 0)
+    assert_equal properties.keys + ['photo'], defs.dig('CameraPhotoInclude', 'properties').keys
+    assert_equal properties, defs.dig('CameraPhotoInclude', 'properties').except('photo')
+  end
+
   test 'Controller#query_schema.json include order is checked against the included model ACL orders' do
     schema = camera_schema
     schemer = schemer(schema)
