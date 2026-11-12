@@ -82,3 +82,28 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
   end
 
 end
+
+class CacheableAccountsControllerTest < ActionDispatch::IntegrationTest
+
+  test 'eager-loaded collection cache expires when another cache timestamp changes' do
+    timestamp = Time.utc(2025, 1, 2)
+    CacheableAccount.fixed_cache_timestamp = timestamp
+    account = CacheableAccount.create!
+
+    get cacheable_accounts_path(format: :json), params: { include: :photos, limit: 100 }
+    records = JSON(response.body)
+    assert_nil records.first['property_cached_at']
+
+    # The changed value equals the existing maximum cache timestamp. A key
+    # based only on the maximum therefore serves the stale fragment above.
+    account.update!(property_cached_at: timestamp)
+
+    get cacheable_accounts_path(format: :json), params: { include: :photos, limit: 100 }
+    records = JSON(response.body)
+    assert_equal account.property_cached_at.as_json,
+      records.first['property_cached_at']
+  ensure
+    CacheableAccount.fixed_cache_timestamp = nil
+  end
+
+end
