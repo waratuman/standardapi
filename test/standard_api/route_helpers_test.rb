@@ -30,6 +30,25 @@ class RouteHelpersTest < ActionDispatch::IntegrationTest
     assert_routing({ path: '/photos/1/properties/1', method: :delete }, { controller: 'photos', action: 'remove_resource', id: '1', relationship: 'properties', resource_id: '1' })
   end
 
+  test 'standard resources require an enclosing constrained format segment' do
+    with_routing do |set|
+      set.draw do
+        constraints format: :json do
+          standard_resources :photos
+          standard_resource :account
+        end
+      end
+
+      assert_routing({ path: '/photos.json', method: :get }, { controller: 'photos', action: 'index', format: 'json' })
+      assert_routing({ path: '/photos/schema.json', method: :get }, { controller: 'photos', action: 'schema', format: 'json' })
+      assert_routing({ path: '/account.json', method: :get }, { controller: 'accounts', action: 'show', format: 'json' })
+
+      assert_raises(ActionController::RoutingError) { set.recognize_path('/photos', method: :get) }
+      assert_raises(ActionController::RoutingError) { set.recognize_path('/photos/schema', method: :get) }
+      assert_raises(ActionController::RoutingError) { set.recognize_path('/account', method: :get) }
+    end
+  end
+
   test "standard_resources with only option" do
     with_routing do |set|
       set.draw do
