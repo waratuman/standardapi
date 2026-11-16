@@ -381,7 +381,7 @@ module StandardAPI
 
         # A Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if through ? through.varies_by_requester? : excludes?(model)
+        required = [] if through ? through.varies_by_requester? : schema_varies?(model)
 
         properties['errors'] = {
           'type' => 'object',

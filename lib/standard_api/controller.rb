@@ -13,7 +13,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.include StandardAPI::Schemas
-      klass.helper_method :includes, :record_schema, :excludes?, :excludes_affect?,
+      klass.helper_method :includes, :record_schema, :schema_varies?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -290,11 +290,11 @@ module StandardAPI
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
     # caching guards need.
-    def excludes?(klass)
-      @excludes_defined ||= {}
-      return @excludes_defined[klass] if @excludes_defined.key?(klass)
+    def schema_varies?(klass)
+      @schema_varies ||= {}
+      return @schema_varies[klass] if @schema_varies.key?(klass)
 
-      @excludes_defined[klass] = !!model_schema(klass)&.class&.varies_by_requester?
+      @schema_varies[klass] = !!model_schema(klass)&.class&.varies_by_requester?
     end
 
     # True when rendering +klass+ with +includes+ could be affected by a
@@ -306,7 +306,7 @@ module StandardAPI
     # requester would let one requester's response be served to another, so
     # the views use this to skip caching entirely whenever it could.
     def excludes_affect?(klass, includes)
-      return true if excludes?(klass)
+      return true if schema_varies?(klass)
 
       includes.any? do |inc, subinc|
         next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)

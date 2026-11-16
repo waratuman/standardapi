@@ -475,12 +475,12 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert Class.new(schema_class { attribute :make, if: -> { true } }).varies_by_requester?
   end
 
-  test 'a Schema that could vary by requester counts as an exclude rule' do
+  test 'schema_varies? is whether the model\'s Schema could vary by requester' do
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class(Property) { attribute :name, comment: 'Its name' })
-    assert_not AccountsController.new.send(:excludes?, Property)
+    assert_not AccountsController.new.send(:schema_varies?, Property)
 
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema_class(Property) { attribute :name, if: -> { true } })
-    assert AccountsController.new.send(:excludes?, Property)
+    assert AccountsController.new.send(:schema_varies?, Property)
   end
 
   def property_hiding_name_by_header
