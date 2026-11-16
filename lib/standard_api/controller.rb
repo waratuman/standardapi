@@ -248,11 +248,6 @@ module StandardAPI
 
     private
 
-    # Helpers#attribute_definitions, for Schema::Record#attributes
-    def attribute_definitions(...)
-      helpers.send(:attribute_definitions, ...)
-    end
-
     def bad_request(exception)
       render body: exception.to_s, status: :bad_request
     end

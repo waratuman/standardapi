@@ -18,22 +18,27 @@ module StandardAPI
     class Record
 
       # +schema+ is the instance of the Schema it renders with, nil for a model
-      # with none, and +through+ the class given by the including association,
-      # if any
+      # with none
       attr_reader :model, :record, :schema
 
-      def initialize(controller, model, record, schema, through)
+      def initialize(controller, model, record, schema)
         @controller = controller
         @model = model
         @record = record
         @schema = schema
-        @through = through
       end
 
-      # The definitions of the attributes it renders (see
-      # Helpers#attribute_definitions)
+      # The definitions of the attributes it renders: the defaults
+      # (Schemas#default_definitions) as its Schema declares them. Raises
+      # MissingSchema when there is no Schema, so nothing is rendered that no
+      # one chose to expose.
       def attributes
-        @attributes ||= @controller.send(:attribute_definitions, record || model, @through)
+        @attributes ||= begin
+          raise StandardAPI::MissingSchema.new(model) if !schema
+
+          names = record ? record.attribute_names : model.attribute_names
+          schema.schemas(@controller.send(:default_definitions, model, names), record)
+        end
       end
 
       def attribute?(name)
