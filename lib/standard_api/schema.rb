@@ -215,15 +215,6 @@ module StandardAPI
 
       private
 
-      # An override would bypass the excludes and the fragment caching check
-      def method_added(name)
-        if name == :schemas && self != StandardAPI::Schema
-          raise StandardAPI::InvalidConfiguration, "#{self.name || 'A Schema'} can't override schemas; declare attributes with attribute, remove and attributes_for instead"
-        end
-
-        super
-      end
-
       def add_step(key: nil, varies: false, &block)
         self.schema_steps += [{ key: key, varies: varies, block: block }.freeze]
       end
@@ -241,12 +232,12 @@ module StandardAPI
     end
 
     # The definitions to use for +record+, or nil for a model, from
-    # +default_schema+, the ones Schemas#default_definitions builds. It can't be
-    # overridden, so what it renders always matches hidden_attributes.
-    def schemas(default_schema, record)
+    # +defaults+, the ones Schemas#default_definitions builds. What they leave
+    # out is hidden_attributes.
+    def definitions(defaults, record)
       builder = builder_for(record)
-      definitions = (@applied[builder] ||= {}.compare_by_identity)[default_schema] ||=
-        builder.apply(default_schema, model)
+      definitions = (@applied[builder] ||= {}.compare_by_identity)[defaults] ||=
+        builder.apply(defaults, model)
 
       failed = failed_conditions(record)
       failed.empty? ? definitions : definitions.reject { |definition| failed.include?(definition[:name]) }

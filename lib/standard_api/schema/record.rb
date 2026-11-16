@@ -37,7 +37,7 @@ module StandardAPI
           raise StandardAPI::MissingSchema.new(model) if !schema
 
           names = record ? record.attribute_names : model.attribute_names
-          schema.schemas(@controller.send(:default_definitions, model, names), record)
+          schema.definitions(@controller.send(:default_definitions, model, names), record)
         end
       end
 
@@ -58,9 +58,10 @@ module StandardAPI
       end
 
       # Whether an include of +name+, an association or a method, renders:
-      # the Schema declares it and shows it for the record
+      # the Schema declares it and shows it for the record. Without a Schema,
+      # nothing does.
       def include?(name)
-        !schema || schema.association?(record, name)
+        !!schema&.association?(record, name)
       end
 
       # The Schema class the records included through +name+ render with in

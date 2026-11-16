@@ -399,10 +399,8 @@ partial that calls it does too.
 a Schema that varies. Override it when a Schema doesn't vary, so fragments can
 be cached.
 
-A Schema's definitions come only from its declarations. Defining `schemas` on
-a Schema raises `StandardAPI::InvalidConfiguration`, because an override could
-render what `hidden_attributes` doesn't exclude. For a value that differs by
-record, key it with `attributes_for`:
+A Schema's definitions come only from its declarations. For a value that
+differs by record, key it with `attributes_for`:
 
     attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 

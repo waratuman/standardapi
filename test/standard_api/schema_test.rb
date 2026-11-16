@@ -248,17 +248,6 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert_not_includes names(parent), 'preview_url'
   end
 
-  test "schemas can't be overridden" do
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      schema_class { def schemas(default_schema, record) = default_schema }
-    end
-    assert_match "can't override schemas", error.message
-
-    assert_raises(StandardAPI::InvalidConfiguration) do
-      Class.new(CamerasController::Schema) { private def schemas(*) = [] }
-    end
-  end
-
   test 'attributes_for runs on the instance, once per key' do
     runs = []
     schema = schema_class do
