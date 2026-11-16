@@ -96,6 +96,70 @@
   `include[except]` have no equivalent, and `:json_schema` in a route's `only`
   or `except` raises Rails' `ArgumentError` for an unknown action.
 
+### Upgrading from 8.x
+
+`Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
+model's Schema, which renders only what it declares and can hide an attribute
+or association per record. An ACL `excludes` method isn't used, so move what
+it hid into the Schema:
+
+    # Before, in PhotoACL
+    def excludes(photo)
+      { caption: !photo.public?, camera: photo.anonymous?, account: [:email] }
+    end
+
+    # After
+    class PhotoSchema < StandardAPI::Schema
+      attribute :caption, if: -> { record&.public? }
+      association :camera, unless: -> { record&.anonymous? }
+      association :account, schema: AccountWithoutEmailSchema
+    end
+
+A custom partial asks `record_schema(record, local_assigns[:schema])` what it
+renders, instead of applying `resolve_excludes` (see Custom partials in the
+README), and passes `schema:` to nested records instead of `excludes:`.
+`Controller#excludes(record)` is now `record_schema(record).hidden?(name)`.
+
+`ApplicationHelper#excludes` is no longer used, and the app won't boot while
+it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
+what it hid out of each model's Schema, which renders only what it declares:
+
+    # Before, in ApplicationHelper
+    def excludes
+      { user: [:password_digest] }
+    end
+
+    # After: UserSchema doesn't declare password_digest
+    class UserSchema < StandardAPI::Schema
+      attributes :id, :name, :email
+    end
+
+ACL `includes` has been replaced by the associations each model's Schema
+declares, which decide both what can be included and what renders. An ACL
+`includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
+it permitted into the Schema, and anything nested under a polymorphic
+association or a method into that association's `includes`:
+
+    # Before, in PhotoACL
+    def includes
+      [ :author, :camera ]
+    end
+
+    # After
+    class PhotoSchema < StandardAPI::Schema
+      associations :author, :camera
+    end
+
+`#create` and `#update` no longer render the associations written through
+nested attributes unless the `include` param asks for them.
+
+`json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
+and `schema/query.json` (see Schema Discovery in the README). For the shape
+of a record, with includes, use `schema/read.json`; for what a create or update
+accepts, `schema/write.json`, which lists only the attributes the ACL permits. `include[only]` and `include[except]` have no equivalent. A route
+that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
+name `:read_schema`, `:write_schema` or `:query_schema` instead.
+
 ### Added
 
 - `record_schema(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,

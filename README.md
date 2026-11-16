@@ -11,11 +11,10 @@ minimal configuration.
   - [Including StandardAPI](#including-standardapi)
   - [Whitelisting Attributes](#whitelisting-attributes)
   - [Whitelisting Orders](#whitelisting-orders)
-  - [Whitelisting Includes](#whitelisting-includes)
   - [Limits and Pagination](#limits-and-pagination)
   - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
-  - [Excluding Attributes from Responses](#excluding-attributes-from-responses)
 - [Access Control List (ACL)](#access-control-list-acl)
+- [Schemas](#schemas)
 - [Routes](#routes)
 - [API Usage](#api-usage)
   - [Filtering (where)](#filtering-where)
@@ -39,8 +38,8 @@ In your `Gemfile`:
 
 # Quick Start
 
-Include `StandardAPI` in a controller and define the allowed attributes,
-orders, and includes:
+Include `StandardAPI` in a controller, define the allowed attributes and
+orders, and give each model a Schema for what it renders and can include:
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
@@ -143,9 +142,8 @@ following files:
 
 All of these methods are optional and will be included in ApplicationController
 for StandardAPI to determine allowed attributes, nested attributes, orders and
-filters. What can be included is declared in each model's Schema instead (see
-[Associations](#associations)); an ACL `includes` method raises
-`StandardAPI::InvalidConfiguration`.
+filters. What can be included is declared in each model's Schema (see
+[Associations](#associations)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
@@ -172,9 +170,8 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-An ACL decides what can be written, filtered, ordered and included. What's
-shown is up to the model's Schema (see [Schemas](#schemas)); an ACL `excludes`
-method isn't used.
+An ACL decides what can be written, filtered and ordered. What's shown, and
+what can be included, is up to the model's Schema (see [Schemas](#schemas)).
 
 ##### Custom partials
 
@@ -200,8 +197,7 @@ the `schema` local.
 
 - `attributes` are the definitions of what it renders, and `attribute?(name)`
   tells if one does.
-- `include?(name)` tells if an include renders. An include that isn't an
-  association always does.
+- `include?(name)` tells if an include, an association or a method, renders.
 - `includes(includes)` gives the includes of the `includes` local it renders,
   as `name, sub_include, sub_schema`: what to include of them, and the Schema to
   render them with. `application/_record` loops over it, as it does
@@ -345,8 +341,7 @@ gives in its place, at every level below it:
     end
 
 An association only renders when the `include` param asks for it, on `#create`
-and `#update` too, so a record written through nested attributes isn't rendered
-unless it's included.
+and `#update` too.
 
 Declarations are checked for the model, with a `nil` record: `if` and `unless`
 don't stop an association from being asked for, only from rendering, and one
@@ -452,83 +447,13 @@ A Schema `attribute` adding one the model doesn't have starts from
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
 own, the base class's `attributes` and Schema are used
-(`document_attributes`, `DocumentSchema`), as they are for `orders`,
-`includes` and `wheres`.
+(`document_attributes`, `DocumentSchema`), as they are for `orders` and
+`wheres`.
 
 `schema.json` lists the same attributes as `record_schema(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
 a Schema declares another, so it reports `datetime` for date and time columns,
 `hash` for JSON and `decimal` for floats.
-
-##### Upgrading from 8.x
-
-`Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
-model's Schema, which renders only what it declares and can hide an attribute
-or association per record. An ACL `excludes` method isn't used, so move what
-it hid into the Schema:
-
-    # Before, in PhotoACL
-    def excludes(photo)
-      { caption: !photo.public?, camera: photo.anonymous?, account: [:email] }
-    end
-
-    # After
-    class PhotoSchema < StandardAPI::Schema
-      attribute :caption, if: -> { record&.public? }
-      association :camera, unless: -> { record&.anonymous? }
-      association :account, schema: AccountWithoutEmailSchema
-    end
-
-A custom partial asks `record_schema(record, local_assigns[:schema])` what it
-renders, instead of applying `resolve_excludes` (see
-[Custom partials](#custom-partials)), and passes `schema:` to nested records
-instead of `excludes:`. `Controller#excludes(record)` is now
-`record_schema(record).hidden?(name)`.
-
-`ApplicationHelper#excludes` is no longer used, and the app won't boot while
-it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
-what it hid out of each model's Schema, which renders only what it declares:
-
-    # Before, in ApplicationHelper
-    def excludes
-      { user: [:password_digest] }
-    end
-
-    # After: UserSchema doesn't declare password_digest
-    class UserSchema < StandardAPI::Schema
-      attributes :id, :name, :email
-    end
-
-ACL `includes` has been replaced by the associations each model's Schema
-declares, which decide both what can be included and what renders. An ACL
-`includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
-it permitted into the Schema, and anything nested under a polymorphic
-association or a method into that association's `includes`:
-
-    # Before, in PhotoACL
-    def includes
-      [ :author, :camera ]
-    end
-
-    # After
-    class PhotoSchema < StandardAPI::Schema
-      associations :author, :camera
-    end
-
-A Schema that declared every association, so that ACL `includes` alone decided
-what could be included, now permits them all; leave out what shouldn't be
-included.
-
-`#create` and `#update` no longer render the associations written through
-nested attributes unless the `include` param asks for them.
-
-`json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
-and `schema/query.json` (see [Schema Discovery](#schema-discovery)). For the
-shape of a record, with includes, use `schema/read.json`; for what a create or
-update accepts, `schema/write.json`, which lists only the attributes the ACL
-permits. `include[only]` and `include[except]` have no equivalent. A route
-that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
-name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 # API Usage
 Resources can be queried via REST style end points
