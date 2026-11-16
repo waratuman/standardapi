@@ -136,9 +136,9 @@ module StandardAPI
     # Returns true outside a StandardAPI controller, where neither mechanism
     # exists.
     def requester_independent?(klass, includes)
-      return true if !respond_to?(:excludes_affect?)
+      return true if !respond_to?(:schema_varies?)
 
-      !excludes_affect?(klass, includes) && !mask_affect?(klass, includes)
+      !schema_varies?(klass, includes) && !mask_affect?(klass, includes)
     end
 
     def association_cache_key(record, relation, subincludes)

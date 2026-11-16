@@ -483,6 +483,18 @@ class SchemaTest < ActionDispatch::IntegrationTest
     assert AccountsController.new.send(:schema_varies?, Property)
   end
 
+  test 'schema_varies? with includes is whether any Schema they reach could vary' do
+    varying = schema_class(Photo) { attribute :format, if: -> { true } }
+    ApplicationController.stubs(:standard_api_schemas).returns('account' => AccountSchema, 'photo' => varying)
+    controller = AccountsController.new
+
+    assert_not controller.send(:schema_varies?, Account)
+    assert controller.send(:schema_varies?, Account, { 'photos' => {} })
+    assert_not controller.send(:schema_varies?, Account, { 'limit' => 1 })
+    # A polymorphic association could be any model
+    assert controller.send(:schema_varies?, Account, { 'subject' => {} })
+  end
+
   def property_hiding_name_by_header
     schema_class(Property) do
       attribute :name, unless: -> { request.headers['X-Hide-Name'] == '1' }
