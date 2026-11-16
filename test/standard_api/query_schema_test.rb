@@ -190,12 +190,54 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_equal properties, defs.dig('CameraPhotoInclude', 'properties').except('photo')
   end
 
+  test "Controller#query_schema.json describes an association's includes from its schema" do
+    through = Class.new(StandardAPI::Schema) { associations :property }
+    schema = Class.new(PropertySchema) { association :landlord, schema: through }
+    schemas = ApplicationController.standard_api_schemas.merge('property' => schema)
+    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+    query = query_schema(query_schema_properties_path(format: 'json'))
+
+    landlord = query.dig('$defs', 'Include', 'properties', 'landlord', 'anyOf', 1, 'allOf', 0, 'anyOf', 0)
+    assert_equal ['property'], (resolve(query, landlord)['properties'].keys - StandardAPI::Controller::RESERVED_INCLUDE_KEYS)
+    assert schemer(query).valid?({ 'include' => { 'landlord' => { 'property' => true } }, 'limit' => 1 })
+    assert_not schemer(query).valid?({ 'include' => { 'landlord' => { 'photos' => true } }, 'limit' => 1 })
+  ensure
+    ApplicationController.unstub(:standard_api_schemas)
+  end
+
+  test "Controller#query_schema.json describes a polymorphic association's includes from its types" do
+    query = query_schema(query_schema_references_path(format: 'json'))
+    schemer = schemer(query)
+
+    # ReferenceSchema declares subject with types: ['Property']
+    [
+      { 'subject' => { 'landlord' => true } },
+      { 'subject' => { 'landlord' => { 'photos' => true }, 'limit' => 1 } },
+      { 'subject' => 'landlord' }
+    ].each do |include|
+      assert schemer.valid?({ 'include' => include, 'limit' => 1 }), include.inspect
+
+      get references_path(format: 'json'), params: { include: include, limit: 1 }
+      assert_response :ok, include.inspect
+    end
+
+    [
+      { 'subject' => { 'document_attachments' => true } },
+      { 'subject' => { 'where' => { 'id' => 1 } } }
+    ].each do |include|
+      assert_not schemer.valid?({ 'include' => include, 'limit' => 1 }), include.inspect
+
+      get references_path(format: 'json'), params: { include: include, limit: 1 }
+      assert_response :bad_request, include.inspect
+    end
+  end
+
   test 'Controller#query_schema.json an include with nothing to include of its own takes a when' do
     schema = query_schema(query_schema_properties_path(format: 'json'))
     schemer = schemer(schema)
     property = create(:property)
 
-    # PropertyACL includes permit english_name, a method, by name
+    # PropertySchema declares english_name, a method, by name
     assert_equal({ '$ref' => '#/$defs/PropertyWhen' },
       schema.dig('$defs', 'Include', 'properties', 'english_name', 'anyOf', 1, 'properties', 'when'))
 

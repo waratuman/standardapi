@@ -11,11 +11,10 @@ minimal configuration.
   - [Including StandardAPI](#including-standardapi)
   - [Whitelisting Attributes](#whitelisting-attributes)
   - [Whitelisting Orders](#whitelisting-orders)
-  - [Whitelisting Includes](#whitelisting-includes)
   - [Limits and Pagination](#limits-and-pagination)
   - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
-  - [Excluding Attributes from Responses](#excluding-attributes-from-responses)
 - [Access Control List (ACL)](#access-control-list-acl)
+- [Schemas](#schemas)
 - [Routes](#routes)
 - [API Usage](#api-usage)
   - [Filtering (where)](#filtering-where)
@@ -39,8 +38,8 @@ In your `Gemfile`:
 
 # Quick Start
 
-Include `StandardAPI` in a controller and define the allowed attributes,
-orders, and includes:
+Include `StandardAPI` in a controller, define the allowed attributes and
+orders, and give each model a Schema for what it renders and can include:
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
@@ -81,18 +80,11 @@ inherited controllers an exposed API.
       def photo_orders
         [:id, :created_at, :updated_at]
       end
-      
-      # Allowed includes
-      # Similarly, the includes (including of relationships in the reponse) are
-      # whitelisted. Includes nested in a relationship are permitted by the
-      # related model's includes. In this case when including the author, the
-      # photos that the author took can also be included if the author model's
-      # includes permit `:photos`. Permitting the nested includes here, ie.
-      # `{ author: [:photos] }`, raises, except for a polymorphic association.
-      def photo_includes
-        [:author]
-      end
     end
+
+What can be included (relationships in the response) is declared in the
+model's Schema, with `association` and `associations` (see
+[Associations](#associations)).
 
 ##### Access Control List
 
@@ -146,24 +138,12 @@ following files:
       def wheres
         [ :id, :caption, { created_at: [:gt, :lt] }, :author ]
       end
-      
-      # Allowed includes
-      def includes
-        [ :author ]
-      end
-    end
-
-`app/controllers/acl/author_acl.rb`:
-
-    module AuthorACL
-      def includes
-        [ :photos ]
-      end
     end
 
 All of these methods are optional and will be included in ApplicationController
 for StandardAPI to determine allowed attributes, nested attributes, orders and
-includes.
+filters. What can be included is declared in each model's Schema (see
+[Associations](#associations)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
@@ -176,72 +156,73 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
         def orders
           [ :id, :created_at, :updated_at ]
         end
-
-        def includes
-          [ :author ]
-        end
       end
     end
 
 It is included in ApplicationController the same way as an
 `app/controllers/acl` file, under the model's name (`photo_attributes`,
 `photo_orders`, ...), so it is never included in its own controller and its
-`includes`, `orders` and `excludes` don't override the controller's own.
+`orders` don't override the controller's own.
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
-
-`includes` now returns a shallow Array, StandardAPI can how determine including
-an `author` and the author's `photos` is allowed by looking at what includes are
-allowed on photo and author.
 
 The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-##### Excludes and custom partials
+An ACL decides what can be written, filtered and ordered. What's shown, and
+what can be included, is up to the model's Schema (see [Schemas](#schemas)).
 
-An ACL may also define `excludes(record)`, returning the attributes and
-relations to strip from the response for that record:
+##### Custom partials
 
-    module PhotoACL
-      def excludes(record)
-        {
-          # hide an attribute
-          caption: !record.public?,
-          # drop a whole relation
-          camera: record.anonymous?,
-          # or reach into one
-          account: [ :email ]
-        }
-      end
-    end
-
-Only `true` excludes a key. `false`, `nil` and empty collections exclude
-nothing, so predicates can be assigned directly as above.
-
-**Excludes are enforced in `application/_record` only.** If you have written a
+**Schemas are enforced in `application/_record` only.** If you have written a
 custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
-partial has to apply the excludes. Two helpers are provided:
+partial has to ask the record's schema what it renders:
 
-    excluded = resolve_excludes(photo, local_assigns[:excludes])
+    schema = record_schema(photo, local_assigns[:schema])
 
-    json.set! :caption, photo.caption unless excluded[:caption] == true
+    json.set! :caption, photo.caption if schema.attribute?(:caption)
 
-    # forward the sub-tree when nesting another record
-    if includes[:account] && excluded[:account] != true
+    # pass on the Schema the records of an association render with
+    if includes[:account] && schema.include?(:account)
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], excludes: sub_excludes(excluded, :account)
+        includes: includes[:account], schema: schema.association_schema(:account)
     end
 
-`resolve_excludes` merges the record's own ACL excludes with whatever the
-parent partial passed down; `sub_excludes` returns the sub-tree to forward for
-a given key. `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is
-a complete worked example.
+`record_schema(record, schema)` gives a `StandardAPI::Schema::Record`: what the
+record renders with its model's Schema, or with `schema` in its place, the one
+the association that included it gives, which the parent partial passes down as
+the `schema` local.
 
-Fragment caching is disabled automatically for any response an exclude rule or
-a `mask_for` row mask could affect, since cache keys are built from record
-timestamps and cannot distinguish one requester from another.
+- `attributes` are the definitions of what it renders, and `attribute?(name)`
+  tells if one does.
+- `include?(name)` tells if an include, an association or a method, renders.
+- `includes(includes)` gives the includes of the `includes` local it renders,
+  as `name, sub_include, sub_schema`: what to include of them, and the Schema to
+  render them with. `application/_record` loops over it, as it does
+  `attributes`:
+
+      schema.includes(includes).each do |name, sub_include, sub_schema|
+        json.set! name do
+          json.partial! 'application/record', record: photo.send(name),
+            includes: sub_include, schema: sub_schema
+        end
+      end
+
+- `association_schema(name)` gives the Schema to pass on to an association's
+  records, or `nil` for their own.
+- `value(name)` is the value to render for an attribute (see `value:`).
+- `hidden?(name)` tells if it hides an attribute or association of the model.
+- `errors` are the record's validation errors, less those on what it hides.
+
+`application/_record` is built on it, and
+`test/standard_api/test_app/views/photos/_photo.json.jbuilder` is a complete
+worked example of a custom partial.
+
+Fragment caching is disabled automatically for any response a Schema that
+varies by requester or a `mask_for` row mask could affect, since cache keys are
+built from record timestamps and cannot distinguish one requester from another.
 
 ##### Schemas
 
@@ -255,13 +236,15 @@ finds them, and every model it renders needs one:
         attribute :caption, comment: 'Shown under the photo' # use one and change it
         attribute :thumbnail_url, :string                    # add one
         attribute :location, if: :admin?                     # hide one, per request
+
+        associations :account, :properties                   # render these when included
       end
     end
 
-Like strong parameters, a Schema is explicit: only the attributes it declares
-are rendered or described, so a column added later stays hidden until it's
-listed. Types, defaults and validations of a declared attribute still come from
-the model.
+Like strong parameters, a Schema is explicit: only the attributes and
+associations it declares are rendered or described, so a column or association
+added later stays hidden until it's listed. Types, defaults and validations of
+a declared attribute still come from the model.
 
 `remove` takes back a declaration, such as one inherited from a parent Schema.
 
@@ -274,7 +257,7 @@ its Schema by name, `ToolCallSchema` for `ToolCall`:
       attributes :id, :name, :arguments
     end
 
-A custom partial that doesn't use `schemas_for` isn't checked.
+A custom partial that doesn't use `record_schema` isn't checked.
 
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
@@ -283,6 +266,18 @@ type, naming an attribute the model doesn't have raises, as does an unknown
 option. A real attribute a query didn't select stays out of that record's
 definitions, whatever is declared for it.
 
+`value` renders something else in place of the record's value. It takes a
+method name or Proc that runs on the instance like a condition, reading the
+record from `record`:
+
+    attribute :email, value: -> { record.email if admin? }
+    attribute :issues, :json, value: :visible_issues
+
+It changes what's rendered, not the definition, so the type still comes from
+the model or the declaration. `serialize_attribute` reads values with
+`attribute_value(record, name)`; an override of it should too. A custom partial
+renders its own values, so isn't changed.
+
 Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
 private methods stay on the Schema rather than the controller.
 
@@ -290,8 +285,8 @@ The Schema runs on one instance per model for the length of a request. A method
 it doesn't define goes to its `controller`, private ones and ACL methods
 included, so `params` and `admin?` just work. The Schema's own methods win, so
 `attributes`, `model` and `schemas` are its own; call `controller.model` for the
-controller's. Don't call `excludes` or `schemas_for` from a condition, as they
-call back into the Schema.
+controller's. Don't call `record_schema` from a condition, as
+they call back into the Schema.
 
 Every controller describes and renders a Photo with the same Schema, including
 as an include of a property, so two controllers of one model with a Schema
@@ -301,8 +296,9 @@ a `StandardAPI::Schema`.
 `attributes_for` declares attributes only known at runtime. Its key is a method
 name or Proc that reads `record` (`nil` for a model), and records with the same
 key share the result. The block runs on the instance once a request per key, is
-given the key, and declares with `attribute`, `attributes` and `remove`. `record`
-raises in the block, since its result is shared between records:
+given the key, and declares with `attribute`, `attributes`, `association`,
+`associations` and `remove`. `record` raises in the block, since its result is
+shared between records:
 
     attributes_for :account_id do |account_id|
       Field.where(account_id: account_id).each do |field|
@@ -321,36 +317,100 @@ each record, takes no arguments and reads the record from `record`. A controller
 method can't read `record`, so a named one is called without it; pass the record
 to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
 something about `record` in an instance variable, as the instance serves every
-record of the model. For `schemas_for(Photo)` and the JSON Schemas, `record` is
+record of the model. For `record_schema(Photo)` and the JSON Schemas, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
 from them, while `unless: -> { record&.private? }` shows it. Hidden and
-undeclared attributes are added to the record's excludes, so they aren't
-rendered or named in validation errors, and a Schema that could vary by requester counts as an exclude rule, so
-fragments that include its model aren't cached.
+undeclared attributes aren't rendered or named in validation errors, and
+fragments that include the model of a Schema that could vary by requester
+aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
 still decides whether it can be written, and filtered or ordered by, which can
-reveal its value. `if` and `unless` only apply to attributes; use ACL `excludes`
-for associations.
+reveal its value.
 
-`varies_by_requester?` is true for a Schema with `if`, `unless` or
-`attributes_for`. Override it when a Schema doesn't vary, so fragments can be
-cached.
+###### Associations
 
-A Schema's definitions come only from its declarations. Defining `schemas` on
-a Schema raises `StandardAPI::InvalidConfiguration`, because an override could
-render what `hidden_attributes` doesn't exclude. For a value that differs by
-record, key it with `attributes_for`:
+What a request may include is what the Schema declares with `association` or
+`associations`, an association or a method rendered as an include. Including
+anything else is rejected with a 400. What's included of an included record is
+checked against what its own Schema declares, or the `schema` the association
+gives in its place, at every level below it:
+
+    class PhotoSchema < StandardAPI::Schema
+      associations :author, :camera        # include[author][photos] if AuthorSchema declares photos
+    end
+
+An association only renders when the `include` param asks for it. On
+`#create` and `#update`, so do the associations written through nested
+attributes (the ACL's `nested`), where the Schema declares them.
+
+Declarations are checked for the model, with a `nil` record: `if` and `unless`
+don't stop an association from being asked for, only from rendering, and one
+declared in an `attributes_for` block can be asked for when it's declared for
+the key a `nil` record gives.
+
+Under a polymorphic association or a method there's no single model to check
+what's included of it against. It's checked against the `schema` the
+association gives, if it gives a Schema class, or else the Schemas of the
+models its `types` name: each include is permitted if one of them declares it,
+and checked below it against that model. A `where` or `order` under it is
+rejected, and a `when` isn't checked, as its records can be of any type:
+
+    association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertySchema or AccountSchema declares it
+
+Without `schema` or `types`, nothing can be included of it.
+
+`if` and `unless` hide an association per record, as they do an attribute:
+
+    association :comments, unless: -> { record&.locked? }
+
+The included records render with their own model's Schema, found from the
+association (or, for a polymorphic one, from each record's class), unless
+`schema` gives one to render them with in its place:
+
+    class NameSchema < StandardAPI::Schema
+      attributes :id, :name
+    end
+
+    association :account, schema: NameSchema
+    association :subject, schema: NameSchema                     # any model with an id and name
+    association :owner, schema: -> { NameSchema if redacted?(record) }
+
+It decides everything about the included records, their associations and
+values too: `NameSchema` declares no associations, so nothing can be included
+through `account`. Given a method name or Proc, it runs like a condition, on
+the record including them, and returns a Schema, or `nil` to render them with
+their own.
+
+**It replaces their own Schema, so nothing their own Schema hides is hidden
+unless it declares so too.** To start from what their own Schema renders, and
+hide more, inherit from it:
+
+    class AccountWithoutEmailSchema < AccountSchema
+      remove :email
+    end
+
+The Schema is passed to the included records' partial as the `schema` local,
+and `record_schema(record, local_assigns[:schema])` renders with it, so a custom
+partial that calls it does too.
+
+`varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
+`attributes_for`, or an association whose `schema` is a method name, a Proc, or
+a Schema that varies. Override it when a Schema doesn't vary, so fragments can
+be cached.
+
+A Schema's definitions come only from its declarations. For a value that
+differs by record, key it with `attributes_for`:
 
     attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 
-`schemas_for(Photo)` returns the result, and `schema.json` and the JSON Schemas
-(see [Schema Discovery](#schema-discovery)) are built from it. Records are
-rendered from it too:
-`application/_record` renders the attributes in `schemas_for(record)`.
-`schemas_for` is available in controllers
-and views, so other code (an MCP tool describing your models, for instance) can
-read the same definitions without rendering a schema view and parsing it back.
+`record_schema(Photo).attributes` returns the result, and `schema.json` and the
+JSON Schemas (see [Schema Discovery](#schema-discovery)) are built from it.
+Records are rendered from it too: `application/_record` renders the attributes
+in `record_schema(record).attributes`. `record_schema` is available in
+controllers and views, so other code (an MCP tool describing your models, for
+instance) can read the same definitions without rendering a schema view and
+parsing it back.
 
 Before the Schema sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
@@ -359,7 +419,7 @@ attributes its query selected. A record loaded with `select(:id)` has only
 `nil` type since the model doesn't have it. Records of a model with the same
 attributes share their definitions before the Schema sees them.
 
-    schemas_for(Property).find { |s| s[:name] == 'name' }
+    record_schema(Property).attributes.find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
     #      primary_key: false, null: true, array: false, comment: nil,
     #      auto_populated: false, read_only: false, required: true,
@@ -391,52 +451,13 @@ A Schema `attribute` adding one the model doesn't have starts from
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
 own, the base class's `attributes` and Schema are used
-(`document_attributes`, `DocumentSchema`), as they are for `orders`,
-`includes` and `wheres`.
+(`document_attributes`, `DocumentSchema`), as they are for `orders` and
+`wheres`.
 
-`schema.json` lists the same attributes as `schemas_for`, with the same
+`schema.json` lists the same attributes as `record_schema(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
 a Schema declares another, so it reports `datetime` for date and time columns,
 `hash` for JSON and `decimal` for floats.
-
-##### Upgrading from 8.x
-
-`Controller#excludes_for(klass)` has been replaced by `excludes(record)`, so
-that ACL rules can vary by record. Move exclusion logic into the model's ACL
-and accept the record:
-
-    # Before
-    excludes_for(Photo)
-
-    # After, in PhotoACL
-    def excludes(photo)
-      { caption: !photo.public? }
-    end
-
-An ACL `excludes` method must accept the record; one that takes no arguments
-raises `ArgumentError`.
-
-`ApplicationHelper#excludes` is no longer used, and the app won't boot while
-it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
-what it hid out of each model's Schema, which renders only what it declares:
-
-    # Before, in ApplicationHelper
-    def excludes
-      { user: [:password_digest] }
-    end
-
-    # After: UserSchema doesn't declare password_digest
-    class UserSchema < StandardAPI::Schema
-      attributes :id, :name, :email
-    end
-
-`json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
-and `schema/query.json` (see [Schema Discovery](#schema-discovery)). For the
-shape of a record, with includes, use `schema/read.json`; for what a create or
-update accepts, `schema/write.json`, which lists only the attributes the ACL
-permits. `include[only]` and `include[except]` have no equivalent. A route
-that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
-name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 # API Usage
 Resources can be queried via REST style end points
@@ -528,17 +549,17 @@ GET /records/schema/query.json  params #index and #calculate accept
 Each route is only drawn with the actions it describes: `read_schema` with
 `show` or `index`, `write_schema` with `create` or `update`, and
 `query_schema` with `index` or `calculate`. Attributes are described from
-their definitions in `schemas_for(model)` (see [Schemas](#schemas)), so only
+their definitions in `record_schema(model).attributes` (see [Schemas](#schemas)), so only
 what the model's Schema declares is described, with the `record` its
 conditions see being `nil`.
 
 - **`schema/read.json`** describes every definition as rendered (decimals as
   strings, binary columns as hex), and the associations in the `include`
-  param, which is checked against the ACL's `includes` as on `#index`. A
+  param, which is checked against the Schemas as on `#index`. A
   singular association allows `null` unless its presence is validated.
   Columns and includes are `required`; other attributes aren't, since a
-  partial `select` can leave them out. When an ACL `excludes` or a Schema
-  condition could hide something from a record, what it hides is still
+  partial `select` can leave them out. When a Schema condition could hide
+  something from a record, what it hides is still
   described and nothing is `required`. A model with a custom partial is
   described as any object.
 - **`schema/write.json`** describes `{ "record": { ... } }` with only the
@@ -550,9 +571,9 @@ conditions see being `nil`.
   `attr_readonly` attribute, which can be set on create but not changed, or
   one the Schema declares read only. A model with an ACL `filter` is
   described as any object.
-- **`schema/query.json`** describes `where`, `order` and `include` as the
-  ACL's `wheres`, `orders` and `includes` permit them, following associations
-  into the associated models' ACLs through `$defs`, plus `limit`, `offset`,
+- **`schema/query.json`** describes `where` and `order` as the ACL's `wheres`
+  and `orders` permit them, and `include` as the Schemas declare it, following
+  associations into the associated models' ACLs and Schemas through `$defs`, plus `limit`, `offset`,
   `distinct` and `group_by`. Columns to `group_by` and associations to `join`
   aren't listed by name, as not all of them need be exposed. An include's `where` and
   `order` are those the included model's ACL permits. A column permitted with
@@ -573,7 +594,7 @@ conditions see being `nil`.
 
 The schemas are built by `read_schema_for(model, includes)`,
 `write_schema_for(model)` and `query_schema_for(model)`, which are public like
-`schemas_for`. Called on a controller handling a request, they give what the
+`record_schema`. Called on a controller handling a request, they give what the
 actions render, so a caller can validate params in-process before running an
 action. `query_schema_for` builds the where, order and include of every model
 reachable through a permitted association into `$defs`; given `ref:`, it
@@ -608,12 +629,6 @@ And example contoller and it's tests.
         # Allowed orderings
         def photo_orders
           [:id, :created_at, :updated_at, :caption]
-        end
-
-        # Allowed includes
-        # You can include the author and the authors photos in the JSON response
-        def photo_includes
-          { :author => [:photos] }
         end
 
         # Mask for Photo. Provide this method if you want to mask some records

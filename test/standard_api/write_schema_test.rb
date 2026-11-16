@@ -187,7 +187,7 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
 
   test 'Controller#write_schema.json required on create' do
     assert_equal ['name'], property_schema['required']
-    # schemas_for requires a NOT NULL column even with a default, as hidden
+    # The definitions require a NOT NULL column even with a default, as hidden
     # and retired have
     assert_equal ['make', 'hidden', 'retired'], camera_schema['required']
   end

@@ -19,8 +19,17 @@ module StandardAPI
       end
     end
 
+    # The value of attribute +name+ to render for +record+, from the Schema it
+    # renders with (Schema#value), so a declared +value+ renders in place of
+    # the record's. An override of serialize_attribute should read the value
+    # with this.
+    def attribute_value(record, name)
+      schema = controller.send(:rendering_schema, record) if respond_to?(:controller) && controller.respond_to?(:rendering_schema, true)
+      schema ? schema.value(record, name) : record.send(name)
+    end
+
     def serialize_attribute(json, record, name, type)
-      value = record.send(name)
+      value = attribute_value(record, name)
 
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
@@ -79,182 +88,6 @@ module StandardAPI
       end
     end
 
-    # The attributes of +model+ as StandardAPI exposes them. The JSON Schemas
-    # (Helpers::JSONSchema) are built from this, so code that needs the
-    # same information (an MCP tool describing a model, say) can read it
-    # directly instead of fetching a schema and parsing it back.
-    #
-    # application/_record renders a record from `schemas_for(record)`, so the
-    # definitions are also what a record is rendered with: an attribute its
-    # Schema leaves out isn't rendered, and one it adds is read from the record
-    # by name.
-    #
-    # Given a model, returns an Array of Hashes, one per attribute in
-    # `model.attribute_names` order: the columns, then any attributes declared
-    # without one. Given a record, one per attribute in
-    # `record.attribute_names`, which is what its query selected: a record
-    # loaded with `select(:id)` has only `id`, and one loaded with
-    # `select('*, 1 AS rank')` also has `rank`. The model types every
-    # attribute, so one it doesn't have, like `rank`, has a nil `type`.
-    #
-    #   name            String   the attribute name
-    #   type            String   the ActiveModel type,
-    #                            `type_for_attribute(name).type`, so it is the
-    #                            same on every adapter and keeps "date", "time"
-    #                            and "datetime" apart. "string" for an enum. nil
-    #                            for a type that doesn't name itself
-    #   enum            Array    the names an enum accepts, or nil if the
-    #                            attribute isn't an enum
-    #   default         Object   the column default, cast to Ruby. For an enum,
-    #                            the name of the default value
-    #   primary_key     Boolean
-    #   null            Boolean  whether the column allows NULL
-    #   array           Boolean  whether the column is an array; "type" is then
-    #                            the type of its elements
-    #   comment         String   the column comment, or nil
-    #   auto_populated  Boolean  whether the database fills the column in
-    #                            itself, ie. a serial id or a column with a
-    #                            function default
-    #   read_only       Boolean  true when the attribute can't be changed
-    #                            through the API: it is missing from the ACL's
-    #                            `attributes`, or the model marks it readonly
-    #                            (`attr_readonly`)
-    #   required        Boolean  true when a create must set it: the column is
-    #                            NOT NULL and writable on create (permitted by
-    #                            the ACL, not auto populated; an
-    #                            `attr_readonly` attribute can be set on
-    #                            create), or it has a presence
-    #                            validation, or an acceptance validation
-    #                            without `allow_nil`
-    #   validations     Array    the model's validations of the attribute, as
-    #                            `{ kind: :length, options: { maximum: 12 } }`
-    #
-    # An attribute with no column has nil `default`, `null`, `comment` and
-    # `auto_populated`.
-    #
-    # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer. The model's StandardAPI::Schema then
-    # applies its declarations for the record (nil for a model). A model with no
-    # Schema raises StandardAPI::MissingSchema.
-    #
-    # Definitions are built once per model and set of attribute names in a
-    # view context, so records loaded by the same query share them. The Schema
-    # caches what it makes of them, so this doesn't cache its result.
-    def schemas_for(record_or_model)
-      if record_or_model.is_a?(Class)
-        model = record_or_model
-        names = model.attribute_names
-      else
-        record = record_or_model
-        model = record.class
-        names = record.attribute_names
-      end
-
-      @default_schemas_for ||= {}
-      schemas = @default_schemas_for[[model, names]] ||= begin
-        permitted_attributes = controller.model_attributes(model)&.map(&:to_s)
-
-        columns = model.columns_hash
-        names.map do |name|
-          attribute_schema(model, name, columns[name], permitted_attributes.nil? || permitted_attributes.include?(name))
-        end
-      end
-
-      controller.model_schemas(model, schemas, record)
-    end
-
-    def attribute_schema(model, name, column, permitted)
-      attribute_type = model.type_for_attribute(name)
-      enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
-      default = column_default_value(column, model) if column
-      auto_populated = (!!column.auto_populated? if column)
-      validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
-
-      read_only = !permitted || model.readonly_attribute?(name)
-      writable_on_create = permitted && !auto_populated
-
-      {
-        name: name,
-        type: enum ? 'string' : attribute_type.type&.to_s,
-        enum: enum&.keys,
-        default: enum ? enum.key(default) : default,
-        primary_key: name == model.primary_key,
-        null: column&.null,
-        array: column ? column.array : false,
-        comment: column&.comment,
-        auto_populated: auto_populated,
-        read_only: read_only,
-        required: (column&.null == false && writable_on_create) || validations.any? { |v|
-          v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
-        },
-        validations: validations
-      }
-    end
-    private :attribute_schema
-
-    # The excludes that apply to +record+ inside a partial: the record's own
-    # ACL excludes deep-merged with whatever the parent partial passed down as
-    # the `excludes` local.
-    #
-    # Custom model partials MUST call this and honour the result. StandardAPI
-    # enforces excludes in application/_record only; it cannot filter
-    # attributes a hand-written partial serializes itself.
-    #
-    #   excluded = resolve_excludes(photo, local_assigns[:excludes])
-    #
-    #   json.set! :format, photo.format unless excluded[:format] == true
-    #
-    #   # forward the sub-tree when rendering a nested record
-    #   json.partial! 'application/record', record: photo.account,
-    #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
-    def resolve_excludes(record, inherited = nil)
-      own = respond_to?(:excludes) ? excludes(record) : nil
-      StandardAPI::Excludes.deep_merge(own, inherited)
-    end
-
-    # The exclude sub-tree to forward for +key+, or nil when there is nothing
-    # to forward. Returns nil for a terminal `true` — that case means the key
-    # is dropped entirely and should never be rendered.
-    def sub_excludes(excluded, key)
-      value = excluded[key]
-      value.is_a?(Hash) ? value : nil
-    end
-
-    # Apply an exclude sub-tree to a plain JSON value.
-    #
-    # An include can resolve to something that isn't a record — a method
-    # returning a Hash or an Array of Hashes — in which case there is no
-    # partial to enforce the excludes and the value would otherwise be
-    # serialized whole.
-    def apply_excludes(value, excluded)
-      return value if excluded.blank?
-
-      case value
-      when Array
-        value.map { |v| apply_excludes(v, excluded) }
-      when Hash
-        value.each_with_object({}) do |(key, v), result|
-          sub = excluded[key]
-          next if sub == true
-
-          result[key] = sub.is_a?(Hash) ? apply_excludes(v, sub) : v
-        end
-      else
-        value
-      end
-    end
-
-    # Drop validation errors belonging to an excluded attribute. An error key
-    # names the attribute it came from, and its message usually quotes the
-    # value, so serializing the errors untouched hands back exactly what the
-    # exclude was hiding. Nested keys like `photos.caption` are matched on
-    # their leading segment.
-    def reject_excluded_errors(errors, excluded)
-      return errors if excluded.blank?
-
-      errors.reject { |attribute, _| excluded[attribute.to_s.split('.').first] == true }
-    end
-
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?
@@ -272,14 +105,14 @@ module StandardAPI
       end
     end
 
-    # +excludes+ is the exclude sub-tree the parent partial is forwarding for
-    # this relation, if any. Its presence alone makes the fragment specific to
-    # this requester.
-    def can_cache_relation?(record, relation, subincludes, excludes = nil)
+    # +schema+ is the Schema class the records of this relation render with in
+    # place of their model's (Schema::Record#association_schema). A fragment it
+    # renders isn't cached, as its key doesn't include it.
+    def can_cache_relation?(record, relation, subincludes, schema = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if excludes.present?
+      return false if schema
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?
@@ -295,7 +128,7 @@ module StandardAPI
     end
 
     # False when rendering +klass+ with +includes+ could vary by requester,
-    # through an ACL exclude rule or a row mask. Cache keys are built from
+    # through a Schema that varies or a row mask. Cache keys are built from
     # record timestamps and the include digest alone, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.
@@ -303,9 +136,9 @@ module StandardAPI
     # Returns true outside a StandardAPI controller, where neither mechanism
     # exists.
     def requester_independent?(klass, includes)
-      return true if !respond_to?(:excludes_affect?)
+      return true if !respond_to?(:schema_varies?)
 
-      !excludes_affect?(klass, includes) && !mask_affect?(klass, includes)
+      !schema_varies?(klass, includes) && !mask_affect?(klass, includes)
     end
 
     def association_cache_key(record, relation, subincludes)
@@ -372,28 +205,7 @@ module StandardAPI
       digest.hexdigest
     end
 
-    def column_default_value(column, model)
-      return nil if column.default.nil?
-
-      cast_type_for_column(column, model).deserialize(column.default)
-    end
-
-    # Resolves a column's database cast type across Rails versions. The public
-    # API for this has changed repeatedly:
-    #   * Rails 7.2 / 8.0 -> connection.lookup_cast_type_from_column(column)
-    #   * Rails 8.1       -> column.fetch_cast_type(connection)
-    #   * Rails main      -> column.cast_type (public reader again)
-    def cast_type_for_column(column, model)
-      if column.respond_to?(:fetch_cast_type)
-        column.fetch_cast_type(model.connection)
-      elsif column.respond_to?(:cast_type)
-        column.cast_type
-      else
-        model.connection.lookup_cast_type_from_column(column)
-      end
-    end
-
-    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # The `type` schema.json reports for an attribute definition. A
     # column keeps its SQL based type, unless a Schema declared another.
     def schema_json_type(model, schema)
       column = model.columns_hash[schema[:name]]

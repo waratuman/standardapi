@@ -5,12 +5,27 @@
 ### Breaking changes
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
-- Replace `Controller#excludes_for(klass)` with per-record ACL
-  `excludes(record)` rules. A zero-arity ACL `excludes` raises
-  `ArgumentError`; accept the record argument.
-- Remove `ApplicationHelper#excludes`. While it's defined,
-  `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
-  boot; leave what it hid out of each model's Schema instead.
+- Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
+  `excludes`. What's rendered is up to the model's Schema, which can hide an
+  attribute or association per record and pick the Schema included records
+  render with. An ACL
+  `excludes` method isn't used. `StandardAPI::Excludes`, `resolve_excludes`,
+  `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
+  custom partial asks `record_schema(record, local_assigns[:schema])` what it
+  renders, and passes `schema:` rather than `excludes:` to nested records. An
+  include that resolves to a plain value is rendered whole.
+- Remove ACL `includes`. What can be included is what the model's Schema
+  declares with `association` and `associations`, an association or a method;
+  anything else is rejected with a 400, and what's included of an included
+  record is checked against its own Schema, or the association's `schema:`.
+  Under a polymorphic association or a method, what's included of it is
+  checked against the Schemas of the models the association's `types:` name.
+  An ACL `includes` method
+  raises `StandardAPI::InvalidConfiguration`.
+- `#create` and `#update` render the associations written through nested
+  attributes only where the model's Schema declares them.
+- Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
+  leave what it hid out of each model's Schema instead.
 - Ordering through an association listed by name in ACL `orders`, ie.
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
@@ -28,19 +43,9 @@
   `model_orders` raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
-- Includes through an association listed by name in ACL `includes`, ie.
-  `:landlord`, are checked against the associated model's ACL `includes`.
-  Includes it doesn't permit are rejected with a 400. This also loosens
-  includes: listing an association by name permits everything its ACL
-  `includes` permit, at every level below it.
-- Permitting an association's includes in ACL `includes`, ie.
-  `{ landlord: [:photos] }`, raises `StandardAPI::InvalidConfiguration`. List
-  the association by name and permit its includes in the associated model's
-  ACL `includes` instead. A polymorphic association's includes, or those of a
-  method rendered as an include, can still be permitted this way.
-- Remove `Controller#model_includes`. Define the model's ACL `includes` and use
-  `includes_for(model)` instead. A controller that still overrides
-  `model_includes` raises `StandardAPI::InvalidConfiguration`.
+- Remove `Controller#model_includes`. Declare what can be included in the
+  model's Schema instead. A controller that still overrides `model_includes`
+  raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
   `sanitize_includes` and `normalize_includes` instead.
@@ -80,11 +85,77 @@
   `include[except]` have no equivalent, and `:json_schema` in a route's `only`
   or `except` raises Rails' `ArgumentError` for an unknown action.
 
+### Upgrading from 8.x
+
+`Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
+model's Schema, which renders only what it declares and can hide an attribute
+or association per record. An ACL `excludes` method isn't used, so move what
+it hid into the Schema:
+
+    # Before, in PhotoACL
+    def excludes(photo)
+      { caption: !photo.public?, camera: photo.anonymous?, account: [:email] }
+    end
+
+    # After
+    class PhotoSchema < StandardAPI::Schema
+      attribute :caption, if: -> { record&.public? }
+      association :camera, unless: -> { record&.anonymous? }
+      association :account, schema: AccountWithoutEmailSchema
+    end
+
+A custom partial asks `record_schema(record, local_assigns[:schema])` what it
+renders, instead of applying `resolve_excludes` (see Custom partials in the
+README), and passes `schema:` to nested records instead of `excludes:`.
+`Controller#excludes(record)` is now `record_schema(record).hidden?(name)`.
+
+`ApplicationHelper#excludes` is no longer used, and nothing checks for it, so
+**what it hid renders if the model's Schema declares it**. This matters most for
+what it usually hid, credentials like `password_digest`: check that no Schema
+declares them, ie. by listing every column. Remove it, and leave what it hid
+out of each model's Schema, which renders only what it declares:
+
+    # Before, in ApplicationHelper
+    def excludes
+      { user: [:password_digest] }
+    end
+
+    # After: UserSchema doesn't declare password_digest
+    class UserSchema < StandardAPI::Schema
+      attributes :id, :name, :email
+    end
+
+ACL `includes` has been replaced by the associations each model's Schema
+declares, which decide both what can be included and what renders. An ACL
+`includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
+it permitted into the Schema. For anything it permitted under a polymorphic
+association or a method, list the models it can be in that association's
+`types`, and declare what can be included of them in their Schemas:
+
+    # Before, in PhotoACL
+    def includes
+      { author: true, camera: true, subject: [:landlord] }
+    end
+
+    # After: subject is polymorphic, and PropertySchema declares landlord
+    class PhotoSchema < StandardAPI::Schema
+      associations :author, :camera
+      association :subject, types: [Property]
+    end
+
+`json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
+and `schema/query.json` (see Schema Discovery in the README). For the shape
+of a record, with includes, use `schema/read.json`; for what a create or update
+accepts, `schema/write.json`, which lists only the attributes the ACL permits. `include[only]` and `include[except]` have no equivalent. A route
+that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
+name `:read_schema`, `:write_schema` or `:query_schema` instead.
+
 ### Added
 
-- ACL excludes can remove attributes and nested associations from serialized
-  responses.
-- Exclude-aware serialization helpers for custom model partials.
+- `record_schema(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
+  what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
+  `association_schema`, `value`, `hidden?` and `errors`.
+  `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs
@@ -104,9 +175,17 @@
   Rendering or describing a model with no Schema raises
   `StandardAPI::MissingSchema`; a model with no controller declares one by name,
   `ToolCallSchema` for `ToolCall`.
-  `schemas_for(record_or_model)` returns the result, for use without rendering a
-  view, and the JSON Schemas, `schema.json` and `application/_record` are built
-  from it: a record renders the attributes in `schemas_for(record)`, one per entry in
+  A Schema declares the associations an include may render with `association`
+  and `associations`; one it doesn't declare isn't rendered or described.
+  `if` and `unless` hide one per record, and the included records render
+  with `schema:` in place of their own model's Schema; to keep what that
+  hides, it inherits from it.
+  `attribute ..., value:` renders a computed value in place of the record's;
+  `serialize_attribute` reads values with `attribute_value(record, name)`.
+  `record_schema(record_or_model).attributes` returns the result, for use
+  without rendering a view, and the JSON Schemas, `schema.json` and
+  `application/_record` are built from it: a record renders the attributes in
+  `record_schema(record).attributes`, one per entry in
   `record.attribute_names`, so an attribute a Schema removes isn't rendered and
   one it adds is read from the record. Each definition has one `type`, the
   attribute's ActiveModel type, and a `comment`, which the JSON Schemas
@@ -114,7 +193,7 @@
 - Each resource serves three JSON Schemas (2020-12), built from its ACL and
   Schema, each drawn only with the actions it describes:
   - `schema/read.json`: a record as `#show` and `#index` render it, with the
-    `include` param checked against the ACL's `includes`. A column that
+    `include` param checked against the Schemas. A column that
     allows NULL, and a singular association unless its presence is
     validated, allow `null`; decimals are strings, binary is hex, and an
     enum lists its names.
@@ -123,9 +202,9 @@
     associations its `nested` permits. `required` is for a create. A
     `read_only` definition is `readOnly`; an auto populated column isn't, and
     isn't `required`.
-  - `schema/query.json`: the `where`, `order` and `include` the ACL's
-    `wheres`, `orders` and `includes` permit, following associations through
-    `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
+  - `schema/query.json`: the `where` and `order` the ACL's `wheres` and
+    `orders` permit, and the `include` the Schemas declare, following
+    associations through `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
     params no ACL checks yet, marked as such.
 
   Validations are valid JSON Schema: a `format` Regexp is its source, left out
@@ -133,12 +212,12 @@
   Range is `minimum` and `maximum`. A validation that doesn't always run
   (`if`, `unless`, `on`) or allows blank, and an option given as a Symbol or
   a Proc, is left out. `read_schema_for`, `write_schema_for` and
-  `query_schema_for` build them, and are public like `schemas_for`.
+  `query_schema_for` build them, and are public like `record_schema`.
 
 ### Changed
 
 - The ACL `attributes` and Schema lookups fall back to the base
-  class's for an STI subclass, as `orders`, `includes` and `wheres` do. An STI
+  class's for an STI subclass, as `orders` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and the JSON Schemas and `schema.json` describe it the same way.

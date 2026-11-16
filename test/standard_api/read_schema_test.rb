@@ -104,8 +104,9 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#read_schema.json include has_many' do
-    PropertiesController.any_instance.stubs(:property_includes).returns([:accounts])
-    schema = read_schema(read_schema_properties_path(format: 'json'), include: 'accounts')
+    schema = with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+      read_schema(read_schema_properties_path(format: 'json'), include: 'accounts')
+    end
 
     assert_equal 'array', schema.dig('properties', 'accounts', 'type')
     assert_equal ['string', 'null'], schema.dig('properties', 'accounts', 'items', 'properties', 'email', 'type')
@@ -233,22 +234,25 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#read_schema.json is a valid JSON Schema' do
-    PropertiesController.any_instance.stubs(:property_includes).returns([:accounts, :landlord])
-    schema = read_schema(read_schema_properties_path(format: 'json'), include: { accounts: true, landlord: true })
+    schema = with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+      read_schema(read_schema_properties_path(format: 'json'), include: { accounts: true, landlord: true })
+    end
 
     assert JSONSchemer.valid_schema?(schema), JSONSchemer.validate_schema(schema).map { |e| e['error'] }.join("\n")
   end
 
   test 'Controller#show.json validates against Controller#read_schema.json' do
-    PropertiesController.any_instance.stubs(:property_includes).returns([:accounts, :landlord])
     property = create(:property, accounts: [create(:account)], landlord: create(:account))
     includes = { accounts: true, landlord: true }
-    schemer = JSONSchemer.schema(read_schema(read_schema_properties_path(format: 'json'), include: includes))
 
-    get property_path(property, format: 'json'), params: { include: includes }
-    assert_response :ok
+    with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+      schemer = JSONSchemer.schema(read_schema(read_schema_properties_path(format: 'json'), include: includes))
 
-    assert_empty schemer.validate(JSON(response.body)).map { |e| e['error'] }
+      get property_path(property, format: 'json'), params: { include: includes }
+      assert_response :ok
+
+      assert_empty schemer.validate(JSON(response.body)).map { |e| e['error'] }
+    end
   end
 
   test 'records of each resource validate against their read_schema.json' do

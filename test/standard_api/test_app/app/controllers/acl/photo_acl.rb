@@ -7,10 +7,6 @@ module PhotoACL
   end
   
   # Sub resources allowed to be included in the response
-  def includes
-    [ :account ]
-  end
-
   def orders
     [ :id, :created_at, :account_id ]
   end

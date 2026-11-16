@@ -1,0 +1,103 @@
+module StandardAPI
+  class Schema
+    # What one record renders, or a model with a nil record, as one Schema
+    # declares it: its model's, or the +schema+ of the association that
+    # included it, which takes its place. Built by Schemas#record_schema, which
+    # views and custom partials call:
+    #
+    #   schema = record_schema(photo, local_assigns[:schema])
+    #
+    #   json.set! :format, photo.format if schema.attribute?(:format)
+    #
+    #   schema.includes(includes).each do |name, sub_include, sub_schema|
+    #     json.set! name do
+    #       json.partial! 'application/record', record: photo.send(name),
+    #         includes: sub_include, schema: sub_schema
+    #     end
+    #   end
+    class Record
+
+      # +schema+ is the instance of the Schema it renders with, nil for a model
+      # with none
+      attr_reader :model, :record, :schema
+
+      def initialize(controller, model, record, schema)
+        @controller = controller
+        @model = model
+        @record = record
+        @schema = schema
+      end
+
+      # The definitions of the attributes it renders: the defaults
+      # (Schemas#default_definitions) as its Schema declares them. Raises
+      # MissingSchema when there is no Schema, so nothing is rendered that no
+      # one chose to expose.
+      def attributes
+        @attributes ||= begin
+          raise StandardAPI::MissingSchema.new(model) if !schema
+
+          names = record ? record.attribute_names : model.attribute_names
+          schema.definitions(@controller.send(:default_definitions, model, names), record)
+        end
+      end
+
+      def attribute?(name)
+        (@attribute_names ||= attributes.map { |definition| definition[:name] }.to_set).include?(name.to_s)
+      end
+
+      # The includes of +includes+ it renders, as [name, sub_include,
+      # sub_schema]: +sub_include+ is what to include of them, and +sub_schema+
+      # the Schema class to render them with (#association_schema), or nil.
+      def includes(includes)
+        includes.filter_map do |name, sub_include|
+          next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
+          next if !include?(name)
+
+          [name, sub_include, association_schema(name)]
+        end
+      end
+
+      # Whether an include of +name+, an association or a method, renders:
+      # the Schema declares it and shows it for the record. Without a Schema,
+      # nothing does.
+      def include?(name)
+        !!schema&.association?(record, name)
+      end
+
+      # The Schema class the records included through +name+ render with in
+      # place of their own model's, or nil
+      def association_schema(name)
+        schema&.association_schema(record, name)
+      end
+
+      # The value of attribute +name+ to render (Schema#value)
+      def value(name)
+        schema ? schema.value(record, name) : record.send(name)
+      end
+
+      # Whether it hides +name+, an attribute or association of the model.
+      # Unlike #attributes, a model with no Schema doesn't raise: it hides
+      # nothing.
+      def hidden?(name)
+        name = name.to_s
+        if model.attribute_names.include?(name)
+          !!schema&.hidden_attributes(record)&.include?(name)
+        elsif model.reflect_on_association(name)
+          !include?(name)
+        else
+          false
+        end
+      end
+
+      # The record's validation errors, less those on what it hides, whose
+      # messages usually quote the value. A key like `photos.caption` is
+      # matched on its leading segment.
+      def errors
+        errors = record.errors.to_hash
+        errors.default_proc = nil
+        errors.reject { |key, _| hidden?(key.to_s.split('.').first) }
+      end
+
+    end
+  end
+end
