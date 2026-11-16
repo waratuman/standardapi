@@ -25,7 +25,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
   end
 
   def definitions(schema, record = Camera, controller: CamerasController.new)
-    with_schema(schema) { controller.schemas_for(record) }
+    with_schema(schema) { controller.record_schema(record).attributes }
   end
 
   def names(...) = definitions(...).map { |d| d[:name] }
@@ -454,7 +454,7 @@ class SchemaTest < ActionDispatch::IntegrationTest
     end
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
 
-    schema = PropertiesController.new.schema_for(property)
+    schema = PropertiesController.new.record_schema(property)
     assert schema.hidden?(:name)
     assert schema.hidden?(:description)
     assert_not schema.hidden?(:size)

@@ -149,7 +149,7 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    schema = @controller.schema_for(record)
+    schema = @controller.record_schema(record)
     record.attributes.select do |x|
       !schema.hidden?(x)
     end
@@ -157,7 +157,7 @@ module StandardAPI::TestCase
 
   def update_attributes(record)
     return [] if record.nil?
-    schema = @controller.schema_for(record)
+    schema = @controller.record_schema(record)
     record.attributes.select do |x|
       !record.class.readonly_attributes.include?(x.to_s) && !schema.hidden?(x)
     end

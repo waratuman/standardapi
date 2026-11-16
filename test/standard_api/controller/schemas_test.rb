@@ -51,16 +51,16 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
   test 'a model with no Schema raises when described or rendered' do
     model = unschemaed_model
 
-    error = assert_raises(StandardAPI::MissingSchema) { CamerasController.new.schemas_for(model) }
+    error = assert_raises(StandardAPI::MissingSchema) { CamerasController.new.record_schema(model).attributes }
     assert_match(/Unschemaed has no Schema/, error.message)
     assert_equal model, error.model
 
-    assert_raises(StandardAPI::MissingSchema) { CamerasController.new.schemas_for(model.new) }
+    assert_raises(StandardAPI::MissingSchema) { CamerasController.new.record_schema(model.new).attributes }
   end
 
   test 'a model with no controller declares its Schema by name' do
     assert_equal AccountSchema, ApplicationController.new.send(:model_schema, Account).class
-    assert_equal Account.attribute_names, CamerasController.new.schemas_for(Account).map { |s| s[:name] }
+    assert_equal Account.attribute_names, CamerasController.new.record_schema(Account).attributes.map { |s| s[:name] }
   end
 
   test 'a constant with the right name that is not a Schema is ignored' do
@@ -76,7 +76,7 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
   end
 
   test "a model with no Schema doesn't raise when only what it hides is asked for" do
-    assert_not ApplicationController.new.schema_for(unschemaed_model.new).hidden?(:name)
+    assert_not ApplicationController.new.record_schema(unschemaed_model.new).hidden?(:name)
   end
 
   test 'an STI subclass uses the Schema of its base class' do

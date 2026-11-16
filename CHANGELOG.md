@@ -11,7 +11,7 @@
   render with. An ACL
   `excludes` method isn't used. `StandardAPI::Excludes`, `resolve_excludes`,
   `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
-  custom partial asks `schema_for(record, local_assigns[:schema])` what it
+  custom partial asks `record_schema(record, local_assigns[:schema])` what it
   renders, and passes `schema:` rather than `excludes:` to nested records. An
   include that resolves to a plain value is rendered whole.
 - Remove `ApplicationHelper#excludes`. While it's defined,
@@ -88,7 +88,7 @@
 
 ### Added
 
-- `schema_for(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
+- `record_schema(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_schema`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
@@ -118,9 +118,10 @@
   hides, it inherits from it.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
-  `schemas_for(record_or_model)` returns the result, for use without rendering a
-  view, and the JSON Schemas, `schema.json` and `application/_record` are built
-  from it: a record renders the attributes in `schemas_for(record)`, one per entry in
+  `record_schema(record_or_model).attributes` returns the result, for use
+  without rendering a view, and the JSON Schemas, `schema.json` and
+  `application/_record` are built from it: a record renders the attributes in
+  `record_schema(record).attributes`, one per entry in
   `record.attribute_names`, so an attribute a Schema removes isn't rendered and
   one it adds is read from the record. Each definition has one `type`, the
   attribute's ActiveModel type, and a `comment`, which the JSON Schemas
@@ -147,7 +148,7 @@
   Range is `minimum` and `maximum`. A validation that doesn't always run
   (`if`, `unless`, `on`) or allows blank, and an option given as a Symbol or
   a Proc, is left out. `read_schema_for`, `write_schema_for` and
-  `query_schema_for` build them, and are public like `schemas_for`.
+  `query_schema_for` build them, and are public like `record_schema`.
 
 ### Changed
 

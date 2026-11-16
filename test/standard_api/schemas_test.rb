@@ -6,7 +6,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     auto_populated read_only required validations)
 
   def schemas(model, controller: PropertiesController.new)
-    controller.schemas_for(model)
+    controller.record_schema(model).attributes
   end
 
   def attribute(model, name, **options)
@@ -188,15 +188,15 @@ class SchemasTest < ActionDispatch::IntegrationTest
     controller = PropertiesController.new
 
     record = Property.select(:id, :name).first
-    assert_equal %w(id name), controller.schemas_for(record).map { |a| a[:name] }
-    assert_equal attribute(Property, 'name'), controller.schemas_for(record).last
+    assert_equal %w(id name), controller.record_schema(record).attributes.map { |a| a[:name] }
+    assert_equal attribute(Property, 'name'), controller.record_schema(record).attributes.last
   end
 
   test 'an attribute only a query selects is used once declared with a type' do
     create(:property)
     record = Property.select('properties.*, 1 AS rank').first
 
-    assert_not_includes PropertiesController.new.schemas_for(record).map { |a| a[:name] }, 'rank'
+    assert_not_includes PropertiesController.new.record_schema(record).attributes.map { |a| a[:name] }, 'rank'
 
     names = Property.attribute_names
     schema = Class.new(StandardAPI::Schema) do
@@ -205,7 +205,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     end
     ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
 
-    rank = PropertiesController.new.schemas_for(record).last
+    rank = PropertiesController.new.record_schema(record).attributes.last
     assert_equal 'rank', rank[:name]
     assert_equal 'integer', rank[:type]
   end
@@ -216,8 +216,8 @@ class SchemasTest < ActionDispatch::IntegrationTest
     controller = PropertiesController.new
     first, second = Property.limit(2).to_a
 
-    assert_same controller.schemas_for(first), controller.schemas_for(second)
-    assert_same controller.schemas_for(Property), controller.schemas_for(first)
+    assert_same controller.record_schema(first).attributes, controller.record_schema(second).attributes
+    assert_same controller.record_schema(Property).attributes, controller.record_schema(first).attributes
   end
 
   test "records are rendered from their Schema's definitions" do
@@ -244,11 +244,11 @@ class SchemasTest < ActionDispatch::IntegrationTest
 
     with_camera_schema(declarations) do
       assert_nil attribute(Camera, 'make', controller: controller)[:comment]
-      make = ->(record) { controller.schemas_for(record).find { |s| s[:name] == 'make' } }
+      make = ->(record) { controller.record_schema(record).attributes.find { |s| s[:name] == 'make' } }
       assert_equal 'Sony', make.(sony)[:comment]
       assert_equal 'Leica', make.(leica)[:comment]
       # and once per record
-      assert_same controller.schemas_for(sony), controller.schemas_for(sony)
+      assert_same controller.record_schema(sony).attributes, controller.record_schema(sony).attributes
     end
   end
 

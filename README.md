@@ -209,7 +209,7 @@ custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
 partial has to ask the record's schema what it renders:
 
-    schema = schema_for(photo, local_assigns[:schema])
+    schema = record_schema(photo, local_assigns[:schema])
 
     json.set! :caption, photo.caption if schema.attribute?(:caption)
 
@@ -219,7 +219,7 @@ partial has to ask the record's schema what it renders:
         includes: includes[:account], schema: schema.association_schema(:account)
     end
 
-`schema_for(record, schema)` gives a `StandardAPI::Schema::Record`: what the
+`record_schema(record, schema)` gives a `StandardAPI::Schema::Record`: what the
 record renders with its model's Schema, or with `schema` in its place, the one
 the association that included it gives, which the parent partial passes down as
 the `schema` local.
@@ -287,7 +287,7 @@ its Schema by name, `ToolCallSchema` for `ToolCall`:
       attributes :id, :name, :arguments
     end
 
-A custom partial that doesn't use `schemas_for` isn't checked.
+A custom partial that doesn't use `record_schema` isn't checked.
 
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
@@ -315,7 +315,7 @@ The Schema runs on one instance per model for the length of a request. A method
 it doesn't define goes to its `controller`, private ones and ACL methods
 included, so `params` and `admin?` just work. The Schema's own methods win, so
 `attributes`, `model` and `schemas` are its own; call `controller.model` for the
-controller's. Don't call `schema_for` or `schemas_for` from a condition, as
+controller's. Don't call `record_schema` from a condition, as
 they call back into the Schema.
 
 Every controller describes and renders a Photo with the same Schema, including
@@ -347,7 +347,7 @@ each record, takes no arguments and reads the record from `record`. A controller
 method can't read `record`, so a named one is called without it; pass the record
 to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
 something about `record` in an instance variable, as the instance serves every
-record of the model. For `schemas_for(Photo)` and the JSON Schemas, `record` is
+record of the model. For `record_schema(Photo)` and the JSON Schemas, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
 from them, while `unless: -> { record&.private? }` shows it. Hidden and
 undeclared attributes aren't rendered or named in validation errors, and
@@ -397,7 +397,7 @@ hide more, inherit from it:
     end
 
 The Schema is passed to the included records' partial as the `schema` local,
-and `schema_for(record, local_assigns[:schema])` renders with it, so a custom
+and `record_schema(record, local_assigns[:schema])` renders with it, so a custom
 partial that calls it does too.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
@@ -412,13 +412,13 @@ record, key it with `attributes_for`:
 
     attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 
-`schemas_for(Photo)` returns the result, and `schema.json` and the JSON Schemas
-(see [Schema Discovery](#schema-discovery)) are built from it. Records are
-rendered from it too:
-`application/_record` renders the attributes in `schemas_for(record)`.
-`schemas_for` is available in controllers
-and views, so other code (an MCP tool describing your models, for instance) can
-read the same definitions without rendering a schema view and parsing it back.
+`record_schema(Photo).attributes` returns the result, and `schema.json` and the
+JSON Schemas (see [Schema Discovery](#schema-discovery)) are built from it.
+Records are rendered from it too: `application/_record` renders the attributes
+in `record_schema(record).attributes`. `record_schema` is available in
+controllers and views, so other code (an MCP tool describing your models, for
+instance) can read the same definitions without rendering a schema view and
+parsing it back.
 
 Before the Schema sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
@@ -427,7 +427,7 @@ attributes its query selected. A record loaded with `select(:id)` has only
 `nil` type since the model doesn't have it. Records of a model with the same
 attributes share their definitions before the Schema sees them.
 
-    schemas_for(Property).find { |s| s[:name] == 'name' }
+    record_schema(Property).attributes.find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
     #      primary_key: false, null: true, array: false, comment: nil,
     #      auto_populated: false, read_only: false, required: true,
@@ -462,7 +462,7 @@ own, the base class's `attributes` and Schema are used
 (`document_attributes`, `DocumentSchema`), as they are for `orders`,
 `includes` and `wheres`.
 
-`schema.json` lists the same attributes as `schemas_for`, with the same
+`schema.json` lists the same attributes as `record_schema(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
 a Schema declares another, so it reports `datetime` for date and time columns,
 `hash` for JSON and `decimal` for floats.
@@ -486,11 +486,11 @@ it hid into the Schema:
       association :account, schema: AccountWithoutEmailSchema
     end
 
-A custom partial asks `schema_for(record, local_assigns[:schema])` what it
+A custom partial asks `record_schema(record, local_assigns[:schema])` what it
 renders, instead of applying `resolve_excludes` (see
 [Custom partials](#custom-partials)), and passes `schema:` to nested records
 instead of `excludes:`. `Controller#excludes(record)` is now
-`schema_for(record).hidden?(name)`.
+`record_schema(record).hidden?(name)`.
 
 `ApplicationHelper#excludes` is no longer used, and the app won't boot while
 it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
@@ -604,7 +604,7 @@ GET /records/schema/query.json  params #index and #calculate accept
 Each route is only drawn with the actions it describes: `read_schema` with
 `show` or `index`, `write_schema` with `create` or `update`, and
 `query_schema` with `index` or `calculate`. Attributes are described from
-their definitions in `schemas_for(model)` (see [Schemas](#schemas)), so only
+their definitions in `record_schema(model).attributes` (see [Schemas](#schemas)), so only
 what the model's Schema declares is described, with the `record` its
 conditions see being `nil`.
 
@@ -649,7 +649,7 @@ conditions see being `nil`.
 
 The schemas are built by `read_schema_for(model, includes)`,
 `write_schema_for(model)` and `query_schema_for(model)`, which are public like
-`schemas_for`. Called on a controller handling a request, they give what the
+`record_schema`. Called on a controller handling a request, they give what the
 actions render, so a caller can validate params in-process before running an
 action. `query_schema_for` builds the where, order and include of every model
 reachable through a permitted association into `$defs`; given `ref:`, it

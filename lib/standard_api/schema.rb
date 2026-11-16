@@ -232,7 +232,7 @@ module StandardAPI
     end
 
     # The definitions to use for +record+, or nil for a model, from
-    # +default_schema+, the ones Helpers#schemas_for builds. It can't be
+    # +default_schema+, the ones Helpers#attribute_definitions builds. It can't be
     # overridden, so what it renders always matches hidden_attributes.
     def schemas(default_schema, record)
       builder = builder_for(record)

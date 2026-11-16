@@ -38,7 +38,7 @@ module StandardAPI
     end
 
     # Pass +schemas+, the attribute definitions built for +model+ by
-    # Helpers#schemas_for, and +record+ (nil for a model) through its Schema, or
+    # Helpers#attribute_definitions, and +record+ (nil for a model) through its Schema, or
     # +through+, a Schema class used in its place, and return the result.
     # Raises MissingSchema when there is none, so nothing is rendered that no
     # one chose to expose.
@@ -53,7 +53,7 @@ module StandardAPI
     # is nil): its model's Schema, or +through+, the Schema class the
     # association that included it gives, in its place. To keep what the
     # model's Schema hides, +through+ inherits from it.
-    def schema_for(record_or_model, through = nil)
+    def record_schema(record_or_model, through = nil)
       model, record = record_or_model.is_a?(Class) ? [record_or_model, nil] : [record_or_model.class, record_or_model]
       schema = through ? schema_instance(through, model) : model_schema(model)
       (@rendering_schemas ||= {}.compare_by_identity)[record] = schema if record
@@ -62,7 +62,7 @@ module StandardAPI
 
     private
 
-    # The Schema instance +record+ was last given by schema_for, which is what
+    # The Schema instance +record+ was last given by record_schema, which is what
     # it renders with, or else its model's
     def rendering_schema(record)
       @rendering_schemas&.key?(record) ? @rendering_schemas[record] : model_schema(record.class)

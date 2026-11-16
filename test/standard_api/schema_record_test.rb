@@ -18,8 +18,8 @@ class SchemaRecordTest < ActiveSupport::TestCase
     account = create(:account)
     through = Class.new(StandardAPI::Schema) { attributes :id, :name }
 
-    assert_includes controller.schema_for(account).attributes.map { |d| d[:name] }, 'email'
-    schema = controller.schema_for(account, through)
+    assert_includes controller.record_schema(account).attributes.map { |d| d[:name] }, 'email'
+    schema = controller.record_schema(account, through)
     assert_equal %w[id name], schema.attributes.map { |d| d[:name] }.sort
     assert schema.attribute?(:name)
     assert_not schema.attribute?(:email)
@@ -30,18 +30,18 @@ class SchemaRecordTest < ActiveSupport::TestCase
     through = Class.new(StandardAPI::Schema) { associations :photos }
 
     with_account_schema(Class.new(AccountSchema) { remove :property }) do
-      schema = controller.schema_for(account)
+      schema = controller.record_schema(account)
       assert_not schema.include?(:property)
       assert schema.include?(:photos)
       assert schema.include?(:not_an_association)
-      assert_not controller.schema_for(account, through).include?(:subject)
+      assert_not controller.record_schema(account, through).include?(:subject)
     end
   end
 
   test 'association_schema gives the Schema an association renders its records with' do
     through = Class.new(StandardAPI::Schema) { attributes :id }
     with_account_schema(Class.new(AccountSchema) { association :photos, schema: through }) do
-      schema = controller.schema_for(create(:account))
+      schema = controller.record_schema(create(:account))
       assert_equal through, schema.association_schema(:photos)
       assert_nil schema.association_schema(:property)
     end
@@ -52,12 +52,12 @@ class SchemaRecordTest < ActiveSupport::TestCase
     with_account_schema(Class.new(AccountSchema) { remove :property; association :photos, schema: through }) do
       includes = { 'photos' => { 'camera' => {} }, 'property' => {}, 'specs' => {}, 'limit' => 1 }
       assert_equal [['photos', { 'camera' => {} }, through], ['specs', {}, nil]],
-        controller.schema_for(create(:account)).includes(includes)
+        controller.record_schema(create(:account)).includes(includes)
     end
   end
 
   test 'hidden? is false for a name that is neither an attribute nor an association' do
-    assert_not controller.schema_for(create(:account)).hidden?(:not_an_attribute)
+    assert_not controller.record_schema(create(:account)).hidden?(:not_an_attribute)
   end
 
   test 'errors leave out those on what it hides' do
@@ -67,7 +67,7 @@ class SchemaRecordTest < ActiveSupport::TestCase
     account.errors.add(:base, 'is wrong')
 
     with_account_schema(Class.new(AccountSchema) { remove :email }) do
-      assert_equal %w[base name], controller.schema_for(account).errors.keys.map(&:to_s).sort
+      assert_equal %w[base name], controller.record_schema(account).errors.keys.map(&:to_s).sort
     end
   end
 

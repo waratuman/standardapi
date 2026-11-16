@@ -129,7 +129,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'schema renders records a custom partial renders, through schema_for' do
+  test 'schema renders records a custom partial renders, through record_schema' do
     property = create(:property, photos: [create(:photo, format: 'jpg')])
 
     schema = property_schema { association :photos, schema: Class.new(StandardAPI::Schema) { attributes :id } }

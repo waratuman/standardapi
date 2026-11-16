@@ -1,4 +1,4 @@
-schema = schema_for(record, local_assigns[:schema])
+schema = record_schema(record, local_assigns[:schema])
 schema.attributes.each do |definition|
   serialize_attribute(json, record, definition[:name], definition[:type]&.to_sym)
 end

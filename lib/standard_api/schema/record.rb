@@ -2,10 +2,10 @@ module StandardAPI
   class Schema
     # What one record renders, or a model with a nil record, as one Schema
     # declares it: its model's, or the +schema+ of the association that
-    # included it, which takes its place. Built by Schemas#schema_for, which
+    # included it, which takes its place. Built by Schemas#record_schema, which
     # views and custom partials call:
     #
-    #   schema = schema_for(photo, local_assigns[:schema])
+    #   schema = record_schema(photo, local_assigns[:schema])
     #
     #   json.set! :format, photo.format if schema.attribute?(:format)
     #
@@ -30,10 +30,10 @@ module StandardAPI
         @through = through
       end
 
-      # The definitions of the attributes it renders, from
-      # Helpers#schemas_for
+      # The definitions of the attributes it renders (see
+      # Helpers#attribute_definitions)
       def attributes
-        @attributes ||= @controller.schemas_for(record || model, @through)
+        @attributes ||= @controller.send(:attribute_definitions, record || model, @through)
       end
 
       def attribute?(name)

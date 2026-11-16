@@ -8,12 +8,12 @@ module StandardAPI
     # scope the query rather than name a relation.
     RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
 
-    delegate :preloadables, :model_partial, :schemas_for,
+    delegate :preloadables, :model_partial,
       :read_schema_for, :write_schema_for, :query_schema_for, to: :helpers
 
     def self.included(klass)
       klass.include StandardAPI::Schemas
-      klass.helper_method :includes, :schema_for, :excludes?, :excludes_affect?,
+      klass.helper_method :includes, :record_schema, :excludes?, :excludes_affect?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -248,6 +248,11 @@ module StandardAPI
 
     private
 
+    # Helpers#attribute_definitions, for Schema::Record#attributes
+    def attribute_definitions(...)
+      helpers.send(:attribute_definitions, ...)
+    end
+
     def bad_request(exception)
       render body: exception.to_s, status: :bad_request
     end
@@ -300,7 +305,7 @@ module StandardAPI
     # True when rendering +klass+ with +includes+ could be affected by a
     # Schema that varies by requester, anywhere in the rendered tree.
     #
-    # Schemas#schema_for is resolved per record and may depend on the
+    # Schemas#record_schema is resolved per record and may depend on the
     # current user, but the fragment cache keys in the views are built from
     # record timestamps only. Caching a fragment whose contents depend on the
     # requester would let one requester's response be served to another, so

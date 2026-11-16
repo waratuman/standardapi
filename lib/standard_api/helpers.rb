@@ -93,7 +93,9 @@ module StandardAPI
     # same information (an MCP tool describing a model, say) can read it
     # directly instead of fetching a schema and parsing it back.
     #
-    # application/_record renders a record from `schemas_for(record)`, so the
+    # Read through record_schema(record_or_model).attributes.
+    #
+    # application/_record renders a record from these, so the
     # definitions are also what a record is rendered with: an attribute its
     # Schema leaves out isn't rendered, and one it adds is read from the record
     # by name.
@@ -151,8 +153,8 @@ module StandardAPI
     # caches what it makes of them, so this doesn't cache its result.
     #
     # +through+ is a Schema class to use in place of the model's, as an
-    # association's +schema+ is (Schemas#schema_for).
-    def schemas_for(record_or_model, through = nil)
+    # association's +schema+ is (Schemas#record_schema).
+    def attribute_definitions(record_or_model, through = nil)
       if record_or_model.is_a?(Class)
         model = record_or_model
         names = model.attribute_names
@@ -162,8 +164,8 @@ module StandardAPI
         names = record.attribute_names
       end
 
-      @default_schemas_for ||= {}
-      schemas = @default_schemas_for[[model, names]] ||= begin
+      @default_attribute_definitions ||= {}
+      schemas = @default_attribute_definitions[[model, names]] ||= begin
         permitted_attributes = controller.model_attributes(model)&.map(&:to_s)
 
         columns = model.columns_hash
@@ -174,6 +176,7 @@ module StandardAPI
 
       controller.model_schemas(model, schemas, record, through)
     end
+    private :attribute_definitions
 
     def attribute_schema(model, name, column, permitted)
       attribute_type = model.type_for_attribute(name)
@@ -342,7 +345,7 @@ module StandardAPI
       end
     end
 
-    # The `type` schema.json reports for a Helpers#schemas_for definition. A
+    # The `type` schema.json reports for an attribute definition. A
     # column keeps its SQL based type, unless a Schema declared another.
     def schema_json_type(model, schema)
       column = model.columns_hash[schema[:name]]

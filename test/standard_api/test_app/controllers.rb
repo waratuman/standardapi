@@ -126,7 +126,7 @@ class CamerasController < ApplicationController
     association :account, schema: AccountWithoutEmailSchema
   end
 
-  # Adjusts the attribute definitions schemas_for(Camera), the JSON Schemas and
+  # Adjusts the attribute definitions record_schema(Camera).attributes, the JSON Schemas and
   # rendered cameras are built from, and hides per record what the Camera tests
   # exercise in isolation from Property/Account, which are exercised by the
   # much larger StandardAPI::TestCase generic suite.
@@ -138,7 +138,7 @@ class CamerasController < ApplicationController
     private
 
     # `photos/_photo` is a custom partial, so the photo is only rendered
-    # with it because that partial passes it to schema_for. The account goes one level
+    # with it because that partial passes it to record_schema. The account goes one level
     # deeper, into application/_record.
     #
     # The header stands in for a Schema that varies by *requester* (current

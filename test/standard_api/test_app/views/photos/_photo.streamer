@@ -1,5 +1,5 @@
 json.object! do
-    schema = schema_for(photo, local_assigns[:schema])
+    schema = record_schema(photo, local_assigns[:schema])
 
     json.set! :id,          photo.id          unless schema.hidden?(:id)
     json.set! :account_id,  photo.account_id  unless schema.hidden?(:account_id)

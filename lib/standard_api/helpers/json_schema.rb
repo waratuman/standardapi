@@ -4,11 +4,12 @@ module StandardAPI
     # schema/query, included in StandardAPI::Helpers. Each is built from the
     # ACL, read from the controller, so it only describes what the ACL
     # permits. Attributes are described from their definitions in
-    # schemas_for(model), so only what the model's Schema declares. Params the
-    # ACL doesn't check yet are described as they're used, and say so.
+    # record_schema(model).attributes, so only what the model's Schema
+    # declares. Params the ACL doesn't check yet are described as they're
+    # used, and say so.
     #
     # read_schema_for, write_schema_for and query_schema_for are delegated to
-    # from the controller, like schemas_for, so a caller can build a schema on
+    # from the controller, so a caller can build a schema on
     # a controller bound to a request and validate in-process, without
     # dispatching the action.
     #
@@ -18,7 +19,7 @@ module StandardAPI
       DIALECT = 'https://json-schema.org/draft/2020-12/schema'.freeze
 
       # The operators presented for a column permitted with any operator, by
-      # its schemas_for type. activerecord-filter accepts every operator on every
+      # its definition's type. activerecord-filter accepts every operator on every
       # column and leaves it to the database to reject one that doesn't apply, so
       # this narrows the list to the ones that do. A type not listed, and an
       # enum, gets EQUALITY_OPERATORS. Operators an ACL lists for a column are
@@ -50,7 +51,7 @@ module StandardAPI
       ARRAY_OPERATORS = %i(eq neq contains contained_by excludes overlaps not_overlaps).freeze
       RANGE_OPERATORS = %i(eq neq contains contained_by overlaps not_overlaps ends_before ends_by starts_after starts_by adjacent_to).freeze
 
-      # The JSON Schema for a Helpers#schemas_for `type`, or an empty schema
+      # The JSON Schema for an attribute definition's `type`, or an empty schema
       # for a type it doesn't know
       def json_schema_for_type(type)
         case type
@@ -246,10 +247,10 @@ module StandardAPI
         model.connection.table_comment(model.table_name)
       end
 
-      # schemas_for(model), as name => definition
+      # record_schema(model).attributes, as name => definition
       def json_schema_definitions(model)
         @json_schema_definitions ||= {}
-        @json_schema_definitions[model] ||= schemas_for(model).index_by { |definition| definition[:name].to_s }
+        @json_schema_definitions[model] ||= record_schema(model).attributes.index_by { |definition| definition[:name].to_s }
       end
 
       # The JSON Schema of a value of the attribute a definition describes, from
@@ -349,7 +350,7 @@ module StandardAPI
 
         # What the Schema leaves out of every record, ie. an association it
         # doesn't declare, isn't described
-        schema = controller.schema_for(model, through)
+        schema = controller.record_schema(model, through)
         properties = schema.attributes.to_h do |definition|
           [definition[:name].to_s, json_schema_attribute_read(model, definition)]
         end

@@ -11,7 +11,7 @@ module StandardAPI
         json = JSON(@response.body)
         assert json['attributes']
 
-        definitions = @controller.schemas_for(model)
+        definitions = @controller.record_schema(model).attributes
         assert_equal definitions.map { |d| d[:name] }.sort, json['attributes'].keys.sort
 
         definitions.each do |definition|
