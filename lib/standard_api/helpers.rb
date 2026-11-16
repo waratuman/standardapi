@@ -19,11 +19,12 @@ module StandardAPI
       end
     end
 
-    # The value of attribute +name+ to render for +record+, from its Schema
-    # (Schema#value), so a declared +value+ renders in place of the record's.
-    # An override of serialize_attribute should read the value with this.
+    # The value of attribute +name+ to render for +record+, from the Schema it
+    # renders with (Schema#value), so a declared +value+ renders in place of
+    # the record's. An override of serialize_attribute should read the value
+    # with this.
     def attribute_value(record, name)
-      schema = controller.send(:model_schema, record.class) if respond_to?(:controller) && controller.respond_to?(:model_schema, true)
+      schema = controller.send(:rendering_schema, record) if respond_to?(:controller) && controller.respond_to?(:rendering_schema, true)
       schema ? schema.value(record, name) : record.send(name)
     end
 
@@ -148,7 +149,10 @@ module StandardAPI
     # Definitions are built once per model and set of attribute names in a
     # view context, so records loaded by the same query share them. The Schema
     # caches what it makes of them, so this doesn't cache its result.
-    def schemas_for(record_or_model)
+    #
+    # +through+ is a Schema class to use in place of the model's, as an
+    # association's +schema+ is (Schemas#schema_for).
+    def schemas_for(record_or_model, through = nil)
       if record_or_model.is_a?(Class)
         model = record_or_model
         names = model.attribute_names
@@ -168,7 +172,7 @@ module StandardAPI
         end
       end
 
-      controller.model_schemas(model, schemas, record)
+      controller.model_schemas(model, schemas, record, through)
     end
 
     def attribute_schema(model, name, column, permitted)
@@ -217,14 +221,14 @@ module StandardAPI
       end
     end
 
-    # +schemas+ are the Schemas narrowing the records of this relation
-    # (Schema::Record#narrowing_for). A fragment they narrow isn't cached, as
-    # its key doesn't include them.
-    def can_cache_relation?(record, relation, subincludes, schemas = nil)
+    # +schema+ is the Schema class the records of this relation render with in
+    # place of their model's (Schema::Record#schema_through). A fragment it
+    # renders isn't cached, as its key doesn't include it.
+    def can_cache_relation?(record, relation, subincludes, schema = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if schemas.present?
+      return false if schema
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?

@@ -14,12 +14,12 @@ class SchemaRecordTest < ActiveSupport::TestCase
     ApplicationController.unstub(:standard_api_schemas)
   end
 
-  test 'attributes are what the Schema declares, less what a narrowing Schema hides' do
+  test 'attributes are what the Schema declares, or the one given in its place' do
     account = create(:account)
-    narrow = Class.new(StandardAPI::Schema) { attributes :id, :name }
+    through = Class.new(StandardAPI::Schema) { attributes :id, :name }
 
     assert_includes controller.schema_for(account).attributes.map { |d| d[:name] }, 'email'
-    schema = controller.schema_for(account, [narrow])
+    schema = controller.schema_for(account, through)
     assert_equal %w[id name], schema.attributes.map { |d| d[:name] }.sort
     assert schema.attribute?(:name)
     assert_not schema.attribute?(:email)
@@ -27,23 +27,23 @@ class SchemaRecordTest < ActiveSupport::TestCase
 
   test 'include? is false for an association a Schema hides, and true for a method' do
     account = create(:account)
-    narrow = Class.new(StandardAPI::Schema) { associations :photos }
+    through = Class.new(StandardAPI::Schema) { associations :photos }
 
     with_account_schema(Class.new(AccountSchema) { remove :property }) do
       schema = controller.schema_for(account)
       assert_not schema.include?(:property)
       assert schema.include?(:photos)
       assert schema.include?(:not_an_association)
-      assert_not controller.schema_for(account, [narrow]).include?(:subject)
+      assert_not controller.schema_for(account, through).include?(:subject)
     end
   end
 
-  test 'narrowing_for gives the Schemas an association narrows its records with' do
-    narrow = Class.new(StandardAPI::Schema) { attributes :id }
-    with_account_schema(Class.new(AccountSchema) { association :photos, schema: narrow }) do
+  test 'schema_through gives the Schema an association renders its records with' do
+    through = Class.new(StandardAPI::Schema) { attributes :id }
+    with_account_schema(Class.new(AccountSchema) { association :photos, schema: through }) do
       schema = controller.schema_for(create(:account))
-      assert_equal [narrow], schema.narrowing_for(:photos)
-      assert_equal [], schema.narrowing_for(:property)
+      assert_equal through, schema.schema_through(:photos)
+      assert_nil schema.schema_through(:property)
     end
   end
 

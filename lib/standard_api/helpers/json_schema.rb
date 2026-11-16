@@ -338,7 +338,7 @@ module StandardAPI
 
       # schema/read
 
-      # +through+ are the Schemas an including model narrows +model+ with
+      # +through+ is the Schema class an including model renders +model+ with
       def json_schema_record_read(model, includes, through = nil)
         if model_partial(model) != 'application/record'
           return {
@@ -347,8 +347,8 @@ module StandardAPI
           }
         end
 
-        # What the Schemas leave out of every record, ie. an association they
-        # don't declare, isn't described
+        # What the Schema leaves out of every record, ie. an association it
+        # doesn't declare, isn't described
         schema = controller.schema_for(model, through)
         properties = schema.attributes.to_h do |definition|
           [definition[:name].to_s, json_schema_attribute_read(model, definition)]
@@ -363,7 +363,7 @@ module StandardAPI
           association = model.reflect_on_association(name)
           next if association && !schema.include?(name)
 
-          sub_through = schema.narrowing_for(name)
+          sub_through = schema.schema_through(name)
           # #index only renders an include with a +when+ for the records that
           # match it
           required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')
@@ -383,7 +383,7 @@ module StandardAPI
 
         # A Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if excludes?(model) || Array(through).any?(&:varies_by_requester?)
+        required = [] if through ? through.varies_by_requester? : excludes?(model)
 
         properties['errors'] = {
           'type' => 'object',

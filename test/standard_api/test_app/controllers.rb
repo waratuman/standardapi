@@ -110,22 +110,19 @@ end
 class CamerasController < ApplicationController
 
   # An account, without its email
-  class AccountWithoutEmailSchema < StandardAPI::Schema
-    attributes(*(Account.attribute_names - %w[email]))
-    associations(*Account.reflect_on_all_associations.map(&:name))
+  class AccountWithoutEmailSchema < AccountSchema
+    remove :email
   end
 
   # A photo, without its format
-  class PhotoWithoutFormatSchema < StandardAPI::Schema
-    attributes(*(Photo.attribute_names - %w[format]))
-    associations(*Photo.reflect_on_all_associations.map(&:name))
+  class PhotoWithoutFormatSchema < PhotoSchema
+    remove :format
   end
 
   # The photo of a hidden camera: no format or created_at, nor the email of
   # its account
-  class HiddenPhotoSchema < StandardAPI::Schema
-    attributes(*(Photo.attribute_names - %w[format created_at]))
-    associations :properties, :camera
+  class HiddenPhotoSchema < PhotoSchema
+    remove :format, :created_at
     association :account, schema: AccountWithoutEmailSchema
   end
 
@@ -140,8 +137,8 @@ class CamerasController < ApplicationController
 
     private
 
-    # `photos/_photo` is a custom partial, so the photo is only narrowed
-    # because that partial resolves and applies it. The account goes one level
+    # `photos/_photo` is a custom partial, so the photo is only rendered
+    # with it because that partial passes it to schema_for. The account goes one level
     # deeper, into application/_record.
     #
     # The header stands in for a Schema that varies by *requester* (current

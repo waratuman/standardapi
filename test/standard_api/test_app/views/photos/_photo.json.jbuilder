@@ -1,4 +1,4 @@
-schema = schema_for(photo, local_assigns[:schemas])
+schema = schema_for(photo, local_assigns[:schema])
 
 json.set! :id,          photo.id          unless schema.hidden?(:id)
 json.set! :account_id,  photo.account_id  unless schema.hidden?(:account_id)
@@ -11,7 +11,7 @@ if includes[:account] && schema.include?(:account)
   json.set! :account do
     if photo.account
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schemas: schema.narrowing_for(:account)
+        includes: includes[:account], schema: schema.schema_through(:account)
     else
       json.null!
     end

@@ -7,11 +7,12 @@
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
 - Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
   `excludes`. What's rendered is up to the model's Schema, which can hide an
-  attribute or association per record and narrow included records. An ACL
+  attribute or association per record and pick the Schema included records
+  render with. An ACL
   `excludes` method isn't used. `StandardAPI::Excludes`, `resolve_excludes`,
   `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
-  custom partial asks `schema_for(record, local_assigns[:schemas])` what it
-  renders, and passes `schemas:` rather than `excludes:` to nested records. An
+  custom partial asks `schema_for(record, local_assigns[:schema])` what it
+  renders, and passes `schema:` rather than `excludes:` to nested records. An
   include that resolves to a plain value is rendered whole.
 - Remove `ApplicationHelper#excludes`. While it's defined,
   `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
@@ -87,10 +88,10 @@
 
 ### Added
 
-- `schema_for(record_or_model, schemas)` gives a `StandardAPI::Schema::Record`,
+- `schema_for(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
   what a record renders: `attributes`, `attribute?`, `include?`,
-  `narrowing_for`, `hidden?` and `errors`. `application/_record` and custom
-  partials are built on it.
+  `schema_through`, `value`, `hidden?` and `errors`. `application/_record` and
+  custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs
@@ -112,8 +113,9 @@
   `ToolCallSchema` for `ToolCall`.
   A Schema declares the associations an include may render with `association`
   and `associations`; one it doesn't declare isn't rendered or described.
-  `if` and `unless` hide one per record, and `schema:` narrows the included
-  records to what both it and their own Schema declare.
+  `if` and `unless` hide one per record, and the included records render
+  with `schema:` in place of their own model's Schema; to keep what that
+  hides, it inherits from it.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
   `schemas_for(record_or_model)` returns the result, for use without rendering a

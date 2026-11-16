@@ -58,16 +58,9 @@ end
 # Test Application Models
 require 'standard_api/test_app/models'
 
-# Test Application Controllers
-require 'standard_api/test_app/controllers'
-
-# The controllers above are defined after boot, outside app/controllers, so the
-# Railtie never saw their nested ACLs and Schemas.
-StandardAPI::AccessControlList.load!
-StandardAPI::Schemas.load!
-
 # Every model the tests render declares all of its attributes and
-# associations, by name, as most tests aren't about Schemas.
+# associations, by name, as most tests aren't about Schemas. Before the
+# controllers, whose Schemas inherit from them.
 [Account, Photo, Property, Reference, Document, Attachment, UuidModel].each do |model|
   names = model.attribute_names
   association_names = model.reflect_on_all_associations.map(&:name)
@@ -76,6 +69,14 @@ StandardAPI::Schemas.load!
     associations(*association_names)
   })
 end
+
+# Test Application Controllers
+require 'standard_api/test_app/controllers'
+
+# The controllers above are defined after boot, outside app/controllers, so the
+# Railtie never saw their nested ACLs and Schemas.
+StandardAPI::AccessControlList.load!
+StandardAPI::Schemas.load!
 
 # Test Application Routes
 Rails.application.routes.draw do

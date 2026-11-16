@@ -81,8 +81,8 @@ module StandardAPI
       end
 
       # Declare the association +name+, so an include of it is rendered. +if+
-      # and +unless+ hide it per record. +schema+ narrows the included
-      # records: they render only what both it and their own Schema declare.
+      # and +unless+ hide it per record. The included records render with
+      # +schema+ in place of their own model's Schema, if it's given.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -162,7 +162,8 @@ module StandardAPI
 
       # See Builder#association. +schema+ is a Schema class, or a Symbol or
       # Proc run like a condition, on the record including them, that returns
-      # one or nil to render the included records with their own Schema alone.
+      # one, or nil to render the included records with their own Schema. To
+      # keep what their own Schema hides, it inherits from it.
       def association(name, **options)
         schema = options[:schema]
         if schema && !schema.is_a?(Proc) && !schema.is_a?(Symbol) && !(schema.is_a?(Class) && schema < StandardAPI::Schema)
@@ -170,7 +171,7 @@ module StandardAPI
         end
 
         varies = options.key?(:if) || options.key?(:unless) || schema.is_a?(Proc) || schema.is_a?(Symbol)
-        # A narrowing Schema can vary too, and may not be fully declared yet
+        # The Schema it gives can vary too, and may not be fully declared yet
         varies ||= -> { schema.varies_by_requester? } if schema.is_a?(Class)
         add_step(varies: varies) { association(name, **options) }
       end
@@ -261,8 +262,8 @@ module StandardAPI
       builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
     end
 
-    # The Schema class the association +name+ narrows the records +record+
-    # includes through it with, or nil
+    # The Schema class the records +record+ includes through the association
+    # +name+ render with in place of their own model's, or nil
     def association_schema(record, name)
       schema = builder_for(record).association_options.dig(name.to_s, :schema)
       schema.is_a?(Proc) || schema.is_a?(Symbol) ? resolve(schema, record) : schema

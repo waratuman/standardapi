@@ -38,31 +38,40 @@ module StandardAPI
     end
 
     # Pass +schemas+, the attribute definitions built for +model+ by
-    # Helpers#schemas_for, and +record+ (nil for a model) through its Schema and
-    # return the result. Raises MissingSchema when there is none, so nothing is
-    # rendered that no one chose to expose.
-    def model_schemas(model, schemas, record = nil)
-      schema = model_schema(model)
+    # Helpers#schemas_for, and +record+ (nil for a model) through its Schema, or
+    # +through+, a Schema class used in its place, and return the result.
+    # Raises MissingSchema when there is none, so nothing is rendered that no
+    # one chose to expose.
+    def model_schemas(model, schemas, record = nil, through = nil)
+      schema = through ? schema_instance(through, model) : model_schema(model)
       raise StandardAPI::MissingSchema.new(model) if !schema
 
       schema.schemas(schemas, record)
     end
 
     # What +record_or_model+ renders (a Schema::Record; for a model, the record
-    # is nil): its model's Schema, narrowed by +through+, the Schema classes
-    # the association that included it gives, so they can only hide more.
+    # is nil): its model's Schema, or +through+, the Schema class the
+    # association that included it gives, in its place. To keep what the
+    # model's Schema hides, +through+ inherits from it.
     def schema_for(record_or_model, through = nil)
       model, record = record_or_model.is_a?(Class) ? [record_or_model, nil] : [record_or_model.class, record_or_model]
-      narrowing = Array(through).map { |schema| narrowing_schema(schema, model) }
-      StandardAPI::Schema::Record.new(self, model, record, model_schema(model), narrowing)
+      schema = through ? schema_instance(through, model) : model_schema(model)
+      (@rendering_schemas ||= {}.compare_by_identity)[record] = schema if record
+      StandardAPI::Schema::Record.new(self, model, record, schema, through)
     end
 
     private
 
+    # The Schema instance +record+ was last given by schema_for, which is what
+    # it renders with, or else its model's
+    def rendering_schema(record)
+      @rendering_schemas&.key?(record) ? @rendering_schemas[record] : model_schema(record.class)
+    end
+
     # The instance of +schema+, given by an association's +schema+, for
     # +model+ this request
-    def narrowing_schema(schema, model)
-      (@narrowing_schemas ||= {})[[schema, model]] ||= schema.new(self, model)
+    def schema_instance(schema, model)
+      (@schema_instances ||= {})[[schema, model]] ||= schema.new(self, model)
     end
 
     # The Schema instance for +model+ this request, falling back to the one for

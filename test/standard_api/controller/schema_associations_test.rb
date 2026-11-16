@@ -70,7 +70,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     assert_not property_schema { association :landlord, schema: Class.new(StandardAPI::Schema) }.varies_by_requester?
   end
 
-  test 'schema narrows the included records to what it declares' do
+  test 'schema renders the included records with what it declares' do
     property = create(:property, landlord: create(:account, name: 'Lord', email: 'lord@example.com'))
 
     schema = property_schema { association :landlord, schema: Class.new(StandardAPI::Schema) { attributes :id, :name } }
@@ -81,17 +81,43 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "schema can't show what the included model's own Schema hides" do
+  test "schema takes the place of the included model's own Schema" do
     property = create(:property, landlord: create(:account, name: 'Lord'))
 
     account = Class.new(AccountSchema) { remove :name }
     schema = property_schema { association :landlord, schema: Class.new(StandardAPI::Schema) { attributes :id, :name } }
     with_schemas('property' => schema, 'account' => account) do
-      assert_equal %w[id], show_property(property, [:landlord])['landlord'].keys
+      assert_equal({ 'id' => property.landlord.id, 'name' => 'Lord' }, show_property(property, [:landlord])['landlord'])
     end
   end
 
-  test 'schema narrows the associations of the included records too' do
+  test "a schema inheriting from the included model's Schema keeps what it hides" do
+    property = create(:property, landlord: create(:account, name: 'Lord', email: 'lord@example.com'))
+
+    account = Class.new(AccountSchema) { remove :name }
+    without_email = Class.new(account) { remove :email }
+    with_schemas('property' => property_schema { association :landlord, schema: without_email }, 'account' => account) do
+      landlord = show_property(property, [:landlord])['landlord']
+      assert_not landlord.key?('name')
+      assert_not landlord.key?('email')
+      assert landlord.key?('id')
+    end
+  end
+
+  test "an included record's values come from the schema it renders with" do
+    property = create(:property, landlord: create(:account, name: 'Lord'))
+
+    account = Class.new(AccountSchema) { attribute :name, value: -> { 'Own' } }
+    through = Class.new(StandardAPI::Schema) { attributes :id; attribute :name, value: -> { 'Through' } }
+    with_schemas('property' => property_schema { association :landlord, schema: through }, 'account' => account) do
+      assert_equal 'Through', show_property(property, [:landlord])['landlord']['name']
+    end
+    with_schemas('account' => account) do
+      assert_equal 'Own', show_property(property, [:landlord])['landlord']['name']
+    end
+  end
+
+  test 'schema decides the associations of the included records too' do
     property = create(:property)
     # A nil property_cached_at fails association_cache_key, apart from this
     create(:account, property: property, property_cached_at: Time.now)
@@ -103,7 +129,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'schema narrows records a custom partial renders, through schema_for' do
+  test 'schema renders records a custom partial renders, through schema_for' do
     property = create(:property, photos: [create(:photo, format: 'jpg')])
 
     schema = property_schema { association :photos, schema: Class.new(StandardAPI::Schema) { attributes :id } }
@@ -125,7 +151,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'schema narrows a polymorphic association whatever model it is' do
+  test 'schema renders a polymorphic association whatever model it is' do
     property = create(:property, name: 'Subject')
     account = create(:account, subject: property)
 
@@ -137,7 +163,7 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'the read schema describes an included record as its schema narrows it' do
+  test 'the read schema describes an included record as its schema renders it' do
     narrow = Class.new(StandardAPI::Schema) { attributes :id, :name }
     with_schemas('property' => property_schema { association :landlord, schema: narrow }) do
       get read_schema_properties_path(format: 'json'), params: { include: [:landlord] }

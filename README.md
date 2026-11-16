@@ -209,26 +209,28 @@ custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
 partial has to ask the record's schema what it renders:
 
-    schema = schema_for(photo, local_assigns[:schemas])
+    schema = schema_for(photo, local_assigns[:schema])
 
     json.set! :caption, photo.caption if schema.attribute?(:caption)
 
-    # pass on what narrows the records of an association
+    # pass on the Schema the records of an association render with
     if includes[:account] && schema.include?(:account)
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schemas: schema.narrowing_for(:account)
+        includes: includes[:account], schema: schema.schema_through(:account)
     end
 
-`schema_for(record, schemas)` gives a `StandardAPI::Schema::Record`: what the
-record's Schema declares, less what the Schemas narrowing it hide, which the
-parent partial passes down as the `schemas` local.
+`schema_for(record, schema)` gives a `StandardAPI::Schema::Record`: what the
+record renders with its model's Schema, or with `schema` in its place, the one
+the association that included it gives, which the parent partial passes down as
+the `schema` local.
 
 - `attributes` are the definitions of what it renders, and `attribute?(name)`
   tells if one does.
 - `include?(name)` tells if an include renders. An include that isn't an
   association always does.
-- `narrowing_for(name)` gives the Schemas to pass on to an association's
-  records.
+- `schema_through(name)` gives the Schema to pass on to an association's
+  records, or `nil` for their own.
+- `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
 - `errors` are the record's validation errors, less those on what it hides.
 
@@ -357,9 +359,8 @@ association, isn't checked.
     association :comments, unless: -> { record&.locked? }
 
 The included records render with their own model's Schema, found from the
-association (or, for a polymorphic one, from each record's class). `schema`
-narrows them further, to what both it and their own Schema declare, so it can
-only hide more:
+association (or, for a polymorphic one, from each record's class), unless
+`schema` gives one to render them with in its place:
 
     class NameSchema < StandardAPI::Schema
       attributes :id, :name
@@ -369,14 +370,23 @@ only hide more:
     association :subject, schema: NameSchema                     # any model with an id and name
     association :owner, schema: -> { NameSchema if redacted?(record) }
 
-It also narrows the associations of the included records: `NameSchema` declares
-none, so nothing can be included through `account`. Given a method name or
-Proc, it runs like a condition, on the record including them, and returns a
-Schema, or `nil` to render them with their own Schema alone.
+It decides everything about the included records, their associations and
+values too: `NameSchema` declares no associations, so nothing can be included
+through `account`. Given a method name or Proc, it runs like a condition, on
+the record including them, and returns a Schema, or `nil` to render them with
+their own.
 
-A narrowing Schema is passed to the included records' partial as the `schemas`
-local, and `schema_for(record, local_assigns[:schemas])` applies it, so a custom
-partial that calls it is narrowed too.
+**It replaces their own Schema, so nothing their own Schema hides is hidden
+unless it declares so too.** To start from what their own Schema renders, and
+hide more, inherit from it:
+
+    class AccountWithoutEmailSchema < AccountSchema
+      remove :email
+    end
+
+The Schema is passed to the included records' partial as the `schema` local,
+and `schema_for(record, local_assigns[:schema])` renders with it, so a custom
+partial that calls it does too.
 
 `varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
 `attributes_for`, or an association whose `schema` is a method name, a Proc, or
@@ -464,9 +474,9 @@ it hid into the Schema:
       association :account, schema: AccountWithoutEmailSchema
     end
 
-A custom partial asks `schema_for(record, local_assigns[:schemas])` what it
+A custom partial asks `schema_for(record, local_assigns[:schema])` what it
 renders, instead of applying `resolve_excludes` (see
-[Custom partials](#custom-partials)), and passes `schemas:` to nested records
+[Custom partials](#custom-partials)), and passes `schema:` to nested records
 instead of `excludes:`. `Controller#excludes(record)` is now
 `schema_for(record).hidden?(name)`.
 
