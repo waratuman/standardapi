@@ -25,7 +25,7 @@ class SchemaRecordTest < ActiveSupport::TestCase
     assert_not schema.attribute?(:email)
   end
 
-  test 'include? is false for an association a Schema hides, and true for a method' do
+  test 'include? is false for an association or method a Schema hides or does not declare' do
     account = create(:account)
     through = Class.new(StandardAPI::Schema) { associations :photos }
 
@@ -33,7 +33,7 @@ class SchemaRecordTest < ActiveSupport::TestCase
       schema = controller.record_schema(account)
       assert_not schema.include?(:property)
       assert schema.include?(:photos)
-      assert schema.include?(:not_an_association)
+      assert_not schema.include?(:not_an_association)
       assert_not controller.record_schema(account, through).include?(:subject)
     end
   end
@@ -49,7 +49,7 @@ class SchemaRecordTest < ActiveSupport::TestCase
 
   test 'includes gives the includes it renders, with what to include of them and their Schema' do
     through = Class.new(StandardAPI::Schema) { attributes :id }
-    with_account_schema(Class.new(AccountSchema) { remove :property; association :photos, schema: through }) do
+    with_account_schema(Class.new(AccountSchema) { remove :property; association :photos, schema: through; association :specs }) do
       includes = { 'photos' => { 'camera' => {} }, 'property' => {}, 'specs' => {}, 'limit' => 1 }
       assert_equal [['photos', { 'camera' => {} }, through], ['specs', {}, nil]],
         controller.record_schema(create(:account)).includes(includes)

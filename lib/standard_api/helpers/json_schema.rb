@@ -231,9 +231,11 @@ module StandardAPI
         controller.send(:required_orders)
       end
 
-      # The ACL's includes for +model+, normalized
-      def json_schema_includes(model)
-        controller.send(:normalize_includes, controller.send(:includes_for, model))
+      # What a request may include of +model+ (Schema#declared_includes), from
+      # its Schema or +schema+ in its place
+      def json_schema_includes(model, schema = nil)
+        instance = schema ? controller.send(:schema_instance, schema, model) : (controller.send(:model_schema, model) if model)
+        instance ? instance.declared_includes : {}
       end
 
       # The key #create and #update read +model+'s params from
@@ -379,7 +381,7 @@ module StandardAPI
 
         # A Schema condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if through ? through.varies_by_requester? : excludes?(model)
+        required = [] if through ? through.varies_by_requester? : schema_varies?(model)
 
         properties['errors'] = {
           'type' => 'object',
@@ -754,26 +756,37 @@ module StandardAPI
       # +options+ (+where+, +order+, +limit+, +distinct+, +distinct_on+,
       # +when+) that apply to included records; the top level has none.
       #
-      # The include of a method or a polymorphic association with its own
-      # permit is named after the path to it, which can be the name of
+      # +permit+ is what may be included (#json_schema_includes). The include of
+      # a method or a polymorphic association, or of an association with a
+      # +schema+, is named after the path to it, which can be the name of
       # another include, ie. Account's subject and an AccountSubject model are
       # both "AccountSubjectInclude". They share the name: what the second
       # adds to the first is added to it in +defs+, so it accepts what either
       # does. A property both have is the first's.
       def json_schema_include(permit, model, defs, name:, prefix: name, options: true)
-        names = permit.keys.map(&:to_s) - StandardAPI::Controller::RESERVED_INCLUDE_KEYS
-        object = { '$ref' => "#/$defs/#{name}" }
+        json_schema_include_def(permit, model, defs, name: name, prefix: prefix, options: options)
+        json_schema_include_names(name, permit.keys)
+      end
 
+      # Builds what +permit+ permits of +model+ into +defs+ as +name+, adding
+      # to what's there (see #json_schema_include)
+      def json_schema_include_def(permit, model, defs, name:, prefix: name, options: true)
         # The name is taken before the include is built, as what's built may
         # refer back to it
         shared = defs[name] ||= { 'type' => 'object', 'properties' => {}, 'additionalProperties' => false }
         sources = defs.include_sources[name] ||= []
         source = [permit, model, options]
-        if !sources.include?(source)
-          sources << source
-          built = json_schema_include_object(permit, model, defs, prefix, options: options)
-          shared['properties'].merge!(built['properties']) { |_, existing, _| existing }
-        end
+        return if sources.include?(source)
+
+        sources << source
+        built = json_schema_include_object(permit, model, defs, prefix, options: options)
+        shared['properties'].merge!(built['properties']) { |_, existing, _| existing }
+      end
+
+      # An include of the object +name+ in +defs+, or of +names+ by name
+      def json_schema_include_names(name, names)
+        names = names.map(&:to_s).uniq - StandardAPI::Controller::RESERVED_INCLUDE_KEYS
+        object = { '$ref' => "#/$defs/#{name}" }
         name_schema = { 'type' => 'string', 'enum' => names }
 
         {
@@ -788,19 +801,26 @@ module StandardAPI
       def json_schema_include_object(permit, model, defs, prefix, options:)
         properties = {}
 
-        permit.each do |name, subpermit|
+        permit.each do |name, entry|
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
           association = model&.reflect_on_association(name)
           sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
           sub = if association && !association.polymorphic?
-            if subpermit.empty?
-              json_schema_include_ref(association.klass, defs)
+            if entry[:schema]
+              json_schema_include(json_schema_includes(association.klass, entry[:schema]), association.klass, defs, name: sub_name)
             else
-              json_schema_include(subpermit, association.klass, defs, name: sub_name)
+              json_schema_include_ref(association.klass, defs)
             end
-          elsif subpermit.present?
-            json_schema_include(subpermit, nil, defs, name: sub_name)
+          elsif entry[:schema]
+            json_schema_include(json_schema_includes(nil, entry[:schema]), nil, defs, name: sub_name)
+          elsif entry[:types].present?
+            # Mirrors Includes#sanitize_typed_includes: what any of the types
+            # declare, with the options of an include without a model
+            permits = entry[:types].map { |type| [type, json_schema_includes(type)] }
+            permits.each { |type, permit| json_schema_include_def(permit, type, defs, name: sub_name, options: false) }
+            json_schema_include_def({}, nil, defs, name: sub_name)
+            json_schema_include_names(sub_name, permits.flat_map { |_, permit| permit.keys })
           end
 
           # The +when+ of an include is checked against the model it's on, and

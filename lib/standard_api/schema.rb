@@ -43,7 +43,7 @@ module StandardAPI
         read_only: true, required: false, validations: [].freeze
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
-      ASSOCIATION_OPTIONS = [:schema].freeze
+      ASSOCIATION_OPTIONS = [:schema, :types].freeze
 
       # +association_options+ are each declared association's options, and
       # +values+ each attribute's declared +value+
@@ -80,9 +80,14 @@ module StandardAPI
         self
       end
 
-      # Declare the association +name+, so an include of it is rendered. +if+
-      # and +unless+ hide it per record. The included records render with
-      # +schema+ in place of their own model's Schema, if it's given.
+      # Declare the association +name+, or a method rendered as an include,
+      # so a request may include it and it renders. +if+ and +unless+ hide it
+      # per record. The included records render with +schema+ in place of
+      # their own model's Schema, if it's given. Under a polymorphic
+      # association or a method there's no single model to check what's
+      # included of it against, so +types+ lists the models it can be, ie.
+      # `types: [Property, 'Account']`, and what one of their Schemas declares
+      # can be included of it.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -170,6 +175,10 @@ module StandardAPI
           raise ArgumentError, "the schema of association #{name} must be a subclass of StandardAPI::Schema, a Symbol or a Proc"
         end
 
+        if !Array(options[:types]).all? { |type| type.is_a?(String) || type.is_a?(Class) }
+          raise ArgumentError, "the types of association #{name} must be models or their names"
+        end
+
         varies = options.key?(:if) || options.key?(:unless) || schema.is_a?(Proc) || schema.is_a?(Symbol)
         # The Schema it gives can vary too, and may not be fully declared yet
         varies ||= -> { schema.varies_by_requester? } if schema.is_a?(Class)
@@ -206,15 +215,6 @@ module StandardAPI
 
       private
 
-      # An override would bypass the excludes and the fragment caching check
-      def method_added(name)
-        if name == :schemas && self != StandardAPI::Schema
-          raise StandardAPI::InvalidConfiguration, "#{self.name || 'A Schema'} can't override schemas; declare attributes with attribute, remove and attributes_for instead"
-        end
-
-        super
-      end
-
       def add_step(key: nil, varies: false, &block)
         self.schema_steps += [{ key: key, varies: varies, block: block }.freeze]
       end
@@ -232,12 +232,12 @@ module StandardAPI
     end
 
     # The definitions to use for +record+, or nil for a model, from
-    # +default_schema+, the ones Schemas#default_definitions builds. It can't be
-    # overridden, so what it renders always matches hidden_attributes.
-    def schemas(default_schema, record)
+    # +defaults+, the ones Schemas#default_definitions builds. What they leave
+    # out is hidden_attributes.
+    def definitions(defaults, record)
       builder = builder_for(record)
-      definitions = (@applied[builder] ||= {}.compare_by_identity)[default_schema] ||=
-        builder.apply(default_schema, model)
+      definitions = (@applied[builder] ||= {}.compare_by_identity)[defaults] ||=
+        builder.apply(defaults, model)
 
       failed = failed_conditions(record)
       failed.empty? ? definitions : definitions.reject { |definition| failed.include?(definition[:name]) }
@@ -260,6 +260,17 @@ module StandardAPI
     def association?(record, name)
       name = name.to_s
       builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
+    end
+
+    # What a request may include, as name => { schema:, types: }: each
+    # declared association or method, with the Schema class its +schema+
+    # gives for a model (a nil record), and the models its +types+ name. +if+
+    # and +unless+ don't apply, as they only hide it per record.
+    def declared_includes
+      @declared_includes ||= builder_for(nil).association_options.to_h do |name, options|
+        types = Array(options[:types]).map { |type| type.is_a?(String) ? type.constantize : type }
+        [name, { schema: association_schema(nil, name), types: types }]
+      end.with_indifferent_access
     end
 
     # The Schema class the records +record+ includes through the association

@@ -13,7 +13,7 @@ module StandardAPI
 
     def self.included(klass)
       klass.include StandardAPI::Schemas
-      klass.helper_method :includes, :record_schema, :excludes?, :excludes_affect?,
+      klass.helper_method :includes, :record_schema, :schema_varies?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -284,29 +284,23 @@ module StandardAPI
       end
     end
 
-    # True when what +klass+'s Schema hides could differ by requester
-    # (Schema.varies_by_requester?).
+    # True when what +klass+ renders could differ by requester: its Schema
+    # could (Schema.varies_by_requester?), or that of any model +includes+
+    # reach through it.
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
-    # caching guards need.
-    def excludes?(klass)
-      @excludes_defined ||= {}
-      return @excludes_defined[klass] if @excludes_defined.key?(klass)
-
-      @excludes_defined[klass] = !!model_schema(klass)&.class&.varies_by_requester?
-    end
-
-    # True when rendering +klass+ with +includes+ could be affected by a
-    # Schema that varies by requester, anywhere in the rendered tree.
-    #
-    # Schemas#record_schema is resolved per record and may depend on the
-    # current user, but the fragment cache keys in the views are built from
-    # record timestamps only. Caching a fragment whose contents depend on the
-    # requester would let one requester's response be served to another, so
-    # the views use this to skip caching entirely whenever it could.
-    def excludes_affect?(klass, includes)
-      return true if excludes?(klass)
+    # caching guards need. Schemas#record_schema is resolved per record and
+    # may depend on the current user, but the fragment cache keys in the views
+    # are built from record timestamps only. Caching a fragment whose contents
+    # depend on the requester would let one requester's response be served to
+    # another, so the views use this to skip caching whenever it could.
+    def schema_varies?(klass, includes = {})
+      @schema_varies ||= {}
+      varies = @schema_varies.fetch(klass) do
+        @schema_varies[klass] = !!model_schema(klass)&.class&.varies_by_requester?
+      end
+      return true if varies
 
       includes.any? do |inc, subinc|
         next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
@@ -314,10 +308,10 @@ module StandardAPI
         association = klass.reflect_on_association(inc)
         next false if association.nil?
         # A polymorphic association's class isn't known until a record is
-        # loaded, so assume it could be excluded.
+        # loaded, so assume it could vary.
         next true if association.polymorphic?
 
-        excludes_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
+        schema_varies?(association.klass, subinc.is_a?(Hash) ? subinc : {})
       end
     end
 
@@ -330,7 +324,7 @@ module StandardAPI
     #
     # _record filters every included collection through #mask, so which rows
     # appear inside a fragment varies by requester while the cache key does
-    # not. Same problem as #excludes_affect?, same fix: don't cache it. The
+    # not. Same problem as #schema_varies?, same fix: don't cache it. The
     # top level is masked in #resources rather than in the view, so a record
     # the mask hides is simply absent from the collection and needs no guard
     # here.
@@ -375,6 +369,8 @@ module StandardAPI
       end
     end
 
+    # The associations +attributes+ write through nested attributes, as
+    # includes, so #create and #update render what they wrote
     def nested_includes(model, attributes)
       includes = {}
       attributes&.each do |key, value|
@@ -393,17 +389,19 @@ module StandardAPI
       # #model_includes was removed; raise rather than ignore an override of it
       # TODO: Remove this check in 10.0
       if respond_to?(:model_includes, true)
-        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, define #{ model.model_name.singular }_includes in #{ model.name }ACL instead"
+        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, declare what can be included with association and associations in #{ model.name }'s Schema instead"
       end
 
       @includes ||= if params[:include]
-        sanitize_includes(params[:include], includes_for(model), model)
+        sanitize_includes(params[:include], model)
       else
         {}
       end
 
+      # What a create or update wrote through nested attributes renders too,
+      # where the Schema declares it
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
-         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
       end
 
       @includes

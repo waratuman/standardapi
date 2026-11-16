@@ -79,6 +79,12 @@ class ControllerSchemasTest < ActionDispatch::IntegrationTest
     assert_not ApplicationController.new.record_schema(unschemaed_model.new).hidden?(:name)
   end
 
+  test "a model with no Schema includes nothing" do
+    schema = ApplicationController.new.record_schema(unschemaed_model.new)
+    assert_not schema.include?(:name)
+    assert_equal [], schema.includes({ 'name' => {} })
+  end
+
   test 'an STI subclass uses the Schema of its base class' do
     assert_equal DocumentSchema, DocumentsController.new.send(:model_schema, Pdf).class
   end

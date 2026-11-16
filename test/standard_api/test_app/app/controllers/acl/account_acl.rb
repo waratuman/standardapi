@@ -12,12 +12,4 @@ module AccountACL
     [ "id" ]
   end
 
-  def includes
-    {
-      photos: true,
-      subject: [ 'landlord' ],
-      property: true
-    }
-  end
-
 end
