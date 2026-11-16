@@ -357,13 +357,8 @@ module StandardAPI
         # under a partial select, or may be ones the Schema adds.
         required = properties.keys & model.column_names
 
-        includes.each do |name, subincludes|
-          next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
-
+        schema.includes(includes).each do |name, subincludes, sub_schema|
           association = model.reflect_on_association(name)
-          next if association && !schema.include?(name)
-
-          sub_through = schema.association_schema(name)
           # #index only renders an include with a +when+ for the records that
           # match it
           required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')
@@ -372,12 +367,12 @@ module StandardAPI
           elsif association.polymorphic?
             { 'type' => ['object', 'null'] }
           elsif association.collection?
-            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes, sub_through) }
+            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes, sub_schema) }
           elsif model.validators_on(association.name).any? { |v| v.kind == :presence }
             # A required belongs_to (or a has_one validated for presence)
-            json_schema_record_read(association.klass, subincludes, sub_through)
+            json_schema_record_read(association.klass, subincludes, sub_schema)
           else
-            json_schema_nullable(json_schema_record_read(association.klass, subincludes, sub_through))
+            json_schema_nullable(json_schema_record_read(association.klass, subincludes, sub_schema))
           end
         end
 

@@ -228,6 +228,18 @@ the `schema` local.
   tells if one does.
 - `include?(name)` tells if an include renders. An include that isn't an
   association always does.
+- `includes(includes)` gives the includes of the `includes` local it renders,
+  as `name, sub_include, sub_schema`: what to include of them, and the Schema to
+  render them with. `application/_record` loops over it, as it does
+  `attributes`:
+
+      schema.includes(includes).each do |name, sub_include, sub_schema|
+        json.set! name do
+          json.partial! 'application/record', record: photo.send(name),
+            includes: sub_include, schema: sub_schema
+        end
+      end
+
 - `association_schema(name)` gives the Schema to pass on to an association's
   records, or `nil` for their own.
 - `value(name)` is the value to render for an attribute (see `value:`).

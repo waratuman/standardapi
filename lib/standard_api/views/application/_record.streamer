@@ -5,21 +5,16 @@ json.object! do
     serialize_attribute(json, record, definition[:name], definition[:type]&.to_sym)
   end
 
-  includes.each do |inc, subinc|
-    next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
-    next if !schema.include?(inc)
-
-    through = schema.association_schema(inc)
-
-    case association = record.class.reflect_on_association(inc)
+  schema.includes(includes).each do |name, sub_include, sub_schema|
+    case association = record.class.reflect_on_association(name)
     when ::ActiveRecord::Reflection::AbstractReflection
       if association.collection?
-        can_cache = can_cache_relation?(record, inc, subinc, through)
-        json.cache_if!(can_cache, can_cache ? [inc, association_cache_key(record, inc, subinc)] : nil) do
-          json.set! inc do
+        can_cache = can_cache_relation?(record, name, sub_include, sub_schema)
+        json.cache_if!(can_cache, can_cache ? [name, association_cache_key(record, name, sub_include)] : nil) do
+          json.set! name do
             partial = model_partial(association.klass)
             # TODO limit causes preloaded assocations to reload
-            sub_records = record.send(inc)
+            sub_records = record.send(name)
 
             # Apply the controller's mask for the included association's table, so
             # row-level scoping (e.g. hiding restricted rows) is enforced on
@@ -28,45 +23,45 @@ json.object! do
               sub_records = sub_records.filter(mask[association.klass.table_name.to_sym])
             end
 
-            sub_records = sub_records.limit(subinc["limit"]) if subinc["limit"]
-            sub_records = sub_records.offset(subinc["offset"]) if subinc["offset"]
-            sub_records = sub_records.resort(subinc["order"]) if subinc["order"]
-            sub_records = sub_records.filter(subinc["where"]) if subinc["where"]
-            sub_records = sub_records.distinct if subinc["distinct"]
-            sub_records = sub_records.distinct_on(subinc["distinct_on"]) if subinc["distinct_on"]
+            sub_records = sub_records.limit(sub_include["limit"]) if sub_include["limit"]
+            sub_records = sub_records.offset(sub_include["offset"]) if sub_include["offset"]
+            sub_records = sub_records.resort(sub_include["order"]) if sub_include["order"]
+            sub_records = sub_records.filter(sub_include["where"]) if sub_include["where"]
+            sub_records = sub_records.distinct if sub_include["distinct"]
+            sub_records = sub_records.distinct_on(sub_include["distinct_on"]) if sub_include["distinct_on"]
 
-            json.array! sub_records, partial: partial, as: partial.split("/").last, locals: { includes: subinc, schema: through }
+            json.array! sub_records, partial: partial, as: partial.split("/").last, locals: { includes: sub_include, schema: sub_schema }
           end
         end
       else
-        can_cache = can_cache_relation?(record, inc, subinc, through)
+        can_cache = can_cache_relation?(record, name, sub_include, sub_schema)
         if can_cache && association.is_a?(::ActiveRecord::Reflection::BelongsToReflection)
           can_cache = !record.send(association.foreign_key).nil?
         end
-        json.cache_if!(can_cache, can_cache ? [inc, association_cache_key(record, inc, subinc)] : nil) do
-          json.set! inc do
-            value = record.send(inc)
+        json.cache_if!(can_cache, can_cache ? [name, association_cache_key(record, name, sub_include)] : nil) do
+          json.set! name do
+            value = record.send(name)
             if value.nil?
               json.value! nil
             else
               partial = model_partial(value)
-              json.partial! partial, partial.split("/").last.to_sym => value, includes: subinc, schema: through
+              json.partial! partial, partial.split("/").last.to_sym => value, includes: sub_include, schema: sub_schema
             end
           end
         end
       end
     else
-      if record.respond_to?(inc)
-        value = record.send(inc)
+      if record.respond_to?(name)
+        value = record.send(name)
         if value.nil?
-          json.set! inc, nil
+          json.set! name, nil
         elsif value.is_a?(ActiveModel::Model)
-          json.set! inc do
+          json.set! name do
             partial = model_partial(value)
-            json.partial! partial, partial.split("/").last.to_sym => value, includes: subinc, schema: through
+            json.partial! partial, partial.split("/").last.to_sym => value, includes: sub_include, schema: sub_schema
           end
         else
-          json.set! inc, value.as_json
+          json.set! name, value.as_json
         end
       end
     end

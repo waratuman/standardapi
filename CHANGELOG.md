@@ -89,7 +89,7 @@
 ### Added
 
 - `schema_for(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
-  what a record renders: `attributes`, `attribute?`, `include?`,
+  what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_schema`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module

@@ -47,6 +47,15 @@ class SchemaRecordTest < ActiveSupport::TestCase
     end
   end
 
+  test 'includes gives the includes it renders, with what to include of them and their Schema' do
+    through = Class.new(StandardAPI::Schema) { attributes :id }
+    with_account_schema(Class.new(AccountSchema) { remove :property; association :photos, schema: through }) do
+      includes = { 'photos' => { 'camera' => {} }, 'property' => {}, 'specs' => {}, 'limit' => 1 }
+      assert_equal [['photos', { 'camera' => {} }, through], ['specs', {}, nil]],
+        controller.schema_for(create(:account)).includes(includes)
+    end
+  end
+
   test 'hidden? is false for a name that is neither an attribute nor an association' do
     assert_not controller.schema_for(create(:account)).hidden?(:not_an_attribute)
   end

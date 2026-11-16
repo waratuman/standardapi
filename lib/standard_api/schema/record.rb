@@ -9,9 +9,11 @@ module StandardAPI
     #
     #   json.set! :format, photo.format if schema.attribute?(:format)
     #
-    #   if includes[:account] && schema.include?(:account)
-    #     json.partial! 'application/record', record: photo.account,
-    #       includes: includes[:account], schema: schema.association_schema(:account)
+    #   schema.includes(includes).each do |name, sub_include, sub_schema|
+    #     json.set! name do
+    #       json.partial! 'application/record', record: photo.send(name),
+    #         includes: sub_include, schema: sub_schema
+    #     end
     #   end
     class Record
 
@@ -36,6 +38,19 @@ module StandardAPI
 
       def attribute?(name)
         (@attribute_names ||= attributes.map { |definition| definition[:name] }.to_set).include?(name.to_s)
+      end
+
+      # The includes of +includes+ it renders, as [name, sub_include,
+      # sub_schema]: +sub_include+ is what to include of them, and +sub_schema+
+      # the Schema class to render them with (#association_schema). An include
+      # that isn't an association, ie. a method, has a nil +sub_schema+.
+      def includes(includes)
+        includes.filter_map do |name, sub_include|
+          next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
+          next if !include?(name)
+
+          [name, sub_include, association_schema(name)]
+        end
       end
 
       # Whether an include of +name+ renders: an association the Schema
