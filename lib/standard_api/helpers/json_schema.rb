@@ -363,7 +363,7 @@ module StandardAPI
           association = model.reflect_on_association(name)
           next if association && !schema.include?(name)
 
-          sub_through = schema.schema_through(name)
+          sub_through = schema.association_schema(name)
           # #index only renders an include with a +when+ for the records that
           # match it
           required << name.to_s if !subincludes.respond_to?(:key?) || !subincludes.key?('when')

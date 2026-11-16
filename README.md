@@ -216,7 +216,7 @@ partial has to ask the record's schema what it renders:
     # pass on the Schema the records of an association render with
     if includes[:account] && schema.include?(:account)
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schema: schema.schema_through(:account)
+        includes: includes[:account], schema: schema.association_schema(:account)
     end
 
 `schema_for(record, schema)` gives a `StandardAPI::Schema::Record`: what the
@@ -228,7 +228,7 @@ the `schema` local.
   tells if one does.
 - `include?(name)` tells if an include renders. An include that isn't an
   association always does.
-- `schema_through(name)` gives the Schema to pass on to an association's
+- `association_schema(name)` gives the Schema to pass on to an association's
   records, or `nil` for their own.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.

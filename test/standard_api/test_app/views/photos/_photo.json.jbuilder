@@ -11,7 +11,7 @@ if includes[:account] && schema.include?(:account)
   json.set! :account do
     if photo.account
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schema: schema.schema_through(:account)
+        includes: includes[:account], schema: schema.association_schema(:account)
     else
       json.null!
     end

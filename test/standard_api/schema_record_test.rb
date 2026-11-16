@@ -38,12 +38,12 @@ class SchemaRecordTest < ActiveSupport::TestCase
     end
   end
 
-  test 'schema_through gives the Schema an association renders its records with' do
+  test 'association_schema gives the Schema an association renders its records with' do
     through = Class.new(StandardAPI::Schema) { attributes :id }
     with_account_schema(Class.new(AccountSchema) { association :photos, schema: through }) do
       schema = controller.schema_for(create(:account))
-      assert_equal through, schema.schema_through(:photos)
-      assert_nil schema.schema_through(:property)
+      assert_equal through, schema.association_schema(:photos)
+      assert_nil schema.association_schema(:property)
     end
   end
 

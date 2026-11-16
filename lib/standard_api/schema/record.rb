@@ -11,7 +11,7 @@ module StandardAPI
     #
     #   if includes[:account] && schema.include?(:account)
     #     json.partial! 'application/record', record: photo.account,
-    #       includes: includes[:account], schema: schema.schema_through(:account)
+    #       includes: includes[:account], schema: schema.association_schema(:account)
     #   end
     class Record
 
@@ -46,7 +46,7 @@ module StandardAPI
 
       # The Schema class the records included through +name+ render with in
       # place of their own model's, or nil
-      def schema_through(name)
+      def association_schema(name)
         schema&.association_schema(record, name)
       end
 

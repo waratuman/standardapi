@@ -90,8 +90,8 @@
 
 - `schema_for(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
   what a record renders: `attributes`, `attribute?`, `include?`,
-  `schema_through`, `value`, `hidden?` and `errors`. `application/_record` and
-  custom partials are built on it.
+  `association_schema`, `value`, `hidden?` and `errors`.
+  `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs

@@ -222,7 +222,7 @@ module StandardAPI
     end
 
     # +schema+ is the Schema class the records of this relation render with in
-    # place of their model's (Schema::Record#schema_through). A fragment it
+    # place of their model's (Schema::Record#association_schema). A fragment it
     # renders isn't cached, as its key doesn't include it.
     def can_cache_relation?(record, relation, subincludes, schema = nil)
       return false if record.new_record?

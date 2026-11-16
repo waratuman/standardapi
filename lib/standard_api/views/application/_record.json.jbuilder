@@ -7,7 +7,7 @@ includes.each do |inc, subinc|
   next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
   next if !schema.include?(inc)
 
-  through = schema.schema_through(inc)
+  through = schema.association_schema(inc)
 
   case association = record.class.reflect_on_association(inc)
   when ::ActiveRecord::Reflection::AbstractReflection
