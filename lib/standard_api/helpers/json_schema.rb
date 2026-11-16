@@ -231,9 +231,10 @@ module StandardAPI
         controller.send(:required_orders)
       end
 
-      # The ACL's includes for +model+, normalized
-      def json_schema_includes(model)
-        controller.send(:normalize_includes, controller.send(:includes_for, model))
+      # What a request may include of +model+, from its Schema or +schema+ in
+      # its place (Includes#includes_for)
+      def json_schema_includes(model, schema = nil)
+        controller.send(:includes_for, model, schema)
       end
 
       # The key #create and #update read +model+'s params from
@@ -754,8 +755,9 @@ module StandardAPI
       # +options+ (+where+, +order+, +limit+, +distinct+, +distinct_on+,
       # +when+) that apply to included records; the top level has none.
       #
-      # The include of a method or a polymorphic association with its own
-      # permit is named after the path to it, which can be the name of
+      # +permit+ is what may be included (Includes#includes_for). The include of
+      # a method or a polymorphic association, or of an association with a
+      # +schema+, is named after the path to it, which can be the name of
       # another include, ie. Account's subject and an AccountSubject model are
       # both "AccountSubjectInclude". They share the name: what the second
       # adds to the first is added to it in +defs+, so it accepts what either
@@ -788,19 +790,21 @@ module StandardAPI
       def json_schema_include_object(permit, model, defs, prefix, options:)
         properties = {}
 
-        permit.each do |name, subpermit|
+        permit.each do |name, entry|
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
 
           association = model&.reflect_on_association(name)
           sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
           sub = if association && !association.polymorphic?
-            if subpermit.empty?
-              json_schema_include_ref(association.klass, defs)
+            if entry[:schema]
+              json_schema_include(json_schema_includes(association.klass, entry[:schema]), association.klass, defs, name: sub_name)
             else
-              json_schema_include(subpermit, association.klass, defs, name: sub_name)
+              json_schema_include_ref(association.klass, defs)
             end
-          elsif subpermit.present?
-            json_schema_include(subpermit, nil, defs, name: sub_name)
+          elsif entry[:schema]
+            json_schema_include(json_schema_includes(nil, entry[:schema]), nil, defs, name: sub_name)
+          elsif entry[:includes].present?
+            json_schema_include(controller.send(:permitted_includes, entry[:includes]), nil, defs, name: sub_name)
           end
 
           # The +when+ of an include is checked against the model it's on, and

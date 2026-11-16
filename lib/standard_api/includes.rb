@@ -1,6 +1,6 @@
 module StandardAPI
-  # Included in StandardAPI::Controller, so the ACL +includes+ methods are
-  # called on the controller.
+  # Included in StandardAPI::Controller. What can be included is what each
+  # model's Schema declares with +association+ and +associations+.
   module Includes
 
     private
@@ -66,71 +66,50 @@ module StandardAPI
       normalized
     end
 
-    # The ACL +includes+ method for +klass+, falling back to the one for its
-    # base class (ie. an STI subclass), or nil if there is none
-    def includes_method_for(klass)
-      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_includes" }.find do |method|
-        self.respond_to?(method, true)
-      end
+    # What a request may include of +model+, from its Schema, or from
+    # +schema+, the Schema class an association gives in its place, as
+    # name => { schema:, includes: } (Schema#declared_includes). {} when there
+    # is neither, ie. under a polymorphic association without a +schema+.
+    def includes_for(model, schema = nil)
+      instance = schema ? schema_instance(schema, model) : (model_schema(model) if model)
+      instance ? instance.declared_includes : {}
     end
 
-    # The includes the ACL permits on +klass+, or [] if it has none
-    def includes_for(klass)
-      return [] if !(method = includes_method_for(klass))
-
-      permitted = self.send(method)
-      normalize_includes(permitted).each do |name, subincludes|
-        next if subincludes.blank? || StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name)
-
-        # A polymorphic association, or a method rendered as an include, has
-        # no single ACL to permit its includes in, so they can still be
-        # permitted here
-        association = klass.reflect_on_association(name)
-        next if !association || association.polymorphic?
-
-        raise StandardAPI::InvalidConfiguration, "#{ klass.name }ACL#includes permitting includes of #{ name } is not supported, permit :#{ name } in #{ klass.name }ACL#includes and its includes in #{ association.klass.name }ACL#includes instead"
-      end
-
-      permitted || []
+    # The +includes+ option of an association, a permit like ACL +includes+
+    # once was, as name => { schema: nil, includes: }
+    def permitted_includes(permit)
+      normalize_includes(permit).except(*StandardAPI::Controller::RESERVED_INCLUDE_KEYS).to_h do |name, sub|
+        [name, { schema: nil, includes: sub.presence }]
+      end.with_indifferent_access
     end
 
-    # sanitize_includes({:key => {}}, [:key]) # => {:key => {}}
-    # sanitize_includes({:key => {}}, {:key => true}) # => {:key => {}}
-    # sanitize_includes({:key => {}}, :value => {}}, [:key]) => # Raises ParseError
-    # sanitize_includes({:key => {}}, :value => {}}, {:key => true}) => # Raises ParseError
-    # sanitize_includes({:key => {:value => {}}}, {:key => [:value]}) # => {:key => {:value => {}}}
-    # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
-    # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
+    # Checks +includes+ of +model+ against what its Schema declares
+    # (#includes_for), raising UnpermittedParameters for anything else, and
+    # returns them normalized. An association's includes are checked against
+    # its model's Schema, or the Schema class its +schema+ gives. Under a
+    # polymorphic association or a method there is no single model, so they're
+    # checked against that Schema class, or else the association's
+    # +includes+ (+permit+).
     #
-    # Includes of +model+ nested in an association permitted by name alone
-    # (ie. +:key+) are checked against the includes the ACL permits on the
-    # associated model:
-    #
-    # sanitize_includes({:key => {:value => {}}}, [:key], Model) # => {:key => {:value => {}}} if key_includes includes :value
-    #
-    # +model+ is nil when there is no single model, ie. through a polymorphic
-    # association or a method rendered as an include, in which case includes
-    # are checked against +permit+ alone.
-    def sanitize_includes(includes, permit, model, normalized: false)
+    #   association :photos                       # include[photos][account]: PhotoSchema declares account?
+    #   association :subject, includes: [:photos] # include[subject][photos]
+    def sanitize_includes(includes, model, schema = nil, permit: nil, normalized: false)
       includes = normalize_includes(includes) if !normalized
+      declared = permit ? permitted_includes(permit) : includes_for(model, schema)
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
-      if permit.is_a?(Array)
-        permit = permit.inject({}) { |acc, v| acc[v] = true; acc }
-      end
-
-      permit = normalize_includes(permit.with_indifferent_access)
       includes.each do |k, v|
-        permitted[k] = if permit.has_key?(k)
+        permitted[k] = if declared.has_key?(k)
           check_include_when(k, v['when'], model) if v.is_a?(Hash) && v.has_key?('when')
 
-          subpermit = permit[k] || {}
+          entry = declared[k]
           association = model&.reflect_on_association(k)
           if association && !association.polymorphic?
-            subpermit = includes_for(association.klass) if subpermit.empty?
-            sanitize_includes(v, subpermit, association.klass, normalized: true)
+            sanitize_includes(v, association.klass, entry[:schema], normalized: true)
+          elsif entry[:schema]
+            sanitize_includes(v, nil, entry[:schema], normalized: true)
           else
-            sanitize_includes(v, subpermit, nil, normalized: true)
+            sanitize_includes(v, nil, permit: entry[:includes] || {}, normalized: true)
           end
         elsif k.to_s == 'where'
           # Filters the included records, so is checked against the wheres

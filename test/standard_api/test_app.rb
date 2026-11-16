@@ -58,15 +58,25 @@ end
 # Test Application Models
 require 'standard_api/test_app/models'
 
-# Every model the tests render declares all of its attributes and
-# associations, by name, as most tests aren't about Schemas. Before the
+# Every model the tests render declares all of its attributes, by name, as
+# most tests aren't about Schemas, and what can be included of it. Before the
 # controllers, whose Schemas inherit from them.
-[Account, Photo, Property, Reference, Document, Attachment, UuidModel].each do |model|
+{
+  Account => -> {
+    associations :photos, :property
+    association :subject, includes: ['landlord']
+  },
+  Photo => -> { associations :account },
+  Property => -> { associations :photos, :landlord, :english_name, :document },
+  Reference => -> { association :subject, includes: [:landlord, :photos] },
+  Document => -> {},
+  Attachment => -> {},
+  UuidModel => -> {}
+}.each do |model, includes|
   names = model.attribute_names
-  association_names = model.reflect_on_all_associations.map(&:name)
   Object.const_set("#{model.name}Schema", Class.new(StandardAPI::Schema) {
     attributes(*names)
-    associations(*association_names)
+    class_exec(&includes)
   })
 end
 

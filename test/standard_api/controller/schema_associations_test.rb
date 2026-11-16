@@ -26,20 +26,24 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
     JSON(response.body)
   end
 
-  test 'an association the Schema does not declare is not rendered' do
+  test "an association the Schema doesn't declare can't be included" do
     property = create(:property, landlord: create(:account))
 
     with_schemas('property' => property_schema { remove :landlord }) do
-      assert_not show_property(property, [:landlord]).key?('landlord')
+      get "/properties/#{property.id}", params: { include: [:landlord] }, as: :json
+      assert_response :bad_request
+
+      get read_schema_properties_path(format: 'json'), params: { include: [:landlord] }
+      assert_response :bad_request
     end
     assert show_property(property, [:landlord]).key?('landlord')
   end
 
-  test 'an association a Schema does not declare is left out of the read schema' do
-    with_schemas('property' => property_schema { remove :landlord }) do
-      get read_schema_properties_path(format: 'json'), params: { include: [:landlord] }
-      assert_not JSON(response.body)['properties'].key?('landlord')
-    end
+  test 'an association renders only when the include param asks for it' do
+    property = create(:property, landlord: create(:account))
+
+    assert_not show_property(property, []).key?('landlord')
+    assert show_property(property, [:landlord]).key?('landlord')
   end
 
   test 'if and unless hide an association per record' do
@@ -125,7 +129,8 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
 
     schema = property_schema { association :landlord, schema: Class.new(StandardAPI::Schema) { attributes :id, :name } }
     with_schemas('property' => schema) do
-      assert_not show_property(property, { landlord: { property: true } })['landlord'].key?('property')
+      get "/properties/#{property.id}", params: { include: { landlord: { property: true } } }, as: :json
+      assert_response :bad_request
     end
   end
 
@@ -176,14 +181,18 @@ class ControllerSchemaAssociationsTest < ActionDispatch::IntegrationTest
   test 'an attributes_for block can declare associations' do
     property = create(:property, name: 'Keyed', landlord: create(:account))
 
+    # What can be included is what it declares for the model, so key it on
+    # something the request has, not the record
     schema = property_schema do
       remove :landlord
-      attributes_for(-> { record&.name }) { |name| association :landlord if name == 'Keyed' }
+      attributes_for(-> { params[:keyed] }) { |keyed| association :landlord if keyed == '1' }
     end
     with_schemas('property' => schema) do
-      assert show_property(property, [:landlord]).key?('landlord')
-      property.update!(name: 'Other')
-      assert_not show_property(property, [:landlord]).key?('landlord')
+      get "/properties/#{property.id}", params: { include: [:landlord], keyed: '1' }, as: :json
+      assert JSON(response.body).key?('landlord')
+
+      get "/properties/#{property.id}", params: { include: [:landlord] }, as: :json
+      assert_response :bad_request
     end
   end
 

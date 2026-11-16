@@ -55,12 +55,8 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "includes and orders in a nested ACL do not shadow the controller's" do
+  test "orders in a nested ACL do not shadow the controller's" do
     acl_controller(Attachment) do
-      def includes
-        [ :record ]
-      end
-
       def orders
         [ :id ]
       end
@@ -68,9 +64,18 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     StandardAPI::AccessControlList.load!
 
     controller = @acl_base.new
-    assert_equal [:record], controller.attachment_includes
     assert_equal [:id], controller.attachment_orders
     assert_equal StandardAPI::Controller, @acl_controller.instance_method(:includes).owner
+  end
+
+  test "includes in a nested ACL raise" do
+    acl_controller(Attachment) do
+      def includes
+        [ :record ]
+      end
+    end
+
+    assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
   end
 
   test "nested and filter are renamed to their own names" do

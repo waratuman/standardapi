@@ -47,8 +47,7 @@ module StandardAPI
 
       # The includes of +includes+ it renders, as [name, sub_include,
       # sub_schema]: +sub_include+ is what to include of them, and +sub_schema+
-      # the Schema class to render them with (#association_schema). An include
-      # that isn't an association, ie. a method, has a nil +sub_schema+.
+      # the Schema class to render them with (#association_schema), or nil.
       def includes(includes)
         includes.filter_map do |name, sub_include|
           next if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
@@ -58,10 +57,10 @@ module StandardAPI
         end
       end
 
-      # Whether an include of +name+ renders: an association the Schema
-      # declares and shows, or an include that isn't an association
+      # Whether an include of +name+, an association or a method, renders:
+      # the Schema declares it and shows it for the record
       def include?(name)
-        !model.reflect_on_association(name.to_s) || !schema || schema.association?(record, name)
+        !schema || schema.association?(record, name)
       end
 
       # The Schema class the records included through +name+ render with in

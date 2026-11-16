@@ -14,6 +14,16 @@
   custom partial asks `record_schema(record, local_assigns[:schema])` what it
   renders, and passes `schema:` rather than `excludes:` to nested records. An
   include that resolves to a plain value is rendered whole.
+- Remove ACL `includes`. What can be included is what the model's Schema
+  declares with `association` and `associations`, an association or a method;
+  anything else is rejected with a 400, and what's included of an included
+  record is checked against its own Schema, or the association's `schema:`.
+  Under a polymorphic association or a method, what's included of it is
+  checked against the association's `includes:`. An ACL `includes` method
+  raises `StandardAPI::InvalidConfiguration`, and `includes_for(model)`
+  returns what the Schema declares.
+- `#create` and `#update` render only the associations the `include` param
+  asks for, not those written through nested attributes.
 - Remove `ApplicationHelper#excludes`. While it's defined,
   `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
   boot; leave what it hid out of each model's Schema instead.

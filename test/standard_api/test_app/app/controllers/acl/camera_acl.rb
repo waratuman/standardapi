@@ -10,8 +10,4 @@ module CameraACL
   end
 
   # Sub resources allowed to be included in the response
-  def includes
-    [ :photo, :specs ]
-  end
-
 end

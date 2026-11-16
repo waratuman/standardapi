@@ -66,10 +66,6 @@ class PhotosController < ApplicationController
     [ :id ]
   end
 
-  def photo_includes
-    [ :account ]
-  end
-
 end
 
 class ReferencesController < ApplicationController
@@ -134,6 +130,7 @@ class CamerasController < ApplicationController
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
     association :photo, unless: -> { record&.retired? }, schema: :photo_schema
+    association :specs
 
     private
 

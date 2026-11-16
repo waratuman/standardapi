@@ -43,7 +43,7 @@ module StandardAPI
         read_only: true, required: false, validations: [].freeze
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
-      ASSOCIATION_OPTIONS = [:schema].freeze
+      ASSOCIATION_OPTIONS = [:schema, :includes].freeze
 
       # +association_options+ are each declared association's options, and
       # +values+ each attribute's declared +value+
@@ -80,9 +80,13 @@ module StandardAPI
         self
       end
 
-      # Declare the association +name+, so an include of it is rendered. +if+
-      # and +unless+ hide it per record. The included records render with
-      # +schema+ in place of their own model's Schema, if it's given.
+      # Declare the association +name+, or a method rendered as an include,
+      # so a request may include it and it renders. +if+ and +unless+ hide it
+      # per record. The included records render with +schema+ in place of
+      # their own model's Schema, if it's given. Under a polymorphic
+      # association or a method there's no single model to check what's
+      # included of it against, so +includes+ permits it, as ACL +includes+
+      # once did, ie. `includes: [:landlord]`.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -260,6 +264,16 @@ module StandardAPI
     def association?(record, name)
       name = name.to_s
       builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
+    end
+
+    # What a request may include, as name => { schema:, includes: }: each
+    # declared association or method, with the Schema class its +schema+
+    # gives for a model (a nil record), and its +includes+. +if+ and +unless+
+    # don't apply, as they only hide it per record.
+    def declared_includes
+      @declared_includes ||= builder_for(nil).association_options.to_h do |name, options|
+        [name, { schema: association_schema(nil, name), includes: options[:includes] }]
+      end.with_indifferent_access
     end
 
     # The Schema class the records +record+ includes through the association
