@@ -205,6 +205,33 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     ApplicationController.unstub(:standard_api_schemas)
   end
 
+  test "Controller#query_schema.json describes a polymorphic association's includes from its types" do
+    query = query_schema(query_schema_references_path(format: 'json'))
+    schemer = schemer(query)
+
+    # ReferenceSchema declares subject with types: ['Property']
+    [
+      { 'subject' => { 'landlord' => true } },
+      { 'subject' => { 'landlord' => { 'photos' => true }, 'limit' => 1 } },
+      { 'subject' => 'landlord' }
+    ].each do |include|
+      assert schemer.valid?({ 'include' => include, 'limit' => 1 }), include.inspect
+
+      get references_path(format: 'json'), params: { include: include, limit: 1 }
+      assert_response :ok, include.inspect
+    end
+
+    [
+      { 'subject' => { 'document_attachments' => true } },
+      { 'subject' => { 'where' => { 'id' => 1 } } }
+    ].each do |include|
+      assert_not schemer.valid?({ 'include' => include, 'limit' => 1 }), include.inspect
+
+      get references_path(format: 'json'), params: { include: include, limit: 1 }
+      assert_response :bad_request, include.inspect
+    end
+  end
+
   test 'Controller#query_schema.json an include with nothing to include of its own takes a when' do
     schema = query_schema(query_schema_properties_path(format: 'json'))
     schemer = schemer(schema)

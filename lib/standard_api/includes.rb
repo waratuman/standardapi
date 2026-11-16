@@ -66,30 +66,20 @@ module StandardAPI
       normalized
     end
 
-    # The +includes+ option of an association, ie. `[:landlord]`, in the
-    # shape of Schema#declared_includes: name => { schema: nil, includes: }
-    def includes_option(permit)
-      normalize_includes(permit).except(*StandardAPI::Controller::RESERVED_INCLUDE_KEYS).to_h do |name, sub|
-        [name, { schema: nil, includes: sub.presence }]
-      end.with_indifferent_access
-    end
-
     # Checks +includes+ of +model+ against what its Schema declares
     # (Schema#declared_includes), or +schema+, the Schema class an association
     # gives in its place, raising UnpermittedParameters for anything else, and
     # returns them normalized. An association's includes are checked against
     # its model's Schema, or the Schema class its +schema+ gives. Under a
     # polymorphic association or a method there is no single model, so they're
-    # checked against that Schema class, or else the association's
-    # +includes+ (+permit+).
+    # checked against that Schema class, or else the Schemas of the models
+    # the association's +types+ name (#sanitize_typed_includes).
     #
-    #   association :photos                       # include[photos][account]: PhotoSchema declares account?
-    #   association :subject, includes: [:photos] # include[subject][photos]
-    def sanitize_includes(includes, model, schema = nil, permit: nil, normalized: false)
+    #   association :photos                     # include[photos][account]: PhotoSchema declares account?
+    #   association :subject, types: [Property] # include[subject][photos]: PropertySchema declares photos?
+    def sanitize_includes(includes, model, schema = nil, normalized: false)
       includes = normalize_includes(includes) if !normalized
-      declared = if permit
-        includes_option(permit)
-      elsif (instance = schema ? schema_instance(schema, model) : (model_schema(model) if model))
+      declared = if (instance = schema ? schema_instance(schema, model) : (model_schema(model) if model))
         instance.declared_includes
       else
         # Under a polymorphic association without a +schema+
@@ -108,7 +98,7 @@ module StandardAPI
           elsif entry[:schema]
             sanitize_includes(v, nil, entry[:schema], normalized: true)
           else
-            sanitize_includes(v, nil, permit: entry[:includes] || {}, normalized: true)
+            sanitize_typed_includes(v, entry[:types])
           end
         elsif k.to_s == 'where'
           # Filters the included records, so is checked against the wheres
@@ -129,6 +119,43 @@ module StandardAPI
         else
           raise StandardAPI::UnpermittedParameters.new([k])
         end
+      end
+
+      permitted
+    end
+
+    # Checks +includes+ under a polymorphic association or a method, whose
+    # records can be any of +types+: each include is permitted if one of their
+    # Schemas declares it, and checked below it against that model, so one
+    # request can include what different models declare. Like any include
+    # without a model, a +where+ or +order+ is rejected.
+    def sanitize_typed_includes(includes, types)
+      permitted = ActiveSupport::HashWithIndifferentAccess.new
+
+      includes.each do |k, v|
+        if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(k.to_s)
+          permitted.merge!(sanitize_includes({ k => v }, nil, normalized: true))
+          next
+        end
+
+        # A +when+ reads the record including it, which can be of any type,
+        # so it isn't checked against one (see #check_include_when)
+        if v.is_a?(Hash)
+          conditions = v['when']
+          v = v.except('when')
+        end
+
+        error = nil
+        sanitized = types.lazy.filter_map do |type|
+          sanitize_includes({ k => v }, type, normalized: true)[k]
+        rescue StandardAPI::UnpermittedParameters => e
+          error ||= e
+          nil
+        end.first
+        raise(error || StandardAPI::UnpermittedParameters.new([k])) if sanitized.nil?
+
+        sanitized['when'] = conditions if conditions
+        permitted[k] = sanitized
       end
 
       permitted

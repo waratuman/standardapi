@@ -19,7 +19,8 @@
   anything else is rejected with a 400, and what's included of an included
   record is checked against its own Schema, or the association's `schema:`.
   Under a polymorphic association or a method, what's included of it is
-  checked against the association's `includes:`. An ACL `includes` method
+  checked against the Schemas of the models the association's `types:` name.
+  An ACL `includes` method
   raises `StandardAPI::InvalidConfiguration`.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Schema declares them.
@@ -126,17 +127,19 @@ what it hid out of each model's Schema, which renders only what it declares:
 ACL `includes` has been replaced by the associations each model's Schema
 declares, which decide both what can be included and what renders. An ACL
 `includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
-it permitted into the Schema, and anything nested under a polymorphic
-association or a method into that association's `includes`:
+it permitted into the Schema. For anything it permitted under a polymorphic
+association or a method, list the models it can be in that association's
+`types`, and declare what can be included of them in their Schemas:
 
     # Before, in PhotoACL
     def includes
-      [ :author, :camera ]
+      { author: true, camera: true, subject: [:landlord] }
     end
 
-    # After
+    # After: subject is polymorphic, and PropertySchema declares landlord
     class PhotoSchema < StandardAPI::Schema
       associations :author, :camera
+      association :subject, types: [Property]
     end
 
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`

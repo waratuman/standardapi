@@ -137,7 +137,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test "Schema#declared_includes is what the Schema declares can be included" do
     includes = AccountSchema.new(AccountsController.new, Account).declared_includes
     assert_equal %w[photos property subject], includes.keys.sort
-    assert_equal ['landlord'], includes['subject'][:includes]
+    assert_equal [Property], includes['subject'][:types]
     assert_nil includes['photos'][:schema]
   end
 
@@ -928,12 +928,30 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "CameraACL#includes is no longer supported; declare what can be included with association and associations in the model's Schema instead", error.message
   end
 
-  test "an association's includes permit what is included of a polymorphic association" do
+  test "a polymorphic association's types permit what their Schemas declare" do
     sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
 
-    # AccountSchema declares subject with includes: ['landlord']
-    assert_equal({ 'subject' => { 'landlord' => {} } }, sanitize.call({ subject: :landlord }))
-    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :photos }) }
+    # AccountSchema declares subject with types: ['Property']
+    assert_equal({ 'subject' => { 'landlord' => { 'photos' => {} } } }, sanitize.call({ subject: { landlord: :photos } }))
+    assert_equal({ 'subject' => { 'limit' => 1 } }, sanitize.call({ subject: { limit: 1 } }))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :document_attachments }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { where: { id: 1 } } }) }
+  end
+
+  test "a polymorphic association's includes can each come from a different type" do
+    schemas = ApplicationController.standard_api_schemas.merge('account' => Class.new(AccountSchema) { association :subject, types: [Property, Photo] })
+    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+    sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
+
+    # landlord is PropertySchema's and account PhotoSchema's
+    assert_equal({ 'subject' => { 'landlord' => {}, 'account' => {} } }, sanitize.call({ subject: [:landlord, :account] }))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :camera }) }
+  ensure
+    ApplicationController.unstub(:standard_api_schemas)
+  end
+
+  test 'types must be models or their names' do
+    assert_raises(ArgumentError) { Class.new(StandardAPI::Schema) { association :subject, types: [:property] } }
   end
 
   test 'Controller#model_includes overrides raise' do
@@ -1030,30 +1048,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
   # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
   test 'Includes#sanitize_includes' do
-    # Checked against +permit+ alone, an association's +includes+, without a model
-    method = ->(includes, permit) { PropertiesController.new.send(:sanitize_includes, includes, nil, permit: permit) }
-    assert_equal method.call(:x, [:x]), { 'x' => {} }
-    assert_equal method.call(:x, {:x => true}), { 'x' => {} }
+    method = ->(includes) { PropertiesController.new.send(:sanitize_includes, includes, Property) }
+    assert_equal({ 'photos' => {}, 'landlord' => {} }, method.call([:photos, :landlord]))
+    assert_equal({ 'photos' => { 'account' => {} } }, method.call({ photos: { account: true } }))
 
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call([:x, :y], [:x])
-    end
-
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call([:x, :y], {:x => true})
-    end
-
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({:x => true, :y => true}, [:x])
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({:x => true, :y => true}, {:x => true})
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({ x: { y: true }}, { x: true })
-    end
-
-    assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call(:x) }
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call([:photos, :x]) }
+    # PhotoSchema declares account, not property
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call({ photos: { property: true } }) }
   end
 
   # Order Test

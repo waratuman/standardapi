@@ -351,9 +351,14 @@ the key a `nil` record gives.
 
 Under a polymorphic association or a method there's no single model to check
 what's included of it against. It's checked against the `schema` the
-association gives, if it gives a Schema class, or else its `includes`:
+association gives, if it gives a Schema class, or else the Schemas of the
+models its `types` name: each include is permitted if one of them declares it,
+and checked below it against that model. A `where` or `order` under it is
+rejected, and a `when` isn't checked, as its records can be of any type:
 
-    association :subject, includes: [:landlord, { photos: [:camera] }]
+    association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertySchema or AccountSchema declares it
+
+Without `schema` or `types`, nothing can be included of it.
 
 `if` and `unless` hide an association per record, as they do an attribute:
 

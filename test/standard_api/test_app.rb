@@ -64,11 +64,11 @@ require 'standard_api/test_app/models'
 {
   Account => -> {
     associations :photos, :property
-    association :subject, includes: ['landlord']
+    association :subject, types: ['Property']
   },
   Photo => -> { associations :account },
   Property => -> { associations :photos, :landlord, :english_name, :document, :accounts },
-  Reference => -> { association :subject, includes: [:landlord, :photos] },
+  Reference => -> { association :subject, types: ['Property'] },
   Document => -> {},
   Attachment => -> {},
   UuidModel => -> {}
