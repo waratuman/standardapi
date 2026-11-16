@@ -788,10 +788,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'unknown inlcude' do
-    property = create(:property, accounts: [ create(:account) ])
-    get property_path(property, include: [:accounts], format: 'json')
+    property = create(:property)
+    get property_path(property, include: [:document_attachments], format: 'json')
     assert_response :bad_request
-    assert_equal 'found unpermitted parameter: "accounts"', response.body
+    assert_equal 'found unpermitted parameter: "document_attachments"', response.body
   end
 
   test 'unknown order' do
@@ -961,7 +961,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     # PropertySchema declares landlord, an Account, and AccountSchema photos
     assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }))
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: :agents }) }
-    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ accounts: true }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ document_attachments: true }) }
   end
 
   test "Includes#sanitize_includes checks an association's includes against its schema" do

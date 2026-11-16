@@ -67,7 +67,7 @@ require 'standard_api/test_app/models'
     association :subject, includes: ['landlord']
   },
   Photo => -> { associations :account },
-  Property => -> { associations :photos, :landlord, :english_name, :document },
+  Property => -> { associations :photos, :landlord, :english_name, :document, :accounts },
   Reference => -> { association :subject, includes: [:landlord, :photos] },
   Document => -> {},
   Attachment => -> {},

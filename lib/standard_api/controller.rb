@@ -375,6 +375,22 @@ module StandardAPI
       end
     end
 
+    # The associations +attributes+ write through nested attributes, as
+    # includes, so #create and #update render what they wrote
+    def nested_includes(model, attributes)
+      includes = {}
+      attributes&.each do |key, value|
+        association = model.reflect_on_association(key)
+        if association &&
+           self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
+           self.send("nested_#{model_name(model)}_attributes").include?(association.name)
+          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
+        end
+      end
+
+      includes
+    end
+
     def includes
       # #model_includes was removed; raise rather than ignore an override of it
       # TODO: Remove this check in 10.0
@@ -382,12 +398,19 @@ module StandardAPI
         raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, declare what can be included with association and associations in #{ model.name }'s Schema instead"
       end
 
-      # Only what the include param asks for renders, on create and update too
       @includes ||= if params[:include]
         sanitize_includes(params[:include], model)
       else
         {}
       end
+
+      # What a create or update wrote through nested attributes renders too,
+      # where the Schema declares it
+      if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
+        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+      end
+
+      @includes
     end
 
     def required_orders

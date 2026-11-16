@@ -340,8 +340,9 @@ gives in its place, at every level below it:
       associations :author, :camera        # include[author][photos] if AuthorSchema declares photos
     end
 
-An association only renders when the `include` param asks for it, on `#create`
-and `#update` too.
+An association only renders when the `include` param asks for it. On
+`#create` and `#update`, so do the associations written through nested
+attributes (the ACL's `nested`), where the Schema declares them.
 
 Declarations are checked for the model, with a `nil` record: `if` and `unless`
 don't stop an association from being asked for, only from rendering, and one

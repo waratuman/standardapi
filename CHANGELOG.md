@@ -21,8 +21,8 @@
   Under a polymorphic association or a method, what's included of it is
   checked against the association's `includes:`. An ACL `includes` method
   raises `StandardAPI::InvalidConfiguration`.
-- `#create` and `#update` render only the associations the `include` param
-  asks for, not those written through nested attributes.
+- `#create` and `#update` render the associations written through nested
+  attributes only where the model's Schema declares them.
 - Remove `ApplicationHelper#excludes`. While it's defined,
   `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
   boot; leave what it hid out of each model's Schema instead.
@@ -138,9 +138,6 @@ association or a method into that association's `includes`:
     class PhotoSchema < StandardAPI::Schema
       associations :author, :camera
     end
-
-`#create` and `#update` no longer render the associations written through
-nested attributes unless the `include` param asks for them.
 
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
