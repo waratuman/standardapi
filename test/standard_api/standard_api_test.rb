@@ -134,20 +134,30 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], wheres_for.call(Pdf)
   end
 
-  test "Includes#includes_for is what the model's Schema declares" do
-    includes = AccountsController.new.send(:includes_for, Account)
+  test "Schema#declared_includes is what the Schema declares can be included" do
+    includes = AccountSchema.new(AccountsController.new, Account).declared_includes
     assert_equal %w[photos property subject], includes.keys.sort
     assert_equal ['landlord'], includes['subject'][:includes]
     assert_nil includes['photos'][:schema]
   end
 
-  test 'Includes#includes_for falls back to the Schema of the base class' do
-    controller = DocumentsController.new
-    assert_equal controller.send(:includes_for, Document), controller.send(:includes_for, Pdf)
+  test "Includes#sanitize_includes checks an STI subclass against its base class's Schema" do
+    sanitize = -> { DocumentsController.new.send(:sanitize_includes, :file, Pdf) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call }
+
+    # file is a method of Document
+    schemas = ApplicationController.standard_api_schemas.merge('document' => Class.new(DocumentSchema) { association :file })
+    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+    assert_equal({ 'file' => {} }, sanitize.call)
+  ensure
+    ApplicationController.unstub(:standard_api_schemas)
   end
 
-  test 'Includes#includes_for is empty without a model or Schema' do
-    assert_equal({}, DocumentsController.new.send(:includes_for, nil))
+  test 'Includes#sanitize_includes permits nothing without a model or Schema' do
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      DocumentsController.new.send(:sanitize_includes, :anything, nil)
+    end
+    assert_equal({ 'limit' => 1 }, DocumentsController.new.send(:sanitize_includes, { limit: 1 }, nil))
   end
 
   test 'Controller#model_params defaults to ActionController::Parameters' do

@@ -66,25 +66,17 @@ module StandardAPI
       normalized
     end
 
-    # What a request may include of +model+, from its Schema, or from
-    # +schema+, the Schema class an association gives in its place, as
-    # name => { schema:, includes: } (Schema#declared_includes). {} when there
-    # is neither, ie. under a polymorphic association without a +schema+.
-    def includes_for(model, schema = nil)
-      instance = schema ? schema_instance(schema, model) : (model_schema(model) if model)
-      instance ? instance.declared_includes : {}
-    end
-
-    # The +includes+ option of an association, a permit like ACL +includes+
-    # once was, as name => { schema: nil, includes: }
-    def permitted_includes(permit)
+    # The +includes+ option of an association, ie. `[:landlord]`, in the
+    # shape of Schema#declared_includes: name => { schema: nil, includes: }
+    def includes_option(permit)
       normalize_includes(permit).except(*StandardAPI::Controller::RESERVED_INCLUDE_KEYS).to_h do |name, sub|
         [name, { schema: nil, includes: sub.presence }]
       end.with_indifferent_access
     end
 
     # Checks +includes+ of +model+ against what its Schema declares
-    # (#includes_for), raising UnpermittedParameters for anything else, and
+    # (Schema#declared_includes), or +schema+, the Schema class an association
+    # gives in its place, raising UnpermittedParameters for anything else, and
     # returns them normalized. An association's includes are checked against
     # its model's Schema, or the Schema class its +schema+ gives. Under a
     # polymorphic association or a method there is no single model, so they're
@@ -95,7 +87,14 @@ module StandardAPI
     #   association :subject, includes: [:photos] # include[subject][photos]
     def sanitize_includes(includes, model, schema = nil, permit: nil, normalized: false)
       includes = normalize_includes(includes) if !normalized
-      declared = permit ? permitted_includes(permit) : includes_for(model, schema)
+      declared = if permit
+        includes_option(permit)
+      elsif (instance = schema ? schema_instance(schema, model) : (model_schema(model) if model))
+        instance.declared_includes
+      else
+        # Under a polymorphic association without a +schema+
+        {}
+      end
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
       includes.each do |k, v|

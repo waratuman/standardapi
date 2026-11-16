@@ -231,10 +231,11 @@ module StandardAPI
         controller.send(:required_orders)
       end
 
-      # What a request may include of +model+, from its Schema or +schema+ in
-      # its place (Includes#includes_for)
+      # What a request may include of +model+ (Schema#declared_includes), from
+      # its Schema or +schema+ in its place
       def json_schema_includes(model, schema = nil)
-        controller.send(:includes_for, model, schema)
+        instance = schema ? controller.send(:schema_instance, schema, model) : (controller.send(:model_schema, model) if model)
+        instance ? instance.declared_includes : {}
       end
 
       # The key #create and #update read +model+'s params from
@@ -755,7 +756,7 @@ module StandardAPI
       # +options+ (+where+, +order+, +limit+, +distinct+, +distinct_on+,
       # +when+) that apply to included records; the top level has none.
       #
-      # +permit+ is what may be included (Includes#includes_for). The include of
+      # +permit+ is what may be included (#json_schema_includes). The include of
       # a method or a polymorphic association, or of an association with a
       # +schema+, is named after the path to it, which can be the name of
       # another include, ie. Account's subject and an AccountSubject model are
@@ -804,7 +805,7 @@ module StandardAPI
           elsif entry[:schema]
             json_schema_include(json_schema_includes(nil, entry[:schema]), nil, defs, name: sub_name)
           elsif entry[:includes].present?
-            json_schema_include(controller.send(:permitted_includes, entry[:includes]), nil, defs, name: sub_name)
+            json_schema_include(controller.send(:includes_option, entry[:includes]), nil, defs, name: sub_name)
           end
 
           # The +when+ of an include is checked against the model it's on, and
