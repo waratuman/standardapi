@@ -24,9 +24,8 @@
   raises `StandardAPI::InvalidConfiguration`.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Schema declares them.
-- Remove `ApplicationHelper#excludes`. While it's defined,
-  `StandardAPI::Schemas.load!` raises `StandardAPI::InvalidConfiguration` at
-  boot; leave what it hid out of each model's Schema instead.
+- Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
+  leave what it hid out of each model's Schema instead.
 - Ordering through an association listed by name in ACL `orders`, ie.
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
@@ -110,9 +109,11 @@ renders, instead of applying `resolve_excludes` (see Custom partials in the
 README), and passes `schema:` to nested records instead of `excludes:`.
 `Controller#excludes(record)` is now `record_schema(record).hidden?(name)`.
 
-`ApplicationHelper#excludes` is no longer used, and the app won't boot while
-it's defined, raising `StandardAPI::InvalidConfiguration`. Remove it, and leave
-what it hid out of each model's Schema, which renders only what it declares:
+`ApplicationHelper#excludes` is no longer used, and nothing checks for it, so
+**what it hid renders if the model's Schema declares it**. This matters most for
+what it usually hid, credentials like `password_digest`: check that no Schema
+declares them, ie. by listing every column. Remove it, and leave what it hid
+out of each model's Schema, which renders only what it declares:
 
     # Before, in ApplicationHelper
     def excludes

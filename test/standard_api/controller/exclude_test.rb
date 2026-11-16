@@ -2,19 +2,6 @@ require 'standard_api/test_helper'
 
 class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
-  test "Schemas.load! raises if ApplicationHelper#excludes is defined" do
-    ApplicationHelper.module_eval do
-      def excludes
-        { account: [:email] }
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::Schemas.load! }
-    assert_match(/ApplicationHelper#excludes is no longer supported/, error.message)
-  ensure
-    ApplicationHelper.module_eval { remove_method :excludes }
-  end
-
   # = Schema conditions
   #
   # These use the Camera resource, which isn't exercised by the generic
