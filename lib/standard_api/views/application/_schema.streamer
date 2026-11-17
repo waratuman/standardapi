@@ -58,7 +58,7 @@ else
   json.object! do
     json.set! 'attributes' do
       json.object! do
-        record_schema(model).attributes.each do |schema|
+        record_policy(model).attributes.each do |schema|
           json.set! schema[:name] do
             json.object! do
               json.set! 'type', schema_json_type(model, schema)

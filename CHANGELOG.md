@@ -6,26 +6,26 @@
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
 - Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
-  `excludes`. What's rendered is up to the model's Schema, which can hide an
-  attribute or association per record and pick the Schema included records
+  `excludes`. What's rendered is up to the model's Policy, which can hide an
+  attribute or association per record and pick the Policy included records
   render with. An ACL
   `excludes` method isn't used. `StandardAPI::Excludes`, `resolve_excludes`,
   `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
-  custom partial asks `record_schema(record, local_assigns[:schema])` what it
-  renders, and passes `schema:` rather than `excludes:` to nested records. An
+  custom partial asks `record_policy(record, local_assigns[:policy])` what it
+  renders, and passes `policy:` rather than `excludes:` to nested records. An
   include that resolves to a plain value is rendered whole.
-- Remove ACL `includes`. What can be included is what the model's Schema
+- Remove ACL `includes`. What can be included is what the model's Policy
   declares with `association` and `associations`, an association or a method;
   anything else is rejected with a 400, and what's included of an included
-  record is checked against its own Schema, or the association's `schema:`.
+  record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
-  checked against the Schemas of the models the association's `types:` name.
+  checked against the Policies of the models the association's `types:` name.
   An ACL `includes` method
   raises `StandardAPI::InvalidConfiguration`.
 - `#create` and `#update` render the associations written through nested
-  attributes only where the model's Schema declares them.
+  attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
-  leave what it hid out of each model's Schema instead.
+  leave what it hid out of each model's Policy instead.
 - Ordering through an association listed by name in ACL `orders`, ie.
   `:property`, is checked against the associated model's ACL `orders`. Orders
   it doesn't permit, including any through an association whose model's ACL
@@ -44,7 +44,7 @@
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
 - Remove `Controller#model_includes`. Declare what can be included in the
-  model's Schema instead. A controller that still overrides `model_includes`
+  model's Policy instead. A controller that still overrides `model_includes`
   raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
@@ -88,9 +88,9 @@
 ### Upgrading from 8.x
 
 `Controller#excludes_for(klass)` and ACL `excludes` have been replaced by the
-model's Schema, which renders only what it declares and can hide an attribute
+model's Policy, which renders only what it declares and can hide an attribute
 or association per record. An ACL `excludes` method isn't used, so move what
-it hid into the Schema:
+it hid into the Policy:
 
     # Before, in PhotoACL
     def excludes(photo)
@@ -98,47 +98,47 @@ it hid into the Schema:
     end
 
     # After
-    class PhotoSchema < StandardAPI::Schema
+    class PhotoPolicy < StandardAPI::Policy
       attribute :caption, if: -> { record&.public? }
       association :camera, unless: -> { record&.anonymous? }
-      association :account, schema: AccountWithoutEmailSchema
+      association :account, policy: AccountWithoutEmailPolicy
     end
 
-A custom partial asks `record_schema(record, local_assigns[:schema])` what it
+A custom partial asks `record_policy(record, local_assigns[:policy])` what it
 renders, instead of applying `resolve_excludes` (see Custom partials in the
-README), and passes `schema:` to nested records instead of `excludes:`.
-`Controller#excludes(record)` is now `record_schema(record).hidden?(name)`.
+README), and passes `policy:` to nested records instead of `excludes:`.
+`Controller#excludes(record)` is now `record_policy(record).hidden?(name)`.
 
 `ApplicationHelper#excludes` is no longer used, and nothing checks for it, so
-**what it hid renders if the model's Schema declares it**. This matters most for
-what it usually hid, credentials like `password_digest`: check that no Schema
+**what it hid renders if the model's Policy declares it**. This matters most for
+what it usually hid, credentials like `password_digest`: check that no Policy
 declares them, ie. by listing every column. Remove it, and leave what it hid
-out of each model's Schema, which renders only what it declares:
+out of each model's Policy, which renders only what it declares:
 
     # Before, in ApplicationHelper
     def excludes
       { user: [:password_digest] }
     end
 
-    # After: UserSchema doesn't declare password_digest
-    class UserSchema < StandardAPI::Schema
+    # After: UserPolicy doesn't declare password_digest
+    class UserPolicy < StandardAPI::Policy
       attributes :id, :name, :email
     end
 
-ACL `includes` has been replaced by the associations each model's Schema
+ACL `includes` has been replaced by the associations each model's Policy
 declares, which decide both what can be included and what renders. An ACL
 `includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
-it permitted into the Schema. For anything it permitted under a polymorphic
+it permitted into the Policy. For anything it permitted under a polymorphic
 association or a method, list the models it can be in that association's
-`types`, and declare what can be included of them in their Schemas:
+`types`, and declare what can be included of them in their Policies:
 
     # Before, in PhotoACL
     def includes
       { author: true, camera: true, subject: [:landlord] }
     end
 
-    # After: subject is polymorphic, and PropertySchema declares landlord
-    class PhotoSchema < StandardAPI::Schema
+    # After: subject is polymorphic, and PropertyPolicy declares landlord
+    class PhotoPolicy < StandardAPI::Policy
       associations :author, :camera
       association :subject, types: [Property]
     end
@@ -152,17 +152,17 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 ### Added
 
-- `record_schema(record_or_model, schema)` gives a `StandardAPI::Schema::Record`,
+- `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
-  `association_schema`, `value`, `hidden?` and `errors`.
+  `association_policy`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
   Controllers are loaded at boot and after each reload to find them. Two ACLs
   that would define the same method, ie. nested in two controllers of one
   model, raise `StandardAPI::InvalidConfiguration`.
-- A controller can nest a subclass of `StandardAPI::Schema`
-  (`PhotosController::Schema`), found by `StandardAPI::Schemas`, the sibling
+- A controller can nest a subclass of `StandardAPI::Policy`
+  (`PhotosController::Policy`), found by `StandardAPI::Policies`, the sibling
   of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
   to declare its model's attribute definitions. Like strong parameters only
   declared attributes are used. `attributes` declares them, `attribute` can
@@ -170,30 +170,30 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   `attributes_for`
   declares those only known at runtime, once a request per key. `if` and `unless` hide an attribute
   per record, or per requester: hidden attributes join the record's excludes,
-  and a Schema that could vary by requester turns off fragment caching for its
-  model. Two Schemas of one model raise `StandardAPI::InvalidConfiguration`.
-  Rendering or describing a model with no Schema raises
-  `StandardAPI::MissingSchema`; a model with no controller declares one by name,
-  `ToolCallSchema` for `ToolCall`.
-  A Schema declares the associations an include may render with `association`
+  and a Policy that could vary by requester turns off fragment caching for its
+  model. Two Policies of one model raise `StandardAPI::InvalidConfiguration`.
+  Rendering or describing a model with no Policy raises
+  `StandardAPI::MissingPolicy`; a model with no controller declares one by name,
+  `ToolCallPolicy` for `ToolCall`.
+  A Policy declares the associations an include may render with `association`
   and `associations`; one it doesn't declare isn't rendered or described.
   `if` and `unless` hide one per record, and the included records render
-  with `schema:` in place of their own model's Schema; to keep what that
+  with `policy:` in place of their own model's Policy; to keep what that
   hides, it inherits from it.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
-  `record_schema(record_or_model).attributes` returns the result, for use
+  `record_policy(record_or_model).attributes` returns the result, for use
   without rendering a view, and the JSON Schemas, `schema.json` and
   `application/_record` are built from it: a record renders the attributes in
-  `record_schema(record).attributes`, one per entry in
-  `record.attribute_names`, so an attribute a Schema removes isn't rendered and
+  `record_policy(record).attributes`, one per entry in
+  `record.attribute_names`, so an attribute a Policy removes isn't rendered and
   one it adds is read from the record. Each definition has one `type`, the
   attribute's ActiveModel type, and a `comment`, which the JSON Schemas
   render as `description`.
 - Each resource serves three JSON Schemas (2020-12), built from its ACL and
-  Schema, each drawn only with the actions it describes:
+  Policy, each drawn only with the actions it describes:
   - `schema/read.json`: a record as `#show` and `#index` render it, with the
-    `include` param checked against the Schemas. A column that
+    `include` param checked against the Policies. A column that
     allows NULL, and a singular association unless its presence is
     validated, allow `null`; decimals are strings, binary is hex, and an
     enum lists its names.
@@ -203,7 +203,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
     `read_only` definition is `readOnly`; an auto populated column isn't, and
     isn't `required`.
   - `schema/query.json`: the `where` and `order` the ACL's `wheres` and
-    `orders` permit, and the `include` the Schemas declare, following
+    `orders` permit, and the `include` the Policies declare, following
     associations through `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
     params no ACL checks yet, marked as such.
 
@@ -212,19 +212,19 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   Range is `minimum` and `maximum`. A validation that doesn't always run
   (`if`, `unless`, `on`) or allows blank, and an option given as a Symbol or
   a Proc, is left out. `read_schema_for`, `write_schema_for` and
-  `query_schema_for` build them, and are public like `record_schema`.
+  `query_schema_for` build them, and are public like `record_policy`.
 
 ### Changed
 
-- The ACL `attributes` and Schema lookups fall back to the base
+- The ACL `attributes` and Policy lookups fall back to the base
   class's for an STI subclass, as `orders` and `wheres` do. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and the JSON Schemas and `schema.json` describe it the same way.
-- `schema.json` lists only what the model's Schema declares, and `readonly` is
+- `schema.json` lists only what the model's Policy declares, and `readonly` is
   the definition's `read_only`, so it's true for an `attr_readonly` attribute
   even when the ACL permits it. A column's `type` still comes from its SQL type
-  unless the Schema declares another.
+  unless the Policy declares another.
 
 ### Fixed
 

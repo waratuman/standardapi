@@ -4,7 +4,7 @@ module StandardAPI
     # schema/query, included in StandardAPI::Helpers. Each is built from the
     # ACL, read from the controller, so it only describes what the ACL
     # permits. Attributes are described from their definitions in
-    # record_schema(model).attributes, so only what the model's Schema
+    # record_policy(model).attributes, so only what the model's Policy
     # declares. Params the ACL doesn't check yet are described as they're
     # used, and say so.
     #
@@ -168,7 +168,7 @@ module StandardAPI
         properties['distinct'] = { 'type' => 'boolean' }
 
         # Controller#group_by only accepts the model's columns, and #joins its
-        # associations. Neither is listed: a Schema needn't declare a column,
+        # associations. Neither is listed: a Policy needn't declare a column,
         # nor an ACL permit an association, and their names would be shown.
         column_name = { 'type' => 'string' }
         properties['group_by'] = {
@@ -231,10 +231,10 @@ module StandardAPI
         controller.send(:required_orders)
       end
 
-      # What a request may include of +model+ (Schema#declared_includes), from
-      # its Schema or +schema+ in its place
-      def json_schema_includes(model, schema = nil)
-        instance = schema ? controller.send(:schema_instance, schema, model) : (controller.send(:model_schema, model) if model)
+      # What a request may include of +model+ (Policy#declared_includes), from
+      # its Policy or +policy+ in its place
+      def json_schema_includes(model, policy = nil)
+        instance = policy ? controller.send(:policy_instance, policy, model) : (controller.send(:model_policy, model) if model)
         instance ? instance.declared_includes : {}
       end
 
@@ -249,10 +249,10 @@ module StandardAPI
         model.connection.table_comment(model.table_name)
       end
 
-      # record_schema(model).attributes, as name => definition
+      # record_policy(model).attributes, as name => definition
       def json_schema_definitions(model)
         @json_schema_definitions ||= {}
-        @json_schema_definitions[model] ||= record_schema(model).attributes.index_by { |definition| definition[:name].to_s }
+        @json_schema_definitions[model] ||= record_policy(model).attributes.index_by { |definition| definition[:name].to_s }
       end
 
       # The JSON Schema of a value of the attribute a definition describes, from
@@ -341,7 +341,7 @@ module StandardAPI
 
       # schema/read
 
-      # +through+ is the Schema class an including model renders +model+ with
+      # +through+ is the Policy class an including model renders +model+ with
       def json_schema_record_read(model, includes, through = nil)
         if model_partial(model) != 'application/record'
           return {
@@ -350,17 +350,17 @@ module StandardAPI
           }
         end
 
-        # What the Schema leaves out of every record, ie. an association it
+        # What the Policy leaves out of every record, ie. an association it
         # doesn't declare, isn't described
-        schema = controller.record_schema(model, through)
-        properties = schema.attributes.to_h do |definition|
+        policy = controller.record_policy(model, through)
+        properties = policy.attributes.to_h do |definition|
           [definition[:name].to_s, json_schema_attribute_read(model, definition)]
         end
         # Columns are always rendered. Other attributes may not be loaded, ie.
-        # under a partial select, or may be ones the Schema adds.
+        # under a partial select, or may be ones the Policy adds.
         required = properties.keys & model.column_names
 
-        schema.includes(includes).each do |name, subincludes, sub_schema|
+        policy.includes(includes).each do |name, subincludes, sub_policy|
           association = model.reflect_on_association(name)
           # #index only renders an include with a +when+ for the records that
           # match it
@@ -370,18 +370,18 @@ module StandardAPI
           elsif association.polymorphic?
             { 'type' => ['object', 'null'] }
           elsif association.collection?
-            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes, sub_schema) }
+            { 'type' => 'array', 'items' => json_schema_record_read(association.klass, subincludes, sub_policy) }
           elsif model.validators_on(association.name).any? { |v| v.kind == :presence }
             # A required belongs_to (or a has_one validated for presence)
-            json_schema_record_read(association.klass, subincludes, sub_schema)
+            json_schema_record_read(association.klass, subincludes, sub_policy)
           else
-            json_schema_nullable(json_schema_record_read(association.klass, subincludes, sub_schema))
+            json_schema_nullable(json_schema_record_read(association.klass, subincludes, sub_policy))
           end
         end
 
-        # A Schema condition can leave out any of them. What
+        # A Policy condition can leave out any of them. What
         # they hide is still described, as some records render it.
-        required = [] if through ? through.varies_by_requester? : schema_varies?(model)
+        required = [] if through ? through.varies_by_requester? : policy_varies?(model)
 
         properties['errors'] = {
           'type' => 'object',
@@ -462,9 +462,9 @@ module StandardAPI
       end
 
       # The JSON Schema of the attribute +name+ from its definition, with its
-      # validations, or {} if the Schema doesn't declare it. It's readOnly
+      # validations, or {} if the Policy doesn't declare it. It's readOnly
       # when the definition is read only: an attr_readonly attribute, which
-      # can be set on create but not changed, or one the Schema says is.
+      # can be set on create but not changed, or one the Policy says is.
       # +permitted+ is for an attribute the ACL's +nested+ permits rather
       # than its +attributes+, which the definition has as read only.
       def json_schema_attribute_write(model, name, permitted: false)
@@ -807,13 +807,13 @@ module StandardAPI
           association = model&.reflect_on_association(name)
           sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
           sub = if association && !association.polymorphic?
-            if entry[:schema]
-              json_schema_include(json_schema_includes(association.klass, entry[:schema]), association.klass, defs, name: sub_name)
+            if entry[:policy]
+              json_schema_include(json_schema_includes(association.klass, entry[:policy]), association.klass, defs, name: sub_name)
             else
               json_schema_include_ref(association.klass, defs)
             end
-          elsif entry[:schema]
-            json_schema_include(json_schema_includes(nil, entry[:schema]), nil, defs, name: sub_name)
+          elsif entry[:policy]
+            json_schema_include(json_schema_includes(nil, entry[:policy]), nil, defs, name: sub_name)
           elsif entry[:types].present?
             # Mirrors Includes#sanitize_typed_includes: what any of the types
             # declare, with the options of an include without a model

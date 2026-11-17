@@ -1,47 +1,47 @@
 module StandardAPI
-  # Finds each controller's nested StandardAPI::Schema and gives a base
+  # Finds each controller's nested StandardAPI::Policy and gives a base
   # controller the means to use it. StandardAPI::Controller includes it.
-  module Schemas
+  module Policies
 
     def self.included(base)
       # Including it again would reset what load! registered
-      return if base.respond_to?(:standard_api_schemas)
+      return if base.respond_to?(:standard_api_policies)
 
-      base.class_attribute :standard_api_schemas, instance_accessor: false, default: {}.freeze
+      base.class_attribute :standard_api_policies, instance_accessor: false, default: {}.freeze
     end
 
-    # Register the +Schema+ nested in each controller with its base controller
-    # (the topmost class that includes Schemas)
+    # Register the +Policy+ nested in each controller with its base controller
+    # (the topmost class that includes Policies)
     def self.load!
-      Helpers.each_nested(self, :Schema) do |base, schema, prefix|
-        register(base, schema, prefix)
+      Helpers.each_nested(self, :Policy) do |base, policy, prefix|
+        register(base, policy, prefix)
       end
     end
 
-    def self.register(base, schema, prefix)
-      if !(schema.is_a?(Class) && schema < StandardAPI::Schema)
-        raise StandardAPI::InvalidConfiguration, "#{schema.name} must be a subclass of StandardAPI::Schema"
+    def self.register(base, policy, prefix)
+      if !(policy.is_a?(Class) && policy < StandardAPI::Policy)
+        raise StandardAPI::InvalidConfiguration, "#{policy.name} must be a subclass of StandardAPI::Policy"
       end
 
-      existing = base.standard_api_schemas[prefix]
-      return if existing.equal?(schema)
+      existing = base.standard_api_policies[prefix]
+      return if existing.equal?(policy)
 
       if existing
-        raise StandardAPI::InvalidConfiguration, "#{schema.name} and #{existing.name} both describe #{prefix}; the Schema of one model is shared by all of its controllers, so define it once"
+        raise StandardAPI::InvalidConfiguration, "#{policy.name} and #{existing.name} both describe #{prefix}; the Policy of one model is shared by all of its controllers, so define it once"
       end
 
-      base.standard_api_schemas = base.standard_api_schemas.merge(prefix => schema).freeze
+      base.standard_api_policies = base.standard_api_policies.merge(prefix => policy).freeze
     end
 
-    # What +record_or_model+ renders (a Schema::Record; for a model, the record
-    # is nil): its model's Schema, or +through+, the Schema class the
+    # What +record_or_model+ renders (a Policy::Record; for a model, the record
+    # is nil): its model's Policy, or +through+, the Policy class the
     # association that included it gives, in its place. To keep what the
-    # model's Schema hides, +through+ inherits from it.
-    def record_schema(record_or_model, through = nil)
+    # model's Policy hides, +through+ inherits from it.
+    def record_policy(record_or_model, through = nil)
       model, record = record_or_model.is_a?(Class) ? [record_or_model, nil] : [record_or_model.class, record_or_model]
-      schema = through ? schema_instance(through, model) : model_schema(model)
-      (@rendering_schemas ||= {}.compare_by_identity)[record] = schema if record
-      StandardAPI::Schema::Record.new(self, model, record, schema)
+      policy = through ? policy_instance(through, model) : model_policy(model)
+      (@rendering_policies ||= {}.compare_by_identity)[record] = policy if record
+      StandardAPI::Policy::Record.new(self, model, record, policy)
     end
 
     private
@@ -51,11 +51,11 @@ module StandardAPI
     # same information (an MCP tool describing a model, say) can read it
     # directly instead of fetching a schema and parsing it back.
     #
-    # These are the defaults: Schema::Record#attributes passes them through
-    # the Schema, and record_schema(record_or_model).attributes gives the
+    # These are the defaults: Policy::Record#attributes passes them through
+    # the Policy, and record_policy(record_or_model).attributes gives the
     # result. application/_record renders a record from it, so the
     # definitions are also what a record is rendered with: an attribute its
-    # Schema leaves out isn't rendered, and one it adds is read from the record
+    # Policy leaves out isn't rendered, and one it adds is read from the record
     # by name.
     #
     # Returns an Array of Hashes, one per entry in +names+: for a model,
@@ -105,7 +105,7 @@ module StandardAPI
     # `read_only` is the model wide answer.
     #
     # They're built once a request per model and set of attribute names, so
-    # records loaded by the same query share them, and so does what the Schema
+    # records loaded by the same query share them, and so does what the Policy
     # makes of them.
     def default_definitions(model, names)
       @default_definitions ||= {}
@@ -168,34 +168,34 @@ module StandardAPI
       end
     end
 
-    # The Schema instance +record+ was last given by record_schema, which is what
+    # The Policy instance +record+ was last given by record_policy, which is what
     # it renders with, or else its model's
-    def rendering_schema(record)
-      @rendering_schemas&.key?(record) ? @rendering_schemas[record] : model_schema(record.class)
+    def rendering_policy(record)
+      @rendering_policies&.key?(record) ? @rendering_policies[record] : model_policy(record.class)
     end
 
-    # The instance of +schema+, given by an association's +schema+, for
+    # The instance of +policy+, given by an association's +policy+, for
     # +model+ this request
-    def schema_instance(schema, model)
-      (@schema_instances ||= {})[[schema, model]] ||= schema.new(self, model)
+    def policy_instance(policy, model)
+      (@policy_instances ||= {})[[policy, model]] ||= policy.new(self, model)
     end
 
-    # The Schema instance for +model+ this request, falling back to the one for
+    # The Policy instance for +model+ this request, falling back to the one for
     # its base class (ie. an STI subclass), or nil if there is none
-    def model_schema(model)
-      @model_schema_instances ||= {}
-      return @model_schema_instances[model] if @model_schema_instances.key?(model)
+    def model_policy(model)
+      @model_policy_instances ||= {}
+      return @model_policy_instances[model] if @model_policy_instances.key?(model)
 
       classes = model.respond_to?(:base_class) ? [model, model.base_class].uniq : [model]
-      klass = classes.filter_map { |k| self.class.standard_api_schemas[model_name(k)] || named_schema(k) }.first
-      @model_schema_instances[model] = klass&.new(self, model)
+      klass = classes.filter_map { |k| self.class.standard_api_policies[model_name(k)] || named_policy(k) }.first
+      @model_policy_instances[model] = klass&.new(self, model)
     end
 
     # A model with no controller of its own, such as one only rendered as an
-    # include, declares its Schema by name: ToolCallSchema for ToolCall
-    def named_schema(model)
-      schema = "#{model.name}Schema".safe_constantize
-      schema if schema.is_a?(Class) && schema < StandardAPI::Schema
+    # include, declares its Policy by name: ToolCallPolicy for ToolCall
+    def named_policy(model)
+      policy = "#{model.name}Policy".safe_constantize
+      policy if policy.is_a?(Class) && policy < StandardAPI::Policy
     end
 
   end

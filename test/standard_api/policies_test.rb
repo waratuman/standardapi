@@ -1,27 +1,27 @@
 require 'standard_api/test_helper'
 
-class SchemasTest < ActionDispatch::IntegrationTest
+class PoliciesTest < ActionDispatch::IntegrationTest
 
   KEYS = %i(name type enum default primary_key null array comment
     auto_populated read_only required validations)
 
-  def schemas(model, controller: PropertiesController.new)
-    controller.record_schema(model).attributes
+  def policies(model, controller: PropertiesController.new)
+    controller.record_policy(model).attributes
   end
 
   def attribute(model, name, **options)
-    schemas(model, **options).find { |a| a[:name] == name }
+    policies(model, **options).find { |a| a[:name] == name }
   end
 
-  # Have Property's Schema declare +names+ too
+  # Have Property's Policy declare +names+ too
   def declare_on_property(*names)
     declared = Property.attribute_names + names
-    schema = Class.new(StandardAPI::Schema) { attributes(*declared) }
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
+    policy = Class.new(StandardAPI::Policy) { attributes(*declared) }
+    ApplicationController.stubs(:standard_api_policies).returns('property' => policy)
   end
 
   test 'one definition per attribute, in attribute order, with every key' do
-    definitions = schemas(Property)
+    definitions = policies(Property)
 
     assert_equal Property.attribute_names, definitions.map { |a| a[:name] }
     definitions.each { |a| assert_equal KEYS, a.keys }
@@ -87,9 +87,9 @@ class SchemasTest < ActionDispatch::IntegrationTest
     params = ActionController::Parameters.new(type: 'Pdf', rating: 3)
     assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
 
-    schema = Class.new(StandardAPI::Schema) { attribute :type, comment: 'From the Schema of Document' }
-    DocumentsController.stubs(:standard_api_schemas).returns('document' => schema)
-    assert_equal 'From the Schema of Document', attribute(Pdf, 'type', controller: DocumentsController.new)[:comment]
+    policy = Class.new(StandardAPI::Policy) { attribute :type, comment: 'From the Policy of Document' }
+    DocumentsController.stubs(:standard_api_policies).returns('document' => policy)
+    assert_equal 'From the Policy of Document', attribute(Pdf, 'type', controller: DocumentsController.new)[:comment]
   end
 
   test 'a NOT NULL attr_readonly attribute is read only and required, without ACL attributes' do
@@ -142,12 +142,12 @@ class SchemasTest < ActionDispatch::IntegrationTest
 
   test 'definitions are built once per model' do
     controller = PropertiesController.new
-    assert_same schemas(Property, controller: controller).first,
-      schemas(Property, controller: controller).first
+    assert_same policies(Property, controller: controller).first,
+      policies(Property, controller: controller).first
   end
 
-  test "a Schema's declarations change the definitions" do
-    # CamerasController::Schema sets a comment on make
+  test "a Policy's declarations change the definitions" do
+    # CamerasController::Policy sets a comment on make
     assert_equal 'The manufacturer', attribute(Camera, 'make', controller: CamerasController.new)[:comment]
     assert_nil attribute(Camera, 'hidden', controller: CamerasController.new)[:comment]
   end
@@ -188,24 +188,24 @@ class SchemasTest < ActionDispatch::IntegrationTest
     controller = PropertiesController.new
 
     record = Property.select(:id, :name).first
-    assert_equal %w(id name), controller.record_schema(record).attributes.map { |a| a[:name] }
-    assert_equal attribute(Property, 'name'), controller.record_schema(record).attributes.last
+    assert_equal %w(id name), controller.record_policy(record).attributes.map { |a| a[:name] }
+    assert_equal attribute(Property, 'name'), controller.record_policy(record).attributes.last
   end
 
   test 'an attribute only a query selects is used once declared with a type' do
     create(:property)
     record = Property.select('properties.*, 1 AS rank').first
 
-    assert_not_includes PropertiesController.new.record_schema(record).attributes.map { |a| a[:name] }, 'rank'
+    assert_not_includes PropertiesController.new.record_policy(record).attributes.map { |a| a[:name] }, 'rank'
 
     names = Property.attribute_names
-    schema = Class.new(StandardAPI::Schema) do
+    policy = Class.new(StandardAPI::Policy) do
       attributes(*names)
       attribute :rank, :integer
     end
-    ApplicationController.stubs(:standard_api_schemas).returns('property' => schema)
+    ApplicationController.stubs(:standard_api_policies).returns('property' => policy)
 
-    rank = PropertiesController.new.record_schema(record).attributes.last
+    rank = PropertiesController.new.record_policy(record).attributes.last
     assert_equal 'rank', rank[:name]
     assert_equal 'integer', rank[:type]
   end
@@ -216,15 +216,15 @@ class SchemasTest < ActionDispatch::IntegrationTest
     controller = PropertiesController.new
     first, second = Property.limit(2).to_a
 
-    assert_same controller.record_schema(first).attributes, controller.record_schema(second).attributes
-    assert_same controller.record_schema(Property).attributes, controller.record_schema(first).attributes
+    assert_same controller.record_policy(first).attributes, controller.record_policy(second).attributes
+    assert_same controller.record_policy(Property).attributes, controller.record_policy(first).attributes
   end
 
-  test "records are rendered from their Schema's definitions" do
+  test "records are rendered from their Policy's definitions" do
     camera = create(:camera)
     Camera.any_instance.stubs(:thumbnail_url).returns('/thumb.png')
 
-    with_camera_schema(proc { remove :retired; attribute :thumbnail_url, :string }) do
+    with_camera_policy(proc { remove :retired; attribute :thumbnail_url, :string }) do
       get camera_path(camera, format: 'json')
       assert_response :ok
       body = JSON(response.body)
@@ -234,7 +234,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'a Schema can vary definitions by record' do
+  test 'a Policy can vary definitions by record' do
     sony = create(:camera, make: 'Sony')
     leica = create(:camera, make: 'Leica')
     controller = CamerasController.new
@@ -242,13 +242,13 @@ class SchemasTest < ActionDispatch::IntegrationTest
       attributes_for(-> { record&.make }) { |make| attribute :make, comment: make }
     end
 
-    with_camera_schema(declarations) do
+    with_camera_policy(declarations) do
       assert_nil attribute(Camera, 'make', controller: controller)[:comment]
-      make = ->(record) { controller.record_schema(record).attributes.find { |s| s[:name] == 'make' } }
+      make = ->(record) { controller.record_policy(record).attributes.find { |s| s[:name] == 'make' } }
       assert_equal 'Sony', make.(sony)[:comment]
       assert_equal 'Leica', make.(leica)[:comment]
       # and once per record
-      assert_same controller.record_schema(sony).attributes, controller.record_schema(sony).attributes
+      assert_same controller.record_policy(sony).attributes, controller.record_policy(sony).attributes
     end
   end
 
@@ -256,7 +256,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     create(:camera, retired: false)
     create(:camera, retired: true)
 
-    with_camera_schema(proc { attribute :make, unless: -> { record&.retired? } }) do
+    with_camera_policy(proc { attribute :make, unless: -> { record&.retired? } }) do
       get cameras_path(format: 'json'), params: { limit: 10 }
       assert_response :ok
       retired, active = JSON(response.body).partition { |c| c['retired'] }
@@ -272,7 +272,7 @@ class SchemasTest < ActionDispatch::IntegrationTest
     end
     declare_on_property('nickname')
 
-    definitions = schemas(model)
+    definitions = policies(model)
     assert_equal 'nickname', definitions.last[:name]
     assert_equal({
       name: 'nickname', type: 'string', enum: nil, default: nil,

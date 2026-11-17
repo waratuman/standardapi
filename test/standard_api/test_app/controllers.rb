@@ -106,47 +106,47 @@ end
 class CamerasController < ApplicationController
 
   # An account, without its email
-  class AccountWithoutEmailSchema < AccountSchema
+  class AccountWithoutEmailPolicy < AccountPolicy
     remove :email
   end
 
   # A photo, without its format
-  class PhotoWithoutFormatSchema < PhotoSchema
+  class PhotoWithoutFormatPolicy < PhotoPolicy
     remove :format
   end
 
   # The photo of a hidden camera: no format or created_at, nor the email of
   # its account
-  class HiddenPhotoSchema < PhotoSchema
+  class HiddenPhotoPolicy < PhotoPolicy
     remove :format, :created_at
-    association :account, schema: AccountWithoutEmailSchema
+    association :account, policy: AccountWithoutEmailPolicy
   end
 
-  # Adjusts the attribute definitions record_schema(Camera).attributes, the JSON Schemas and
+  # Adjusts the attribute definitions record_policy(Camera).attributes, the JSON Schemas and
   # rendered cameras are built from, and hides per record what the Camera tests
   # exercise in isolation from Property/Account, which are exercised by the
   # much larger StandardAPI::TestCase generic suite.
-  class Schema < StandardAPI::Schema
+  class Policy < StandardAPI::Policy
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
-    association :photo, unless: -> { record&.retired? }, schema: :photo_schema
+    association :photo, unless: -> { record&.retired? }, policy: :photo_policy
     association :specs
 
     private
 
     # `photos/_photo` is a custom partial, so the photo is only rendered
-    # with it because that partial passes it to record_schema. The account goes one level
+    # with it because that partial passes it to record_policy. The account goes one level
     # deeper, into application/_record.
     #
-    # The header stands in for a Schema that varies by *requester* (current
+    # The header stands in for a Policy that varies by *requester* (current
     # user, role, token) rather than by record. That is the case fragment
     # caching has to defend against, since the cache keys are built from
     # record timestamps alone and cannot tell two requesters apart.
-    def photo_schema
+    def photo_policy
       if record&.hidden?
-        HiddenPhotoSchema
+        HiddenPhotoPolicy
       elsif request.headers['X-Hide-Photo-Format'] == '1'
-        PhotoWithoutFormatSchema
+        PhotoWithoutFormatPolicy
       end
     end
   end

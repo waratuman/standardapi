@@ -8,13 +8,13 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     JSON(response.body)
   end
 
-  # Describe and render +model+ with +schema+ for the length of the block
-  def with_model_schema(model, schema)
-    schemas = ApplicationController.standard_api_schemas.merge(model.model_name.singular => schema)
-    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+  # Describe and render +model+ with +policy+ for the length of the block
+  def with_model_policy(model, policy)
+    policies = ApplicationController.standard_api_policies.merge(model.model_name.singular => policy)
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
     yield
   ensure
-    ApplicationController.unstub(:standard_api_schemas)
+    ApplicationController.unstub(:standard_api_policies)
   end
 
   test 'Controller#read_schema.json lists every column' do
@@ -56,7 +56,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_equal({}, controller_helpers.json_schema_for_type('jsonb'))
     assert_equal({ type: 'object' }, controller_helpers.json_schema_for_type('hstore'))
 
-    with_camera_schema(proc { attribute :make, :json }) do
+    with_camera_policy(proc { attribute :make, :json }) do
       make = read_schema(read_schema_cameras_path(format: 'json')).dig('properties', 'make')
       assert_not make.key?('type')
 
@@ -84,11 +84,11 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_equal 'Property', JSON(response.body)['title']
   end
 
-  test 'Controller#read_schema.json leaves out what a Schema hides from the model' do
+  test 'Controller#read_schema.json leaves out what a Policy hides from the model' do
     # record is nil for the model, so this hides email from the schema
-    schema_class = Class.new(AccountSchema) { attribute :email, if: -> { record&.persisted? } }
+    policy_class = Class.new(AccountPolicy) { attribute :email, if: -> { record&.persisted? } }
 
-    with_model_schema(Account, schema_class) do
+    with_model_policy(Account, policy_class) do
       schema = read_schema(read_schema_account_path(format: 'json'))
       assert_not_includes schema['properties'].keys, 'email'
       assert_includes schema['properties'].keys, 'name'
@@ -104,7 +104,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#read_schema.json include has_many' do
-    schema = with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+    schema = with_model_policy(Property, Class.new(PropertyPolicy) { associations :accounts }) do
       read_schema(read_schema_properties_path(format: 'json'), include: 'accounts')
     end
 
@@ -199,14 +199,14 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     assert_empty schemer.validate(JSON(response.body)).map { |e| e['error'] }
   end
 
-  test "Controller#read_schema.json description from the Schema's comment" do
+  test "Controller#read_schema.json description from the Policy's comment" do
     schema = read_schema(read_schema_cameras_path(format: 'json'))
 
     assert_equal 'The manufacturer', schema.dig('properties', 'make', 'description')
   end
 
-  test 'Controller#read_schema.json describes an attribute a Schema adds' do
-    with_model_schema(Account, Class.new(AccountSchema) { attribute :nickname, :string }) do
+  test 'Controller#read_schema.json describes an attribute a Policy adds' do
+    with_model_policy(Account, Class.new(AccountPolicy) { attribute :nickname, :string }) do
       schema = read_schema(read_schema_account_path(format: 'json'))
 
       # null defaults to true, and without a column it isn't required
@@ -216,8 +216,8 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Controller#read_schema.json leaves out what the Schema doesn't declare" do
-    with_model_schema(Property, Class.new(StandardAPI::Schema) { attributes :id, :name }) do
+  test "Controller#read_schema.json leaves out what the Policy doesn't declare" do
+    with_model_policy(Property, Class.new(StandardAPI::Policy) { attributes :id, :name }) do
       schema = read_schema(read_schema_properties_path(format: 'json'))
 
       assert_equal ['id', 'name', 'errors'], schema['properties'].keys
@@ -225,8 +225,8 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "Controller#read_schema.json describes included models from their Schema" do
-    with_model_schema(Account, Class.new(AccountSchema) { attribute :nickname, :string }) do
+  test "Controller#read_schema.json describes included models from their Policy" do
+    with_model_policy(Account, Class.new(AccountPolicy) { attribute :nickname, :string }) do
       schema = read_schema(read_schema_properties_path(format: 'json'), include: 'landlord')
 
       assert_equal ['string', 'null'], schema.dig('properties', 'landlord', 'properties', 'nickname', 'type')
@@ -234,7 +234,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#read_schema.json is a valid JSON Schema' do
-    schema = with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+    schema = with_model_policy(Property, Class.new(PropertyPolicy) { associations :accounts }) do
       read_schema(read_schema_properties_path(format: 'json'), include: { accounts: true, landlord: true })
     end
 
@@ -245,7 +245,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     property = create(:property, accounts: [create(:account)], landlord: create(:account))
     includes = { accounts: true, landlord: true }
 
-    with_model_schema(Property, Class.new(PropertySchema) { associations :accounts }) do
+    with_model_policy(Property, Class.new(PropertyPolicy) { associations :accounts }) do
       schemer = JSONSchemer.schema(read_schema(read_schema_properties_path(format: 'json'), include: includes))
 
       get property_path(property, format: 'json'), params: { include: includes }

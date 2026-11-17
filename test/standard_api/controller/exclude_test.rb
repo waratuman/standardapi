@@ -2,14 +2,14 @@ require 'standard_api/test_helper'
 
 class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
-  # = Schema conditions
+  # = Policy conditions
   #
   # These use the Camera resource, which isn't exercised by the generic
   # StandardAPI::TestCase suite (unlike Property/Account), so what
-  # CamerasController::Schema hides per record can be demonstrated here
+  # CamerasController::Policy hides per record can be demonstrated here
   # without affecting that much larger, resource-agnostic test suite.
 
-  test "Controller#show leaves out an attribute the Schema hides for the record" do
+  test "Controller#show leaves out an attribute the Policy hides for the record" do
     camera = create(:camera, make: "Leica", hidden: true)
 
     get "/cameras/#{camera.id}", as: :json
@@ -20,7 +20,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_not json.key?('make'), "Expected 'make' key to not be present for a hidden camera"
   end
 
-  test "Controller#show renders an attribute the Schema shows for the record" do
+  test "Controller#show renders an attribute the Policy shows for the record" do
     camera = create(:camera, make: "Leica", hidden: false)
 
     get "/cameras/#{camera.id}", as: :json
@@ -104,7 +104,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
   # = Narrowing included associations
 
-  test "an association's schema strips attributes from the included record" do
+  test "an association's policy strips attributes from the included record" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", hidden: true, photo: photo)
 
@@ -114,11 +114,11 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_not json.key?('make'), "Expected 'make' excluded on the camera"
     assert json.key?('photo'), "Expected 'photo' to be included"
-    assert_not json['photo'].key?('format'), "Expected 'format' excluded on the nested photo by its schema"
+    assert_not json['photo'].key?('format'), "Expected 'format' excluded on the nested photo by its policy"
     assert json['photo'].key?('id'), "Expected other photo attributes still present"
   end
 
-  test "an included record isn't narrowed when the association's schema gives none" do
+  test "an included record isn't narrowed when the association's policy gives none" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", hidden: false, photo: photo)
 
@@ -130,10 +130,10 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_equal 'jpg', json['photo']['format']
   end
 
-  test "an association's schema narrows every record in a has_many association" do
-    schema = Class.new(AccountSchema) { association :photos, schema: CamerasController::PhotoWithoutFormatSchema }
-    schemas = ApplicationController.standard_api_schemas.merge('account' => schema)
-    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+  test "an association's policy narrows every record in a has_many association" do
+    policy = Class.new(AccountPolicy) { association :photos, policy: CamerasController::PhotoWithoutFormatPolicy }
+    policies = ApplicationController.standard_api_policies.merge('account' => policy)
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
 
     account = create(:account, name: "Ansel", email: "ansel@example.com")
     photos = [
@@ -149,10 +149,10 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert json['photos'].none? { |photo| photo.key?('format') },
       "Expected every has_many record narrowed"
   ensure
-    ApplicationController.unstub(:standard_api_schemas)
+    ApplicationController.unstub(:standard_api_policies)
   end
 
-  test "an association the Schema hides for the record isn't rendered at all" do
+  test "an association the Policy hides for the record isn't rendered at all" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", retired: true, photo: photo)
 
@@ -165,7 +165,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
   # = Custom partials
   #
-  # StandardAPI only applies Schemas in application/_record. A custom model
+  # StandardAPI only applies Policies in application/_record. A custom model
   # partial has to resolve and apply what they hide itself, which is what
   # `photos/_photo` demonstrates.
 
@@ -214,7 +214,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
   #
   # Cache keys are built from record timestamps only (see
   # StandardAPI::Helpers#association_cache_key), so a fragment rendered for one
-  # requester must never be reused for one whose Schema hides more.
+  # requester must never be reused for one whose Policy hides more.
 
   test "hidden attributes are not served from a fragment cache warmed by another requester" do
     photo = create(:photo, format: 'jpg')
@@ -225,7 +225,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal 'jpg', JSON.parse(response.body)['photo']['format']
 
-    # Same record, a requester whose Schema hides photo.format.
+    # Same record, a requester whose Policy hides photo.format.
     get "/cameras/#{camera.id}", params: { include: [:photo] },
       headers: { 'X-Hide-Photo-Format' => '1' }, as: :json
     assert_response :ok
@@ -250,7 +250,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
       "permitted attribute was hidden by a fragment cached for a restricted requester"
   end
 
-  test "an association the Schema can hide still renders when it shows it" do
+  test "an association the Policy can hide still renders when it shows it" do
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", retired: false, photo: photo)
 

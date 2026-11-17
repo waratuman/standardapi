@@ -1,13 +1,13 @@
-schema = record_schema(record, local_assigns[:schema])
-schema.attributes.each do |definition|
+policy = record_policy(record, local_assigns[:policy])
+policy.attributes.each do |definition|
   serialize_attribute(json, record, definition[:name], definition[:type]&.to_sym)
 end
 
-schema.includes(includes).each do |name, sub_include, sub_schema|
+policy.includes(includes).each do |name, sub_include, sub_policy|
   case association = record.class.reflect_on_association(name)
   when ::ActiveRecord::Reflection::AbstractReflection
     if association.collection?
-      can_cache = can_cache_relation?(record, name, sub_include, sub_schema)
+      can_cache = can_cache_relation?(record, name, sub_include, sub_policy)
       json.set! name do
         json.cache_if!(can_cache, can_cache ? association_cache_key(record, name, sub_include) : nil) do
           partial = model_partial(association.klass)
@@ -29,11 +29,11 @@ schema.includes(includes).each do |name, sub_include, sub_schema|
           sub_records = sub_records.distinct if sub_include['distinct']
           sub_records = sub_records.distinct_on(sub_include['distinct_on']) if sub_include['distinct_on']
 
-          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: sub_include, schema: sub_schema }
+          json.array! sub_records, partial: partial, as: partial.split('/').last, locals: { includes: sub_include, policy: sub_policy }
         end
       end
     else
-      can_cache = can_cache_relation?(record, name, sub_include, sub_schema)
+      can_cache = can_cache_relation?(record, name, sub_include, sub_policy)
       cache_key = nil
 
       if can_cache
@@ -54,7 +54,7 @@ schema.includes(includes).each do |name, sub_include, sub_schema|
             json.null!
           else
             partial = model_partial(value)
-            json.partial! partial, partial.split('/').last.to_sym => value, includes: sub_include, schema: sub_schema
+            json.partial! partial, partial.split('/').last.to_sym => value, includes: sub_include, policy: sub_policy
           end
         end
       end
@@ -67,7 +67,7 @@ schema.includes(includes).each do |name, sub_include, sub_schema|
       elsif value.is_a?(ActiveModel::Model)
         json.set! name do
           partial = model_partial(value)
-          json.partial! partial, partial.split('/').last.to_sym => value, includes: sub_include, schema: sub_schema
+          json.partial! partial, partial.split('/').last.to_sym => value, includes: sub_include, policy: sub_policy
         end
       else
         json.set! name, value.as_json
@@ -78,5 +78,5 @@ schema.includes(includes).each do |name, sub_include, sub_schema|
 end
 
 if !record.errors.blank?
-  json.set! 'errors', schema.errors
+  json.set! 'errors', policy.errors
 end

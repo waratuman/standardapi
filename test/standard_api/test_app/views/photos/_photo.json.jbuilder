@@ -1,17 +1,17 @@
-schema = record_schema(photo, local_assigns[:schema])
+policy = record_policy(photo, local_assigns[:policy])
 
-json.set! :id,          photo.id          unless schema.hidden?(:id)
-json.set! :account_id,  photo.account_id  unless schema.hidden?(:account_id)
-json.set! :property_id, photo.property_id unless schema.hidden?(:property_id)
-json.set! :format,      photo.format      unless schema.hidden?(:format)
-json.set! :created_at,  photo.created_at  unless schema.hidden?(:created_at)
+json.set! :id,          photo.id          unless policy.hidden?(:id)
+json.set! :account_id,  photo.account_id  unless policy.hidden?(:account_id)
+json.set! :property_id, photo.property_id unless policy.hidden?(:property_id)
+json.set! :format,      photo.format      unless policy.hidden?(:format)
+json.set! :created_at,  photo.created_at  unless policy.hidden?(:created_at)
 json.set! :template,    'photos/_photo'
 
-if includes[:account] && schema.include?(:account)
+if includes[:account] && policy.include?(:account)
   json.set! :account do
     if photo.account
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schema: schema.association_schema(:account)
+        includes: includes[:account], policy: policy.association_policy(:account)
     else
       json.null!
     end

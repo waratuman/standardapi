@@ -49,7 +49,7 @@ if model.nil? && controller_name == "application"
 else
 
   json.set! 'attributes' do
-    record_schema(model).attributes.each do |schema|
+    record_policy(model).attributes.each do |schema|
       json.set! schema[:name] do
         json.set! 'type', schema_json_type(model, schema)
         json.set! 'default', schema[:default]

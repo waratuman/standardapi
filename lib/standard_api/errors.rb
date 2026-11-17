@@ -15,13 +15,13 @@ module StandardAPI
   class InvalidConfiguration < StandardAPIError
   end
 
-  # Raised when rendering or describing a model that has no Schema
-  class MissingSchema < StandardAPIError
+  # Raised when rendering or describing a model that has no Policy
+  class MissingPolicy < StandardAPIError
     attr_reader :model
 
     def initialize(model)
       @model = model
-      super("#{model.name} has no Schema; nest a Schema in its controller or define #{model.name}Schema, subclasses of StandardAPI::Schema")
+      super("#{model.name} has no Policy; nest a Policy in its controller or define #{model.name}Policy, subclasses of StandardAPI::Policy")
     end
   end
 

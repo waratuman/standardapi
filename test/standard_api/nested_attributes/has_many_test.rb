@@ -81,12 +81,12 @@ module NestedAttributes
       assert_equal "B Co.", attributes["accounts"][0]["name"]
     end
 
-    test "update record doesn't render a nested record its Schema doesn't declare" do
+    test "update record doesn't render a nested record its Policy doesn't declare" do
       account = create(:account, name: 'A Co.')
       property = create(:property, name: 'Empire State Building', accounts: [account])
-      schema = Class.new(PropertySchema) { remove :accounts }
-      schemas = ApplicationController.standard_api_schemas.merge('property' => schema)
-      ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+      policy = Class.new(PropertyPolicy) { remove :accounts }
+      policies = ApplicationController.standard_api_policies.merge('property' => policy)
+      ApplicationController.stubs(:standard_api_policies).returns(policies)
 
       put property_path(property), params: { property: { accounts: [{id: account.id, name: "B Co."}]} }, as: :json
 
@@ -94,7 +94,7 @@ module NestedAttributes
       assert_not JSON.parse(response.body).key?('accounts')
       assert_equal 'B Co.', account.reload.name
     ensure
-      ApplicationController.unstub(:standard_api_schemas)
+      ApplicationController.unstub(:standard_api_policies)
     end
 
   end
