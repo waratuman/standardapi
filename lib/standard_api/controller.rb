@@ -415,7 +415,7 @@ module StandardAPI
     def wheres
       return @wheres if defined?(@wheres)
 
-      @wheres = sanitize_wheres(params['where'], record_policy(self.class.model).filterable, self.class.model)
+      @wheres = sanitize_wheres(params['where'], record_policy(self.class.model))
     end
 
     # The +group_by+ param as columns of the controller's model, which

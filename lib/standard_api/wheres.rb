@@ -31,35 +31,36 @@ module StandardAPI
 
     private
 
-    # Check +wheres+, ie. the +where+ param, against +permit+, what can be
-    # filtered on +model+ as Policy::Record#filterable gives it, and return
-    # them, or raise StandardAPI::UnpermittedParameters.
+    # Check +wheres+, ie. the +where+ param, against what +policy+, a
+    # Policy::Record, makes filterable on its model, and return them, or raise
+    # StandardAPI::UnpermittedParameters.
     #
     # A column permitted with :all permits any operator, or else only the
-    # operators listed:
+    # operators listed. If Property's Policy makes +size+ filterable with
+    # <tt>[:gt, :lt]</tt>:
     #
-    #   sanitize_wheres({ size: { gt: 1 } }, { 'name' => :all, 'size' => ['gt', 'lt'] }, Property)
+    #   sanitize_wheres({ size: { gt: 1 } }, record_policy(Property))
     #   # => { size: { gt: 1 } }
     #
     # An association permitted by name is checked against what the
     # associated model's Policy makes filterable. A +filter_on+ filter is
     # permitted by name, and its value is not checked.
-    def sanitize_wheres(wheres, permit, model)
-      check_wheres(wheres, permit, model)
+    def sanitize_wheres(wheres, policy)
+      check_wheres(wheres, policy)
       wheres
     end
 
-    def check_wheres(wheres, permit, model)
+    def check_wheres(wheres, policy)
       case wheres
       when nil
       when Array
         wheres.each do |where|
-          check_wheres(where, permit, model) unless where == 'AND' || where == 'OR'
+          check_wheres(where, policy) unless where == 'AND' || where == 'OR'
         end
       when Hash, ActionController::Parameters
-        wheres.each_pair { |key, value| check_where(key.to_s, value, permit, model) }
+        wheres.each_pair { |key, value| check_where(key.to_s, value, policy) }
       else
-        check_where('id', wheres, permit, model)
+        check_where('id', wheres, policy)
       end
     end
 
@@ -67,7 +68,9 @@ module StandardAPI
     # filter, a column, an association, then an association's +_ids+, which
     # permitting the association permits. Any other key permitted, ie. a
     # has_and_belongs_to_many join table, is permitted by name.
-    def check_where(key, value, permit, model)
+    def check_where(key, value, policy)
+      model = policy.model
+      permit = policy.filterable
       name = key.split('.').first
       permitted = permit.fetch(name) do
         ids_association = key.sub(/_ids\z/, 's') if key.end_with?('_ids')
@@ -89,7 +92,7 @@ module StandardAPI
 
         check_association_where(key, association, value)
       elsif key.end_with?('_ids') && association = model.reflect_on_association(key.sub(/_ids\z/, 's'))
-        check_wheres({ id: value }, record_policy(association.klass).filterable, association.klass)
+        check_wheres({ id: value }, record_policy(association.klass))
       end
     end
 
@@ -115,7 +118,7 @@ module StandardAPI
         association.klass
       end
 
-      check_wheres(value, record_policy(klass).filterable, klass)
+      check_wheres(value, record_policy(klass))
     end
 
     # The operators a where +value+ on +column+ uses, including the implicit

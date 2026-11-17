@@ -70,7 +70,7 @@ module StandardAPI::TestCase
   # Whether the model's Policy makes +where+ filterable
   def where_permitted?(where)
     controller = controller_class.new
-    controller.send(:sanitize_wheres, where, controller.record_policy(model).filterable, model)
+    controller.send(:sanitize_wheres, where, controller.record_policy(model))
     true
   rescue StandardAPI::UnpermittedParameters
     false

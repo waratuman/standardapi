@@ -94,42 +94,47 @@ class ControllerWhereTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "id"', response.body
   end
 
+  # A stand-in Policy::Record that makes +permit+ filterable on +model+
+  def policy(model, permit)
+    Struct.new(:model, :filterable).new(model, permit)
+  end
+
   test "Wheres#sanitize_wheres checks a polymorphic association against the Policy of its as class" do
     sanitize = AccountsController.new.method(:sanitize_wheres)
     permit = { 'subject' => :all }
 
     with_model_policy(Property, Class.new(PropertyPolicy) { attribute :id, filterable: false; attribute :name, filterable: true }) do
-      assert_equal({ subject: { as: 'Property', name: 'a' } }, sanitize.call({ subject: { as: 'Property', name: 'a' } }, permit, Account))
-      assert_equal({ subject: nil }, sanitize.call({ subject: nil }, permit, Account))
+      assert_equal({ subject: { as: 'Property', name: 'a' } }, sanitize.call({ subject: { as: 'Property', name: 'a' } }, policy(Account, permit)))
+      assert_equal({ subject: nil }, sanitize.call({ subject: nil }, policy(Account, permit)))
 
-      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Property', id: 1 } }, permit, Account) }
-      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Camera', hidden: true } }, permit, Account) }
-      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Kernel' } }, permit, Account) }
-      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { name: 'a' } }, permit, Account) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Property', id: 1 } }, policy(Account, permit)) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Camera', hidden: true } }, policy(Account, permit)) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { as: 'Kernel' } }, policy(Account, permit)) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { name: 'a' } }, policy(Account, permit)) }
     end
   end
 
   test "Wheres#sanitize_wheres" do
     sanitize = CamerasController.new.method(:sanitize_wheres)
 
-    assert_equal({ make: { ilike: 'l%' } }, sanitize.call({ make: { ilike: 'l%' } }, { 'make' => :all }, Camera))
-    assert_equal({ make: { ilike: 'l%' } }, sanitize.call({ make: { ilike: 'l%' } }, { 'make' => ['ilike'] }, Camera))
+    assert_equal({ make: { ilike: 'l%' } }, sanitize.call({ make: { ilike: 'l%' } }, policy(Camera, { 'make' => :all })))
+    assert_equal({ make: { ilike: 'l%' } }, sanitize.call({ make: { ilike: 'l%' } }, policy(Camera, { 'make' => ['ilike'] })))
     # An alias is permitted with its canonical name
-    assert_equal({ make: { gt: 'l' } }, sanitize.call({ make: { gt: 'l' } }, { 'make' => ['gt'] }, Camera))
-    assert_equal({ make: { greater_than: 'l' } }, sanitize.call({ make: { greater_than: 'l' } }, { 'make' => ['gt'] }, Camera))
-    assert_equal({ 'make.x' => 'l' }, sanitize.call({ 'make.x' => 'l' }, { 'make' => :all }, Camera))
-    assert_equal(1, sanitize.call(1, { 'id' => :all }, Camera))
-    assert_nil sanitize.call(nil, {}, Camera)
+    assert_equal({ make: { gt: 'l' } }, sanitize.call({ make: { gt: 'l' } }, policy(Camera, { 'make' => ['gt'] })))
+    assert_equal({ make: { greater_than: 'l' } }, sanitize.call({ make: { greater_than: 'l' } }, policy(Camera, { 'make' => ['gt'] })))
+    assert_equal({ 'make.x' => 'l' }, sanitize.call({ 'make.x' => 'l' }, policy(Camera, { 'make' => :all })))
+    assert_equal(1, sanitize.call(1, policy(Camera, { 'id' => :all })))
+    assert_nil sanitize.call(nil, policy(Camera, {}))
 
     # A relative date/time value is not operators
-    assert_equal({ make: { at: 'now' } }, sanitize.call({ make: { at: 'now' } }, { 'make' => ['eq'] }, Camera))
+    assert_equal({ make: { at: 'now' } }, sanitize.call({ make: { at: 'now' } }, policy(Camera, { 'make' => ['eq'] })))
 
-    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(1, { 'make' => :all }, Camera) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(1, policy(Camera, { 'make' => :all })) }
     # An operator listed that activerecord-filter doesn't support only permits itself
-    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ make: 'l' }, { 'make' => ['bogus'] }, Camera) }
-    assert_equal({ make: { bogus: 'l' } }, sanitize.call({ make: { bogus: 'l' } }, { 'make' => ['bogus'] }, Camera))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ make: 'l' }, policy(Camera, { 'make' => ['bogus'] })) }
+    assert_equal({ make: { bogus: 'l' } }, sanitize.call({ make: { bogus: 'l' } }, policy(Camera, { 'make' => ['bogus'] })))
     # Operators can't be permitted on an association
-    assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ photo: { id: 1 } }, { 'photo' => ['eq'] }, Camera) }
+    assert_raises(StandardAPI::InvalidConfiguration) { sanitize.call({ photo: { id: 1 } }, policy(Camera, { 'photo' => ['eq'] })) }
   end
 
 end

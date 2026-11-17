@@ -106,7 +106,7 @@ module StandardAPI
           # ie. under a polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_wheres(v, record_policy(model).filterable, model)
+          sanitize_wheres(v, record_policy(model))
         elsif k.to_s == 'order'
           # Orders the included records, so is checked against the orders
           # permitted on their model (StandardAPI::Orders). Without a model,
@@ -177,7 +177,7 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
         end
 
-        check_wheres({ name.to_s => true }, record_policy(model).filterable, model)
+        check_wheres({ name.to_s => true }, record_policy(model))
       end
     end
 
