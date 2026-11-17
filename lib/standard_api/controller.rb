@@ -409,13 +409,13 @@ module StandardAPI
       nil
     end
 
-    # The +where+ param, checked against the ACL's wheres. It filters
+    # The +where+ param, checked against what the Policy makes filterable. It filters
     # #resources, ie. the controller's model even in the *_resource actions,
     # where #model is the association's model.
     def wheres
       return @wheres if defined?(@wheres)
 
-      @wheres = sanitize_wheres(params['where'], wheres_for(self.class.model), self.class.model)
+      @wheres = sanitize_wheres(params['where'], record_policy(self.class.model).filterable, self.class.model)
     end
 
     # The +group_by+ param as columns of the controller's model, which

@@ -47,9 +47,12 @@ module StandardAPI
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
 
       # +association_options+ are each declared association's options,
-      # +values+ each attribute's declared +value+, and +orderable+ the names
-      # of those declared +orderable+
-      attr_reader :conditions, :association_options, :association_conditions, :values, :orderable
+      # +values+ each attribute's declared +value+, +orderable+ the names of
+      # those declared +orderable+, and +filterable_operators+ what's declared
+      # +filterable+, as name => :all or the canonical operators it permits,
+      # with +filterable_conditions+ those of a standalone +filterable+
+      attr_reader :conditions, :association_options, :association_conditions, :values, :orderable,
+        :filterable_operators, :filterable_conditions
 
       def initialize
         @changes = {}
@@ -58,17 +61,21 @@ module StandardAPI
         @association_options = {}
         @association_conditions = {}
         @orderable = []
+        @filterable_operators = {}
+        @filterable_conditions = {}
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
       # when +type+ is given and the model doesn't have it. +if+ and +unless+
       # hide it per record, and +value+ renders it in place of the record's.
-      # +orderable+ lets a request order by it.
+      # +orderable+ lets a request order by it, and +filterable+ filter on it:
+      # +true+ with any operator, or only the operators it lists.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
         value = options.delete(:value)
         orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
+        filterable!(name, options.delete(:filterable)) if options.key?(:filterable)
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -93,11 +100,19 @@ module StandardAPI
       # included of it against, so +types+ lists the models it can be, ie.
       # `types: [Property, 'Account']`, and what one of their Policies declares
       # can be included of it. +orderable+ lets a request order by what the
-      # associated model's own Policy makes orderable.
+      # associated model's own Policy makes orderable, and +filterable+ filter
+      # on what it makes filterable.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
         orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
+        if options.key?(:filterable)
+          filterable = options.delete(:filterable)
+          if filterable != true && filterable != false
+            raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
+          end
+          filterable!(name, filterable)
+        end
         unknown = options.keys - ASSOCIATION_OPTIONS
         raise ArgumentError, "unknown options for association #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -111,6 +126,21 @@ module StandardAPI
         self
       end
 
+      # Let a request filter on +names+ without declaring them, ie. a
+      # +filter_on+ filter, a has_and_belongs_to_many join table or an
+      # association that isn't included, with any operator, or only
+      # +operators+. +if+ and +unless+ are decided for the model.
+      def filterable(*names, operators: true, **options)
+        conditions = options.extract!(:if, :unless)
+        raise ArgumentError, "unknown options for filterable: #{options.keys.join(', ')}" if !options.empty?
+
+        names.map(&:to_s).each do |name|
+          filterable!(name, operators)
+          conditions.empty? ? @filterable_conditions.delete(name) : (@filterable_conditions[name] = conditions.to_a)
+        end
+        self
+      end
+
       # Take back a declaration, ie. one inherited from a parent Policy
       def remove(*names)
         names.map(&:to_s).each do |name|
@@ -120,6 +150,8 @@ module StandardAPI
           @association_options.delete(name)
           @association_conditions.delete(name)
           @orderable.delete(name)
+          @filterable_operators.delete(name)
+          @filterable_conditions.delete(name)
         end
         self
       end
@@ -155,6 +187,19 @@ module StandardAPI
       # +orderable: false+ takes back an inherited one
       def orderable!(name, orderable)
         orderable ? (@orderable |= [name]) : @orderable.delete(name)
+      end
+
+      # +filterable: false+ takes back an inherited one; +true+ or "*" permit
+      # any operator
+      def filterable!(name, filterable)
+        if !filterable
+          @filterable_operators.delete(name)
+          @filterable_conditions.delete(name)
+        elsif filterable == true || filterable.to_s == '*'
+          @filterable_operators[name] = :all
+        else
+          @filterable_operators[name] = Array.wrap(filterable).map { |operator| StandardAPI::Wheres.canonical_operator(operator) }
+        end
       end
     end
 
@@ -194,6 +239,10 @@ module StandardAPI
           raise ArgumentError, "the types of association #{name} must be models or their names"
         end
 
+        if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
+          raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
+        end
+
         varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
         # The Policy it gives can vary too, and may not be fully declared yet
         varies ||= -> { policy.varies_by_requester? } if policy.is_a?(Class)
@@ -202,6 +251,12 @@ module StandardAPI
 
       def associations(*names, **options)
         add_step { associations(*names, **options) }
+      end
+
+      # See Builder#filterable. It doesn't change what renders, so it can't
+      # make the Policy vary by requester.
+      def filterable(*names, **options)
+        add_step { filterable(*names, **options) }
       end
 
       def remove(*names)
@@ -292,8 +347,20 @@ module StandardAPI
     # the attributes and associations declared +orderable+ whose conditions
     # pass. Ordering through an association is checked against its model's
     # own Policy.
-    def orderable
-      @orderable ||= builder_for(nil).orderable - failed_conditions(nil) - failed_association_conditions(nil)
+    def permitted_orders
+      @permitted_orders ||= builder_for(nil).orderable - failed_conditions(nil) - failed_association_conditions(nil)
+    end
+
+    # What a request may filter on, for a model (a nil record), as name =>
+    # :all or the canonical operators it permits: what's declared
+    # +filterable+, unless a condition hides it from the model. Filtering
+    # through an association is checked against its model's own Policy.
+    def permitted_wheres
+      @permitted_wheres ||= begin
+        builder = builder_for(nil)
+        hidden = failed_conditions(nil) + failed_association_conditions(nil) + failed(builder.filterable_conditions, nil)
+        builder.filterable_operators.except(*hidden)
+      end
     end
 
     # The Policy class the records +record+ includes through the association
@@ -335,6 +402,10 @@ module StandardAPI
 
     def associations(*names, **options)
       declarations.associations(*names, **options)
+    end
+
+    def filterable(*names, **options)
+      declarations.filterable(*names, **options)
     end
 
     def remove(*names)

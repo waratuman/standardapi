@@ -124,6 +124,10 @@ class CamerasController < ApplicationController
     association :photo, unless: -> { record&.retired? }, policy: :photo_policy
     association :specs
 
+    attributes :id, :make, filterable: true
+    attribute :photo_id, filterable: [:eq, :in]
+    association :photo, filterable: true
+
     private
 
     # `photos/_photo` is a custom partial, so the photo is only rendered

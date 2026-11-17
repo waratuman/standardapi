@@ -51,29 +51,27 @@
   against what the included model's Policy makes orderable, like the `order`
   param. Anything else, and any order under a polymorphic association, is
   rejected with a 400; before, any column could be ordered by.
-- The `where` param is checked against a new ACL `wheres` method, which lists
-  what can be filtered on. Without one, nothing can: every `where` is
-  rejected with a 400 until the model's ACL defines `wheres`, including for
-  filters through associations.
+- The `where` param is checked against what the model's Policy declares
+  `filterable`. Nothing else can be filtered on: every `where` is rejected
+  with a 400 until the Policy makes it filterable, including for filters
+  through associations.
   - A column permits any operator, or the operators it lists, ie.
-    `{ photo_id: [:eq, :in] }`; an operator's aliases, ie. `gt` and
-    `greater_than`, are permitted together. A bare value counts as `eq` and
-    an Array as `in`.
-  - An association is permitted by name, and what is filtered on it is
-    checked against the associated model's ACL `wheres`; for a polymorphic
-    association, those of its `as` class. Permitting an association also
-    permits its `_ids`.
-  - A `filter_on` filter is permitted by name.
-  - Operators listed on an association raise
-    `StandardAPI::InvalidConfiguration`. An operator activerecord-filter
-    doesn't support is left to it, and raises its own error.
-  - An STI subclass falls back to its base class's ACL `wheres`.
+    `attribute :photo_id, filterable: [:eq, :in]`; an operator's aliases, ie.
+    `gt` and `greater_than`, are permitted together. A bare value counts as
+    `eq` and an Array as `in`.
+  - An association declared `filterable` is checked against what the
+    associated model's Policy makes filterable; for a polymorphic
+    association, the Policy of its `as` class. It also permits its `_ids`.
+  - A `filter_on` filter, a has_and_belongs_to_many join table, or anything
+    else that isn't rendered is permitted with `filterable :name`.
+  - An operator activerecord-filter doesn't support is left to it, and
+    raises its own error.
 - An include's `where`, ie. `include[photos][where][id]=1`, is checked
-  against the included model's ACL `wheres`, and rejected with a 400 under a
-  polymorphic association.
+  against what the included model's Policy makes filterable, and rejected
+  with a 400 under a polymorphic association.
 - `StandardAPI::TestCase`'s `#index.json params[:where]` and
-  `#calculate.json params[:where]` tests skip for a model whose ACL `wheres`
-  don't permit filtering on `id`.
+  `#calculate.json params[:where]` tests skip for a model whose Policy
+  doesn't make `id` filterable.
 
 - Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
   `schema/query.json` (see Added). `schema/read.json` describes records as
@@ -170,7 +168,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
-  `association_policy`, `orderable`, `value`, `hidden?` and `errors`.
+  `association_policy`, `orderable`, `filterable`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
@@ -198,8 +196,11 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   hides, it inherits from it.
   `orderable: true` on an attribute or association, ie. `attributes :id,
   :name, orderable: true`, lets a request order by it, and `orderable: false`
-  takes back an inherited one. `attributes` and `associations` take the same
-  options as `attribute` and `association`.
+  takes back an inherited one. `filterable: true`, or the operators it
+  permits, lets a request filter on it the same way, and `filterable :name`
+  permits a name without declaring it, ie. a `filter_on` filter.
+  `attributes` and `associations` take the same options as `attribute` and
+  `association`.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
   `record_policy(record_or_model).attributes` returns the result, for use
@@ -222,8 +223,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
     associations its `nested` permits. `required` is for a create. A
     `read_only` definition is `readOnly`; an auto populated column isn't, and
     isn't `required`.
-  - `schema/query.json`: the `where` and `order` the ACL's `wheres` and
-    `orders` permit, and the `include` the Policies declare, following
+  - `schema/query.json`: the `where`, `order` and `include` the Policies
+    declare, following
     associations through `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
     params no ACL checks yet, marked as such.
 
@@ -237,7 +238,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 ### Changed
 
 - The ACL `attributes` and Policy lookups fall back to the base
-  class's for an STI subclass, as `orders` and `wheres` do. An STI
+  class's for an STI subclass. An STI
   subclass without an ACL of its own can now be created and updated with the
   attributes its base class's ACL permits, where before it permitted none,
   and the JSON Schemas and `schema.json` describe it the same way.
@@ -261,8 +262,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   the include only for the records matching it, called `record.send` with
   each of its keys, so a GET could call any method on the records it
   rendered: `include[photos][when][destroy]=1` destroyed them. Its keys must
-  now be attributes of the model, permitted like a `where` with `eq` by its
-  ACL `wheres`, and are read with `read_attribute`; anything else is rejected
+  now be attributes of the model its Policy makes filterable with `eq`, and
+  are read with `read_attribute`; anything else is rejected
   with a 400.
 - The `group_by` param was passed to `group` as a String, which Rails uses
   as raw SQL, so a client could append SQL to the `GROUP BY` of `index`,

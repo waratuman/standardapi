@@ -68,7 +68,14 @@ module StandardAPI
       # may order by (Policy#orderable), decided for the model whatever the
       # record. Without a Policy, nothing can be.
       def orderable
-        policy ? policy.orderable : []
+        policy ? policy.permitted_orders : []
+      end
+
+      # What a request may filter on (Policy#permitted_wheres), as name =>
+      # :all or the canonical operators it permits, decided for the model
+      # whatever the record. Without a Policy, nothing can be.
+      def filterable
+        policy ? policy.permitted_wheres : {}
       end
 
       # The Policy class the records included through +name+ render with in

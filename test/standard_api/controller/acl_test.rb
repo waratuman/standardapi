@@ -55,19 +55,6 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "wheres in a nested ACL do not shadow the controller's" do
-    acl_controller(Attachment) do
-      def wheres
-        [ :id ]
-      end
-    end
-    StandardAPI::AccessControlList.load!
-
-    controller = @acl_base.new
-    assert_equal [:id], controller.attachment_wheres
-    assert_equal StandardAPI::Controller, @acl_controller.instance_method(:wheres).owner
-  end
-
   test "nested and filter are renamed to their own names" do
     acl_controller(Attachment) do
       def nested
@@ -86,7 +73,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "a nested ACL on a controller without a model is skipped" do
     controller = acl_controller(nil) do
-      def wheres
+      def attributes(record = nil)
         [ :id ]
       end
     end
@@ -97,7 +84,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "an ACL constant in a controller that doesn't use StandardAPI is skipped" do
     controller = Class.new(ActionController::Base)
-    controller.const_set(:ACL, Module.new { def wheres = [ :id ] })
+    controller.const_set(:ACL, Module.new { def attributes(record = nil) = [ :id ] })
     (@acl_controllers ||= []) << controller
 
     assert_nothing_raised { StandardAPI::AccessControlList.load! }
@@ -106,32 +93,32 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "two nested ACLs of one model defining the same method raise" do
     acl_controller(Attachment) do
-      def wheres
+      def attributes(record = nil)
         [ :id ]
       end
     end
     acl_controller(Attachment) do
-      def wheres
+      def attributes(record = nil)
         [ :id, :created_at ]
       end
     end
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/both define attachment_wheres/, error.message)
+    assert_match(/both define attachment_attributes/, error.message)
   end
 
   test "load! can be repeated" do
     acl_controller(Attachment) do
-      def wheres
+      def attributes(record = nil)
         [ :id ]
       end
     end
     StandardAPI::AccessControlList.load!
     StandardAPI::AccessControlList.load!
 
-    assert_equal [:attachment_wheres], @acl_controller::ACL.instance_methods(false)
+    assert_equal [:attachment_attributes], @acl_controller::ACL.instance_methods(false)
     assert_equal 1, @acl_base.ancestors.count(@acl_controller::ACL)
-    assert_equal [:id], @acl_base.new.attachment_wheres
+    assert_equal [:id], @acl_base.new.attachment_attributes
   end
 
 end
