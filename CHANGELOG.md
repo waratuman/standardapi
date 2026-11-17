@@ -40,8 +40,13 @@
 - Remove `Controller#model_orders`. Declare what can be ordered by in the
   model's Policy and use `record_policy(model).orderable` instead. An
   override of `model_orders` isn't used.
+- Remove `Controller#required_orders`. Declare them in the model's Policy with
+  `required_orders :id`; they're orderable without being declared `orderable`.
+  An override of `required_orders` isn't used.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
-  `StandardAPI::Controller`; use `sanitize_orders` instead.
+  `StandardAPI::Controller`; use `sanitize_orders` instead. It takes a
+  `Policy::Record`, ie. `sanitize_orders(orders, record_policy(model))`, in
+  place of a permit list and a model.
 - Remove `Controller#model_includes`. Declare what can be included in the
   model's Policy instead. An override of `model_includes` isn't used.
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
@@ -157,6 +162,19 @@ ignores the `order` param. An association they permitted by name is declared
       association :account, orderable: true
     end
 
+A controller's `required_orders` method has moved to the model's Policy, so
+it applies wherever that model is the one listed:
+
+    # Before, in PhotosController
+    def required_orders
+      [ :id ]
+    end
+
+    # After
+    class PhotoPolicy < StandardAPI::Policy
+      required_orders :id
+    end
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
@@ -168,7 +186,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
-  `association_policy`, `orderable`, `filterable`, `value`, `hidden?` and `errors`.
+  `association_policy`, `orderable`, `required_orders`, `filterable`, `value`,
+  `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
@@ -249,6 +268,9 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 ### Fixed
 
+- A controller with required orders sorts an index without an `order` by its
+  `default_orders`, then the required orders; before, it ignored
+  `default_orders`. They're no longer written into `params[:order]` either.
 - `read_only` is true for an `attr_readonly` attribute even when the ACL's
   `attributes` permit it, since Rails won't change it after create. `required`
   is about create, so a NOT NULL `attr_readonly` attribute is both: it must be

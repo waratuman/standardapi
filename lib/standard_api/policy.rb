@@ -48,11 +48,12 @@ module StandardAPI
 
       # +association_options+ are each declared association's options,
       # +values+ each attribute's declared +value+, +orderable+ the names of
-      # those declared +orderable+, and +filterable_operators+ what's declared
-      # +filterable+, as name => :all or the canonical operators it permits,
-      # with +filterable_conditions+ those of a standalone +filterable+
+      # those declared +orderable+, +required+ those of +required_orders+ in
+      # order, and +filterable_operators+ what's declared +filterable+, as
+      # name => :all or the canonical operators it permits, with
+      # +filterable_conditions+ those of a standalone +filterable+
       attr_reader :conditions, :association_options, :association_conditions, :values, :orderable,
-        :filterable_operators, :filterable_conditions
+        :required, :filterable_operators, :filterable_conditions
 
       def initialize
         @changes = {}
@@ -61,6 +62,7 @@ module StandardAPI
         @association_options = {}
         @association_conditions = {}
         @orderable = []
+        @required = []
         @filterable_operators = {}
         @filterable_conditions = {}
       end
@@ -141,6 +143,16 @@ module StandardAPI
         self
       end
 
+      # Order every request by +names+ after what it orders by, ie. +:id+ so
+      # pages are stable, unless it already orders by them. They're orderable
+      # too, without being declared.
+      def required_orders(*names)
+        names = names.map(&:to_s)
+        @required |= names
+        @orderable |= names
+        self
+      end
+
       # Take back a declaration, ie. one inherited from a parent Policy
       def remove(*names)
         names.map(&:to_s).each do |name|
@@ -150,6 +162,7 @@ module StandardAPI
           @association_options.delete(name)
           @association_conditions.delete(name)
           @orderable.delete(name)
+          @required.delete(name)
           @filterable_operators.delete(name)
           @filterable_conditions.delete(name)
         end
@@ -184,9 +197,14 @@ module StandardAPI
 
       private
 
-      # +orderable: false+ takes back an inherited one
+      # +orderable: false+ takes back an inherited one, required or not
       def orderable!(name, orderable)
-        orderable ? (@orderable |= [name]) : @orderable.delete(name)
+        if orderable
+          @orderable |= [name]
+        else
+          @orderable.delete(name)
+          @required.delete(name)
+        end
       end
 
       # +filterable: false+ takes back an inherited one; +true+ or "*" permit
@@ -259,6 +277,12 @@ module StandardAPI
         add_step { filterable(*names, **options) }
       end
 
+      # See Builder#required_orders. Like +filterable+, it can't make the
+      # Policy vary by requester.
+      def required_orders(*names)
+        add_step { required_orders(*names) }
+      end
+
       def remove(*names)
         add_step { remove(*names) }
       end
@@ -267,7 +291,8 @@ module StandardAPI
       # reads +record+ (nil for a model), and records with the same result share
       # them: the block runs on the Policy instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+,
-      # +association+, +associations+ and +remove+.
+      # +association+, +associations+, +filterable+, +required_orders+ and
+      # +remove+.
       # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
@@ -351,6 +376,13 @@ module StandardAPI
       @permitted_orders ||= builder_for(nil).orderable - failed_conditions(nil) - failed_association_conditions(nil)
     end
 
+    # What every request is ordered by after its own orders, for a model (a
+    # nil record): the names declared +required_orders+, in order, unless a
+    # condition hides them from the model
+    def permitted_required_orders
+      @permitted_required_orders ||= builder_for(nil).required - failed_conditions(nil) - failed_association_conditions(nil)
+    end
+
     # What a request may filter on, for a model (a nil record), as name =>
     # :all or the canonical operators it permits: what's declared
     # +filterable+, unless a condition hides it from the model. Filtering
@@ -406,6 +438,10 @@ module StandardAPI
 
     def filterable(*names, **options)
       declarations.filterable(*names, **options)
+    end
+
+    def required_orders(*names)
+      declarations.required_orders(*names)
     end
 
     def remove(*names)

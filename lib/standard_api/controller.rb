@@ -401,10 +401,6 @@ module StandardAPI
       @includes
     end
 
-    def required_orders
-      []
-    end
-
     def default_orders
       nil
     end
@@ -433,30 +429,17 @@ module StandardAPI
       end
     end
 
+    # The +order+ param, or #default_orders without one, checked against what
+    # the Policy makes orderable, then what it declares +required_orders+ that
+    # isn't already ordered by
     def orders
-      exluded_required_orders = required_orders.map(&:to_s)
+      return @orders if defined?(@orders)
 
-      case params[:order]
-      when Hash, ActionController::Parameters
-        exluded_required_orders -= params[:order].keys.map(&:to_s)
-      when Array
-        params[:order].flatten.each do |v|
-          case v
-          when Hash, ActionController::Parameters
-            exluded_required_orders -= v.keys.map(&:to_s)
-          when String
-            exluded_required_orders.delete(v)
-          end
-        end
-      when String
-        exluded_required_orders.delete(params[:order])
-      end
-
-      if !exluded_required_orders.empty?
-        params[:order] = exluded_required_orders.unshift(params[:order])
-      end
-
-      @orders ||= sanitize_orders(params[:order] || default_orders, record_policy(model).orderable | required_orders, model)
+      policy = record_policy(model)
+      orders = sanitize_orders(params[:order] || default_orders, policy)
+      ordered = order_names(orders)
+      required = policy.required_orders.reject { |name| ordered.include?(name) }
+      @orders = required.empty? ? orders : Array.wrap(orders) + required
     end
 
     # The maximum number of results returned by #index
