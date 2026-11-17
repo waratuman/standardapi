@@ -4,7 +4,7 @@ class PolicyOrderableTest < ActionDispatch::IntegrationTest
   include PolicyTestHelper
 
   def orderable(policy, model = Camera)
-    policy.new(CamerasController.new, model).orderable
+    policy.new(CamerasController.new, model).permitted_orders
   end
 
   test 'orderable is what attributes and associations declare orderable' do

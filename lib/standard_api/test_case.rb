@@ -67,10 +67,10 @@ module StandardAPI::TestCase
     controller_class.new.send(:default_orders)
   end
 
-  # Whether the ACL's wheres permit filtering on +where+
+  # Whether the model's Policy makes +where+ filterable
   def where_permitted?(where)
     controller = controller_class.new
-    controller.send(:sanitize_wheres, where, controller.send(:wheres_for, model), model)
+    controller.send(:sanitize_wheres, where, controller.record_policy(model))
     true
   rescue StandardAPI::UnpermittedParameters
     false

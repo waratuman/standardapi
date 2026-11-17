@@ -14,11 +14,6 @@ module PropertyACL
     ]
   end
 
-  # Filters allowed in the `where` param
-  def wheres
-    [ :id, :accounts, :landlord ]
-  end
-
   # Sub resources allowed to be included in the response
   # Sub resourced allowed to be set during create / update / delete if a user is
   # allowed to ....

@@ -68,6 +68,18 @@ class PolicyRecordTest < ActiveSupport::TestCase
     assert_equal [], controller.record_policy(Account).orderable
   end
 
+  test "filterable is the model's, whatever the record" do
+    with_account_policy(Class.new(AccountPolicy) { attribute :name, filterable: true, if: -> { record&.persisted? } }) do
+      assert_equal({ 'id' => :all }, controller.record_policy(Account).filterable)
+      assert_equal({ 'id' => :all }, controller.record_policy(create(:account)).filterable)
+    end
+  end
+
+  test 'filterable is {} without a Policy' do
+    controller.stubs(:model_policy).returns(nil)
+    assert_equal({}, controller.record_policy(Account).filterable)
+  end
+
   test 'hidden? is false for a name that is neither an attribute nor an association' do
     assert_not controller.record_policy(create(:account)).hidden?(:not_an_attribute)
   end

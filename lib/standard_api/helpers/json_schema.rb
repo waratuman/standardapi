@@ -216,11 +216,11 @@ module StandardAPI
 
       private
 
-      # The ACL, read from the controller, where these are private
+      # What the Policies and controller permit, read from the controller
 
-      # The ACL's wheres for +model+, as name => operators
+      # What +model+'s Policy makes filterable, as name => operators
       def json_schema_wheres(model)
-        controller.send(:normalize_where_permit, controller.send(:wheres_for, model))
+        controller.record_policy(model).filterable
       end
 
       def json_schema_orders(model)
@@ -539,7 +539,7 @@ module StandardAPI
         defs.external_ref(model, 'Where') || json_schema_ref(defs, json_schema_name(model, 'Where')) { json_schema_where(model, defs) }
       end
 
-      # Mirrors StandardAPI::Wheres#check_wheres: a Hash of permitted keys, or
+      # Mirrors StandardAPI::Wheres#sanitize_wheres: a Hash of permitted keys, or
       # an Array of them joined by "AND" and "OR".
       def json_schema_where(model, defs)
         permit = json_schema_wheres(model)
@@ -612,7 +612,7 @@ module StandardAPI
         exists ? { 'anyOf' => [exists, filter] } : filter
       end
 
-      # +operators+ are canonical names, as normalize_where_permit gives them,
+      # +operators+ are canonical names, as Policy::Record#filterable gives them,
       # or :all
       def json_schema_column_where(model, column, operators)
         definition = json_schema_definitions(model)[column.name]
@@ -863,7 +863,7 @@ module StandardAPI
       end
 
       # Mirrors StandardAPI::Includes#check_include_when: the attributes of
-      # +model+ its ACL wheres permit an +eq+ on, each compared with its value
+      # +model+ its Policy makes filterable with +eq+, each compared with its value
       # as application/_record renders it
       def json_schema_when(model)
         properties = {}

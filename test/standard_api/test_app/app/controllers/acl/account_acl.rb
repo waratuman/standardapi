@@ -4,8 +4,4 @@ module AccountACL
     [ "property_id", "name" ]
   end
 
-  def wheres
-    [ "id" ]
-  end
-
 end

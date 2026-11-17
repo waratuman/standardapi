@@ -37,28 +37,28 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_nil schema['anyOf']
   end
 
-  test 'Controller#query_schema.json where only lists the ACL wheres' do
+  test 'Controller#query_schema.json where only lists what the Policy makes filterable' do
     where = camera_schema.dig('$defs', 'CameraWhere', 'anyOf', 0, 'properties')
 
     assert_equal ['id', 'make', 'photo_id', 'photo'], where.keys
-    # Only the operators the ACL lists
+    # Only the operators the Policy lists
     assert_equal ['eq', 'in'], where.dig('photo_id', 'anyOf').last['properties'].keys
     # Any operator, narrowed to the ones for a string
     assert_includes where.dig('make', 'anyOf').last['properties'].keys, 'ilike'
     assert_not_includes where.dig('id', 'anyOf').last['properties'].keys, 'ilike'
-    # An association refers to the associated model's wheres
+    # An association refers to what the associated model's Policy makes filterable
     assert_equal({ '$ref' => '#/$defs/PhotoWhere' }, where.dig('photo', 'anyOf', 1))
     assert_equal ['id', 'account_id', 'properties'], camera_schema.dig('$defs', 'PhotoWhere', 'anyOf', 0, 'properties').keys
   end
 
-  test 'Controller#query_schema.json without ACL wheres has no where' do
+  test 'Controller#query_schema.json without anything filterable has no where' do
     assert_nil query_schema(query_schema_references_path(format: 'json')).dig('properties', 'where')
   end
 
   test 'Controller#query_schema.json where reads an object as operators' do
     path = query_schema_cameras_path(format: 'json')
 
-    # CameraACL wheres permit any operator on make, and eq and in on photo_id
+    # CamerasController::Policy makes make filterable with any operator, and photo_id with eq and in
     with_camera_policy(proc { attribute :make, :json; attribute :photo_id, :unknown }) do
       schema = query_schema(path)
       schemer = schemer(schema)
@@ -251,7 +251,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
       assert_response :ok, include.inspect
     end
 
-    # PropertyACL wheres don't permit name
+    # PropertyPolicy doesn't make name filterable
     include = { 'english_name' => { 'when' => { 'name' => 'a' } } }
     assert_not schemer.valid?({ 'include' => include, 'limit' => 1 })
     get properties_path(format: 'json'), params: { include: include, limit: 1 }
@@ -306,10 +306,10 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_no_match 'Not checked by the ACL.', properties.dig('group_by', 'description')
   end
 
-  test 'Controller#query_schema.json include when lists the attributes the ACL wheres permit an eq on' do
+  test 'Controller#query_schema.json include when lists the attributes the Policy makes filterable with eq' do
     schema = camera_schema
 
-    # CameraACL wheres permit any operator on id and make, and eq on photo_id
+    # CamerasController::Policy makes id and make filterable with any operator, and photo_id with eq
     assert_equal ['id', 'make', 'photo_id'], schema.dig('$defs', 'CameraWhen', 'properties').keys
     assert_equal false, schema.dig('$defs', 'CameraWhen', 'additionalProperties')
 

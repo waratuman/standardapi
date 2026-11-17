@@ -1,6 +1,6 @@
 module StandardAPI
-  # Included in StandardAPI::Controller, so the ACL +wheres+ methods are
-  # called on the controller.
+  # Included in StandardAPI::Controller. What can be filtered on is what each
+  # model's Policy declares +filterable+, record_policy(model).filterable.
   module Wheres
 
     # The aliases activerecord-filter accepts for an operator, as its
@@ -24,82 +24,50 @@ module StandardAPI
       aliases.each { |name| names[name.to_s] = operator.to_s }
     end.freeze
 
-    private
-
-    # The ACL +wheres+ method for +klass+, falling back to the one for its
-    # base class (ie. an STI subclass), or nil if there is none
-    def wheres_method_for(klass)
-      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_wheres" }.find do |method|
-        self.respond_to?(method, true)
-      end
-    end
-
-    # The wheres the ACL permits on +klass+, or [] if it has none
-    def wheres_for(klass)
-      return [] if !(method = wheres_method_for(klass))
-
-      self.send(method)
-    end
-
-    # Check +wheres+, ie. the +where+ param, against +permit+, the wheres
-    # permitted on +model+, and return them, or raise
-    # StandardAPI::UnpermittedParameters.
-    #
-    # A column (or "*") permits any operator, or the operators it permits can
-    # be listed:
-    #
-    #   sanitize_wheres({ size: { gt: 1 } }, [:name, { size: [:gt, :lt] }], Property)
-    #   # => { size: { gt: 1 } }
-    #
-    # An association permitted by name is checked against the wheres the ACL
-    # permits on the associated model. A +filter_on+ filter is permitted by
-    # name, and its value is not checked.
-    def sanitize_wheres(wheres, permit, model)
-      check_wheres(wheres, normalize_where_permit(permit), model)
-      wheres
-    end
-
     # The canonical name of the operator +name+, ie. "gt" for "greater_than"
-    def canonical_operator(name)
+    def self.canonical_operator(name)
       CANONICAL_OPERATORS.fetch(name.to_s, name.to_s)
     end
 
-    # { "column" => :all | [canonical operators] }
-    def normalize_where_permit(permit)
-      permit.each_with_object({}) do |entry, normalized|
-        if entry.is_a?(Hash)
-          entry.each do |key, operators|
-            normalized[key.to_s] = if operators.to_s == '*'
-              :all
-            else
-              Array.wrap(operators).map { |operator| canonical_operator(operator) }
-            end
-          end
-        else
-          normalized[entry.to_s] = :all
-        end
-      end
-    end
+    private
 
-    def check_wheres(wheres, permit, model)
+    # Check +wheres+, ie. the +where+ param, against what +policy+, a
+    # Policy::Record, makes filterable on its model, and return them, or raise
+    # StandardAPI::UnpermittedParameters.
+    #
+    # A column permitted with :all permits any operator, or else only the
+    # operators listed. If Property's Policy makes +size+ filterable with
+    # <tt>[:gt, :lt]</tt>:
+    #
+    #   sanitize_wheres({ size: { gt: 1 } }, record_policy(Property))
+    #   # => { size: { gt: 1 } }
+    #
+    # An association permitted by name is checked against what the
+    # associated model's Policy makes filterable. A +filter_on+ filter is
+    # permitted by name, and its value is not checked.
+    def sanitize_wheres(wheres, policy)
       case wheres
       when nil
       when Array
         wheres.each do |where|
-          check_wheres(where, permit, model) unless where == 'AND' || where == 'OR'
+          sanitize_wheres(where, policy) unless where == 'AND' || where == 'OR'
         end
       when Hash, ActionController::Parameters
-        wheres.each_pair { |key, value| check_where(key.to_s, value, permit, model) }
+        wheres.each_pair { |key, value| check_where(key.to_s, value, policy) }
       else
-        check_where('id', wheres, permit, model)
+        check_where('id', wheres, policy)
       end
+
+      wheres
     end
 
     # Checks +key+ the way activerecord-filter resolves it: a filter_on
     # filter, a column, an association, then an association's +_ids+, which
     # permitting the association permits. Any other key permitted, ie. a
     # has_and_belongs_to_many join table, is permitted by name.
-    def check_where(key, value, permit, model)
+    def check_where(key, value, policy)
+      model = policy.model
+      permit = policy.filterable
       name = key.split('.').first
       permitted = permit.fetch(name) do
         ids_association = key.sub(/_ids\z/, 's') if key.end_with?('_ids')
@@ -110,23 +78,23 @@ module StandardAPI
         nil
       elsif column = model.columns_hash[name]
         where_operators(value, column).each do |operator|
-          next if permitted == :all || permitted.include?(canonical_operator(operator))
+          next if permitted == :all || permitted.include?(StandardAPI::Wheres.canonical_operator(operator))
 
           raise StandardAPI::UnpermittedParameters.new(["#{key}[#{operator}]"])
         end
       elsif association = model.reflect_on_association(key)
         if permitted != :all
-          raise StandardAPI::InvalidConfiguration, "#{model.name} wheres can't permit operators on the association #{key}, permit :#{key} and its wheres in the associated model's wheres"
+          raise StandardAPI::InvalidConfiguration, "#{model.name}'s Policy can't permit operators on the association #{key}; make it filterable, and what can be filtered on it filterable in #{association.klass.name}'s Policy"
         end
 
         check_association_where(key, association, value)
       elsif key.end_with?('_ids') && association = model.reflect_on_association(key.sub(/_ids\z/, 's'))
-        check_wheres({ id: value }, normalize_where_permit(wheres_for(association.klass)), association.klass)
+        sanitize_wheres({ id: value }, record_policy(association.klass))
       end
     end
 
-    # Checks the wheres on an association against the wheres permitted on
-    # the associated model. +true+, +false+ and +nil+ test whether there are
+    # Checks the wheres on an association against what the associated model's
+    # Policy makes filterable. +true+, +false+ and +nil+ test whether there are
     # associated records, so are not checked further.
     def check_association_where(key, association, value)
       return if [true, false, nil, 'true', 'false'].include?(value)
@@ -147,7 +115,7 @@ module StandardAPI
         association.klass
       end
 
-      check_wheres(value, normalize_where_permit(wheres_for(klass)), klass)
+      sanitize_wheres(value, record_policy(klass))
     end
 
     # The operators a where +value+ on +column+ uses, including the implicit

@@ -99,18 +99,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal ['id'], DocumentsController.new.record_policy(Pdf).orderable
   end
 
-  test 'TestCase#where_permitted? checks the ACL wheres' do
+  test "TestCase#where_permitted? checks what the Policy makes filterable" do
     assert where_permitted?({ id: 1 })
     assert_not where_permitted?({ name: 'a' })
   end
 
-  test 'Wheres#wheres_for falls back to the wheres of the base class' do
-    wheres_for = Class.new do
-      include StandardAPI::Wheres
-      private def document_wheres = [:id]
-    end.new.method(:wheres_for)
-
-    assert_equal [:id], wheres_for.call(Pdf)
+  test "Policy::Record#filterable falls back to the base class's Policy" do
+    with_model_policy(Document, Class.new(DocumentPolicy) { attribute :id, filterable: true }) do
+      assert_equal({ 'id' => :all }, DocumentsController.new.record_policy(Pdf).filterable)
+    end
   end
 
   test "Policy#declared_includes is what the Policy declares can be included" do
@@ -534,23 +531,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with when key renders the include only for matching records' do
-    ApplicationController.class_eval do
-      private def property_wheres
-        [ :id, :name ]
-      end
-    end
-
     photo = create(:photo)
     matching = create(:property, name: 'a', photos: [photo])
     other = create(:property, name: 'b', photos: [create(:photo)])
 
-    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    with_model_policy(Property, Class.new(PropertyPolicy) { attribute :name, filterable: true }) do
+      get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    end
     assert_response :ok
     json = JSON(response.body).index_by { |x| x['id'] }
     assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
     assert_not json[other.id].has_key?('photos')
-  ensure
-    ApplicationController.send(:remove_method, :property_wheres)
   end
 
   test 'include with when key only reads attributes' do
@@ -565,7 +556,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
     assert_response :bad_request
 
-    # An attribute PropertyACL#wheres doesn't permit
+    # An attribute PropertyPolicy doesn't make filterable
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'x' } } } }
     assert_response :bad_request
   end
@@ -577,7 +568,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       def self.name = 'Property'
     end
     controller = PropertiesController.new
-    controller.define_singleton_method(:property_wheres) { [ :name, :title, :featured ] }
+    policy = Class.new(PropertyPolicy) { filterable :name, :title, :featured }
+    controller.stubs(:model_policy).returns(policy.new(controller, klass))
     check = controller.method(:check_include_when)
 
     assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
@@ -611,7 +603,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test 'include with where key rejects wheres the included ACL does not permit' do
     property = create(:property, photos: [create(:photo)])
 
-    # PhotoACL#wheres does not permit format
+    # PhotoPolicy doesn't make format filterable
     get property_path(property, include: { photos: { where: { format: 'jpg' } } }, format: :json)
     assert_response :bad_request
     assert_equal 'found unpermitted parameter: "format"', response.body

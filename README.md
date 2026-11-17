@@ -104,26 +104,13 @@ following files:
       def nested
         [ :camera ]
       end
-
-# Allowed filters in the `where` param
-      #
-      # A column, or a column with "*", permits any operator on it, or the
-      # operators it permits can be listed (aliases such as `greater_than` for
-      # `gt` are permitted with them). An association is permitted by name,
-      # and what is filtered on it is checked against the associated model's
-      # wheres (for a polymorphic association, those of its `as` class).
-      # Permitting an association also permits its `_ids`. A `filter_on`
-      # filter is permitted by name. Without a `wheres` method nothing can be
-      # filtered on.
-      def wheres
-        [ :id, :caption, { created_at: [:gt, :lt] }, :author ]
-      end
     end
 
 All of these methods are optional and will be included in ApplicationController
-for StandardAPI to determine allowed attributes, nested attributes and
-filters. What can be included and ordered by is declared in each model's
-Policy (see [Associations](#associations) and [Orders](#orders)).
+for StandardAPI to determine allowed attributes and nested attributes. What
+can be included, ordered by and filtered on is declared in each model's Policy
+(see [Associations](#associations), [Orders](#orders) and
+[Filters](#filters)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
@@ -133,16 +120,16 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
           [ :caption ]
         end
 
-        def wheres
-          [ :id, :caption ]
+        def nested
+          [ :camera ]
         end
       end
     end
 
 It is included in ApplicationController the same way as an
 `app/controllers/acl` file, under the model's name (`photo_attributes`,
-`photo_wheres`, ...), so it is never included in its own controller and its
-`wheres` don't override the controller's own.
+`nested_photo_attributes`, ...), so it is never included in its own
+controller.
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
 
@@ -150,8 +137,8 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-An ACL decides what can be written and filtered. What's shown, what can be
-included and what can be ordered by is up to the model's Policy (see
+An ACL decides what can be written. What's shown, what can be included,
+ordered by and filtered on is up to the model's Policy (see
 [Policies](#policies)).
 
 ##### Custom partials
@@ -309,9 +296,9 @@ fragments that include the model of a Policy that could vary by requester
 aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
-still decides whether it can be written, and filtered on, which can reveal its
-value. It can't be ordered by while it's hidden from the model (see
-[Orders](#orders)).
+still decides whether it can be written, which can reveal its value. It can't
+be ordered by or filtered on while it's hidden from the model (see
+[Orders](#orders) and [Filters](#filters)).
 
 ###### Orders
 
@@ -333,6 +320,41 @@ What's orderable is decided for the model, with a `nil` record, so an
 attribute an `if` or `unless` hides from the model can't be ordered by. One
 declared in an `attributes_for` block is orderable when it's declared for the
 key a `nil` record gives.
+
+###### Filters
+
+What a request may filter on, with the `where` param or an include's `where`
+and `when`, is what the Policy declares `filterable`. Filtering on anything
+else is rejected with a 400:
+
+    class PhotoPolicy < StandardAPI::Policy
+      attributes :id, :caption, filterable: true      # with any operator
+      attribute :created_at, filterable: [:gt, :lt]   # with only these
+      association :author, filterable: true           # where[author][name] if AuthorPolicy makes name filterable
+      filterable :search, :photos_tags                # without rendering them
+    end
+
+`filterable: true` (or `"*"`) permits any operator, or `filterable:` lists the
+operators it permits; an operator's aliases, ie. `greater_than` for `gt`, are
+permitted with it. A bare value counts as `eq` and an Array as `in`.
+
+An association declared `filterable` can be filtered on by what its model's
+own Policy makes filterable; for a polymorphic one, the Policy of the class its
+`as` names. It also permits filtering on its `_ids`. It can only be
+`filterable: true`.
+
+`filterable` on its own permits names without declaring them, so they're
+neither rendered nor includable: a `filter_on` filter, a
+has_and_belongs_to_many join table, or an association that shouldn't be
+included. `operators:` limits the operators, and `if` and `unless` decide it
+for the model, so they can read the controller or the request:
+
+    filterable :tims, unless: -> { controller.class.model == Library }
+
+Filtering on a column can reveal its values, ie. `where[salary][gt]=100000`, so
+make only what a requester may see filterable. What's filterable is decided for
+the model, with a `nil` record, so an attribute an `if` or `unless` hides from
+the model can't be filtered on. `filterable: false` and `remove` take one back.
 
 ###### Associations
 
@@ -457,7 +479,7 @@ A Policy `attribute` adding one the model doesn't have starts from
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Policy of its
 own, the base class's `attributes` and Policy are used
-(`document_attributes`, `DocumentPolicy`), as they are for `wheres`.
+(`document_attributes`, `DocumentPolicy`).
 
 `schema.json` lists the same attributes as `record_policy(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
@@ -576,16 +598,16 @@ conditions see being `nil`.
   `attr_readonly` attribute, which can be set on create but not changed, or
   one the Policy declares read only. A model with an ACL `filter` is
   described as any object.
-- **`schema/query.json`** describes `where` as the ACL's `wheres` permit it,
-  and `order` and `include` as the Policies declare them, following
-  associations into the associated models' ACLs and Policies through `$defs`, plus `limit`, `offset`,
+- **`schema/query.json`** describes `where`, `order` and `include` as the
+  Policies declare them, following associations into the associated models'
+  Policies through `$defs`, plus `limit`, `offset`,
   `distinct` and `group_by`. Columns to `group_by` and associations to `join`
-  aren't listed by name, as not all of them need be exposed. An include's `where` is
-  what the included model's ACL permits, and its `order` what its Policy makes
+  aren't listed by name, as not all of them need be exposed. An include's `where` and
+  `order` are what the included model's Policy makes filterable and
   orderable. A column permitted with
   any operator lists the operators that apply to its type. An include's `when`
-  lists the attributes of the model it's on that its ACL `wheres` permit an
-  `eq` on. It also describes the params no ACL checks yet, as they're used,
+  lists the attributes of the model it's on that its Policy makes filterable
+  with `eq`. It also describes the params no ACL checks yet, as they're used,
   with a description ending "Not checked by the ACL.": `distinct_on`, `join`,
   `#calculate`'s `select`, and `distinct_on` within an include. `limit` is
   required unless there is a `default_limit`, or the query has a `select`
