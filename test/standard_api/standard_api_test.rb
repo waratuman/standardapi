@@ -95,36 +95,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [], ReferencesController.new.record_policy(Reference).orderable
   end
 
-  test 'Controller#model_orders overrides raise' do
-    AccountsController.class_eval do
-      private def model_orders
-        [ "id", "name" ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
-    end
-    assert_equal "AccountsController#model_orders is not supported, declare what can be ordered by with orderable in Account's Policy instead", error.message
-  ensure
-    AccountsController.send(:remove_method, :model_orders)
-  end
-
   test "Policy::Record#orderable falls back to the base class's Policy" do
     assert_equal ['id'], DocumentsController.new.record_policy(Pdf).orderable
-  end
-
-  test 'Controller#orders raises on a <model>_orders method' do
-    ApplicationController.class_eval do
-      private def account_orders = [:id]
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get accounts_path(order: { id: :asc }, limit: 10, format: 'json')
-    end
-    assert_equal "ApplicationController#account_orders is not supported, declare what can be ordered by with orderable in Account's Policy instead", error.message
-  ensure
-    ApplicationController.send(:remove_method, :account_orders)
   end
 
   test 'TestCase#where_permitted? checks the ACL wheres' do

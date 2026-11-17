@@ -36,15 +36,9 @@ module StandardAPI
     # Raises if another ACL included into +application_controller+ defines
     # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      # Left in place, an ACL +includes+ or +orders+ would override
-      # Controller#includes or #orders
-      {
-        includes: "what can be included with association and associations",
-        orders: "what can be ordered by with orderable"
-      }.each do |m, instead|
-        if mod.method_defined?(m, false) || mod.private_method_defined?(m, false)
-          raise StandardAPI::InvalidConfiguration, "#{mod.name}##{m} is no longer supported; declare #{instead} in the model's Policy instead"
-        end
+      # Left in place, an ACL +includes+ would override Controller#includes
+      if mod.method_defined?(:includes, false) || mod.private_method_defined?(:includes, false)
+        raise StandardAPI::InvalidConfiguration, "#{mod.name}#includes is no longer supported; declare what can be included with association and associations in the model's Policy instead"
       end
 
       [:wheres, :attributes].each do |m|

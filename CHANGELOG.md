@@ -30,16 +30,16 @@
   declares `orderable`, ie. `attributes :id, :name, orderable: true`; ordering
   by anything else is rejected with a 400. An association declared
   `orderable` can be ordered by what its model's own Policy makes orderable.
-  An ACL `orders` method raises `StandardAPI::InvalidConfiguration` at boot,
-  as does a controller's `<model>_orders` method, ie. `photo_orders`, when
-  ordering that model.
+  A controller's `<model>_orders` method, ie. `photo_orders`, isn't used. An
+  ACL `orders` method is no longer renamed, so it overrides
+  `Controller#orders`: delete it.
 - Ordering through a polymorphic association is rejected with a 400; there is
   no single Policy to check it against.
 - Orders ActiveRecord::Sort can't order by, ie. through more than one
   association, are rejected with a 400 rather than failing with a 500.
 - Remove `Controller#model_orders`. Declare what can be ordered by in the
-  model's Policy and use `record_policy(model).orderable` instead. A controller that still
-  overrides `model_orders` raises `StandardAPI::InvalidConfiguration`.
+  model's Policy and use `record_policy(model).orderable` instead. An
+  override of `model_orders` isn't used.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
 - Remove `Controller#model_includes`. Declare what can be included in the
@@ -143,9 +143,10 @@ association or a method, list the models it can be in that association's
     end
 
 ACL `orders`, and a controller's `<model>_orders` methods, have been replaced
-by what each model's Policy declares `orderable`, and raise
-`StandardAPI::InvalidConfiguration`. Declare what they permitted `orderable`
-in the Policy instead. An association they permitted by name is declared
+by what each model's Policy declares `orderable`. Delete them, and declare
+what they permitted `orderable` in the Policy instead: an ACL `orders` left in
+place overrides `Controller#orders`, so every index sorts by its list and
+ignores the `order` param. An association they permitted by name is declared
 `orderable` too, and its columns made orderable in its own model's Policy:
 
     # Before, in PhotoACL

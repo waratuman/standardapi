@@ -462,18 +462,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= begin
-        # #model_orders and ACL orders, named <model>_orders, were removed;
-        # raise rather than ignore an override of either
-        # TODO: Remove this check in 10.0
-        ['model_orders', "#{model.model_name.singular}_orders"].each do |removed|
-          next if !respond_to?(removed, true)
-
-          raise StandardAPI::InvalidConfiguration, "#{ method(removed).owner.name }##{ removed } is not supported, declare what can be ordered by with orderable in #{ model.name }'s Policy instead"
-        end
-
-        sanitize_orders(params[:order] || default_orders, record_policy(model).orderable | required_orders, model)
-      end
+      @orders ||= sanitize_orders(params[:order] || default_orders, record_policy(model).orderable | required_orders, model)
     end
 
     # The maximum number of results returned by #index

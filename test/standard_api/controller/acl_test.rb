@@ -68,17 +68,6 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_equal StandardAPI::Controller, @acl_controller.instance_method(:wheres).owner
   end
 
-  test "orders in a nested ACL raise" do
-    acl_controller(Attachment) do
-      def orders
-        [ :id ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/ACL#orders is no longer supported; declare what can be ordered by with orderable in the model's Policy instead/, error.message)
-  end
-
   test "includes in a nested ACL raise" do
     acl_controller(Attachment) do
       def includes
