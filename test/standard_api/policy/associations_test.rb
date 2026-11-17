@@ -1,6 +1,6 @@
 require 'standard_api/test_helper'
 
-class ControllerPolicyAssociationsTest < ActionDispatch::IntegrationTest
+class PolicyAssociationsTest < ActionDispatch::IntegrationTest
 
   # Render with +policies+, a model's prefix to its Policy, for the length of
   # the block

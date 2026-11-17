@@ -17,6 +17,38 @@ ActiveSupport.test_order = :random
 
 include ActionDispatch::TestProcess
 
+# Builds Policies, and registers one for Camera, for test/standard_api/policy
+module PolicyTestHelper
+  # Register +policy+ for Camera in place of CamerasController::Policy
+  def with_policy(policy)
+    ApplicationController.stubs(:standard_api_policies).returns('camera' => policy)
+    yield
+  end
+
+  # A Policy declaring every attribute of +model+, then what +block+ does
+  def policy_class(model = Camera, &block)
+    names = model.attribute_names
+    Class.new(StandardAPI::Policy) do
+      attributes(*names)
+      class_eval(&block) if block
+    end
+  end
+
+  def empty_policy_class(&block)
+    Class.new(StandardAPI::Policy, &block)
+  end
+
+  def definitions(policy, record = Camera, controller: CamerasController.new)
+    with_policy(policy) { controller.record_policy(record).attributes }
+  end
+
+  def names(...) = definitions(...).map { |d| d[:name] }
+
+  def definition(policy, name, ...)
+    definitions(policy, ...).find { |d| d[:name] == name }
+  end
+end
+
 class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryBot::Syntax::Methods
