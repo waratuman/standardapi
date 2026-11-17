@@ -804,11 +804,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  # A stand-in Policy::Record that makes +permit+ orderable on +model+
+  def orderable_policy(model, permit)
+    Struct.new(:model, :orderable).new(model, permit)
+  end
+
   test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
     sanitize = AccountsController.new.method(:sanitize_orders)
 
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ subject: { id: :asc } }, [:subject], Account)
+      sanitize.call({ subject: { id: :asc } }, orderable_policy(Account, [:subject]))
     end
   end
 
@@ -891,14 +896,14 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     # AccountPolicy makes id orderable, not name
     sanitize = PropertiesController.new.method(:sanitize_orders)
 
-    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord], Property))
-    assert_equal({ landlord: :id }, sanitize.call('landlord.id', [:landlord], Property))
+    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, orderable_policy(Property, [:landlord])))
+    assert_equal({ landlord: :id }, sanitize.call('landlord.id', orderable_policy(Property, [:landlord])))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
+      sanitize.call({ landlord: { name: :asc } }, orderable_policy(Property, [:landlord]))
     end
 
     # A column is unchanged
-    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
+    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, orderable_policy(Property, [:name])))
   end
 
   test 'Orders#sanitize_orders rejects ordering through an association whose model has nothing orderable' do
@@ -906,10 +911,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     with_model_policy(Account, Class.new(AccountPolicy) { attribute :id, orderable: false }) do
       assert_raises(StandardAPI::UnpermittedParameters) do
-        sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
+        sanitize.call({ landlord: { id: :asc } }, orderable_policy(Property, [:landlord]))
       end
       assert_raises(StandardAPI::UnpermittedParameters) do
-        sanitize.call('landlord.id', [:landlord], Property)
+        sanitize.call('landlord.id', orderable_policy(Property, [:landlord]))
       end
     end
   end
@@ -952,7 +957,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   # Order Test
 
   test 'Orders#sanitize_orders(:column, [:column])' do
-    method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, permit, Account) }
+    method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, orderable_policy(Account, permit)) }
 
     assert_equal :name, method.call(:name, [:name])
     assert_equal :name, method.call(:name, [:name])

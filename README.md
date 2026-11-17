@@ -182,6 +182,8 @@ the `policy` local.
   records, or `nil` for their own.
 - `orderable` names what a request may order by (see [Orders](#orders)),
   decided for the model whatever the record.
+- `required_orders` names what every request is ordered by after its own
+  orders, decided for the model too.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
 - `errors` are the record's validation errors, less those on what it hides.
@@ -320,6 +322,16 @@ What's orderable is decided for the model, with a `nil` record, so an
 attribute an `if` or `unless` hides from the model can't be ordered by. One
 declared in an `attributes_for` block is orderable when it's declared for the
 key a `nil` record gives.
+
+`required_orders` orders every request by its names, in order, after what the
+request orders by, unless it already orders by them, ie. so pages are stable.
+They're orderable without being declared `orderable`. Without an `order`, the
+controller's `default_orders` come first:
+
+    class PhotoPolicy < StandardAPI::Policy
+      attribute :created_at, orderable: true
+      required_orders :id                      # order=created_at sorts by created_at, then id
+    end
 
 ###### Filters
 

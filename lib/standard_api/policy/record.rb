@@ -65,10 +65,17 @@ module StandardAPI
       end
 
       # The names of the attributes and associations of the model a request
-      # may order by (Policy#orderable), decided for the model whatever the
-      # record. Without a Policy, nothing can be.
+      # may order by (Policy#permitted_orders), decided for the model whatever
+      # the record. Without a Policy, nothing can be.
       def orderable
         policy ? policy.permitted_orders : []
+      end
+
+      # What every request is ordered by after its own orders
+      # (Policy#permitted_required_orders), decided for the model whatever the
+      # record. Without a Policy, nothing.
+      def required_orders
+        policy ? policy.permitted_required_orders : []
       end
 
       # What a request may filter on (Policy#permitted_wheres), as name =>

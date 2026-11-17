@@ -63,6 +63,10 @@ module StandardAPI::TestCase
     controller_class.new.record_policy(model).orderable
   end
   
+  def required_orders
+    controller_class.new.record_policy(model).required_orders
+  end
+
   def default_orders
     controller_class.new.send(:default_orders)
   end

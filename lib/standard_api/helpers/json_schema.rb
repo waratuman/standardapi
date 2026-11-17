@@ -142,7 +142,7 @@ module StandardAPI
 
         properties['where'] = json_schema_where_ref(model, defs) if json_schema_wheres(model).any?
 
-        order = json_schema_order(json_schema_orders(model) | json_schema_required_orders, model, defs, 'Order')
+        order = json_schema_order(json_schema_orders(model), model, defs, 'Order')
         properties['order'] = order if order
 
         include_permit = json_schema_includes(model)
@@ -225,10 +225,6 @@ module StandardAPI
 
       def json_schema_orders(model)
         controller.record_policy(model).orderable
-      end
-
-      def json_schema_required_orders
-        controller.send(:required_orders)
       end
 
       # What a request may include of +model+ (Policy#declared_includes), from
