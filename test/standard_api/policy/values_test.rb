@@ -1,6 +1,6 @@
 require 'standard_api/test_helper'
 
-class ControllerPolicyValuesTest < ActionDispatch::IntegrationTest
+class PolicyValuesTest < ActionDispatch::IntegrationTest
 
   def show_camera(camera)
     get "/cameras/#{camera.id}", as: :json
