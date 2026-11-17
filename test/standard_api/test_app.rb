@@ -59,8 +59,8 @@ end
 require 'standard_api/test_app/models'
 
 # Every model the tests render declares all of its attributes, by name, as
-# most tests aren't about Schemas, and what can be included of it. Before the
-# controllers, whose Schemas inherit from them.
+# most tests aren't about Policies, and what can be included of it. Before the
+# controllers, whose Policies inherit from them.
 {
   Account => -> {
     associations :photos, :property
@@ -74,7 +74,7 @@ require 'standard_api/test_app/models'
   UuidModel => -> {}
 }.each do |model, includes|
   names = model.attribute_names
-  Object.const_set("#{model.name}Schema", Class.new(StandardAPI::Schema) {
+  Object.const_set("#{model.name}Policy", Class.new(StandardAPI::Policy) {
     attributes(*names)
     class_exec(&includes)
   })
@@ -84,9 +84,9 @@ end
 require 'standard_api/test_app/controllers'
 
 # The controllers above are defined after boot, outside app/controllers, so the
-# Railtie never saw their nested ACLs and Schemas.
+# Railtie never saw their nested ACLs and Policies.
 StandardAPI::AccessControlList.load!
-StandardAPI::Schemas.load!
+StandardAPI::Policies.load!
 
 # Test Application Routes
 Rails.application.routes.draw do

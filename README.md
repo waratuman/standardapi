@@ -14,7 +14,7 @@ minimal configuration.
   - [Limits and Pagination](#limits-and-pagination)
   - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
 - [Access Control List (ACL)](#access-control-list-acl)
-- [Schemas](#schemas)
+- [Policies](#policies)
 - [Routes](#routes)
 - [API Usage](#api-usage)
   - [Filtering (where)](#filtering-where)
@@ -39,7 +39,7 @@ In your `Gemfile`:
 # Quick Start
 
 Include `StandardAPI` in a controller, define the allowed attributes and
-orders, and give each model a Schema for what it renders and can include:
+orders, and give each model a Policy for what it renders and can include:
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
@@ -83,7 +83,7 @@ inherited controllers an exposed API.
     end
 
 What can be included (relationships in the response) is declared in the
-model's Schema, with `association` and `associations` (see
+model's Policy, with `association` and `associations` (see
 [Associations](#associations)).
 
 ##### Access Control List
@@ -142,7 +142,7 @@ following files:
 
 All of these methods are optional and will be included in ApplicationController
 for StandardAPI to determine allowed attributes, nested attributes, orders and
-filters. What can be included is declared in each model's Schema (see
+filters. What can be included is declared in each model's Policy (see
 [Associations](#associations)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
@@ -171,46 +171,46 @@ be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
 An ACL decides what can be written, filtered and ordered. What's shown, and
-what can be included, is up to the model's Schema (see [Schemas](#schemas)).
+what can be included, is up to the model's Policy (see [Policies](#policies)).
 
 ##### Custom partials
 
-**Schemas are enforced in `application/_record` only.** If you have written a
+**Policies are enforced in `application/_record` only.** If you have written a
 custom partial for a model (`app/views/photos/_photo.json.jbuilder`),
 StandardAPI cannot filter attributes that partial serializes itself — your
-partial has to ask the record's schema what it renders:
+partial has to ask the record's policy what it renders:
 
-    schema = record_schema(photo, local_assigns[:schema])
+    policy = record_policy(photo, local_assigns[:policy])
 
-    json.set! :caption, photo.caption if schema.attribute?(:caption)
+    json.set! :caption, photo.caption if policy.attribute?(:caption)
 
-    # pass on the Schema the records of an association render with
-    if includes[:account] && schema.include?(:account)
+    # pass on the Policy the records of an association render with
+    if includes[:account] && policy.include?(:account)
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], schema: schema.association_schema(:account)
+        includes: includes[:account], policy: policy.association_policy(:account)
     end
 
-`record_schema(record, schema)` gives a `StandardAPI::Schema::Record`: what the
-record renders with its model's Schema, or with `schema` in its place, the one
+`record_policy(record, policy)` gives a `StandardAPI::Policy::Record`: what the
+record renders with its model's Policy, or with `policy` in its place, the one
 the association that included it gives, which the parent partial passes down as
-the `schema` local.
+the `policy` local.
 
 - `attributes` are the definitions of what it renders, and `attribute?(name)`
   tells if one does.
 - `include?(name)` tells if an include, an association or a method, renders.
 - `includes(includes)` gives the includes of the `includes` local it renders,
-  as `name, sub_include, sub_schema`: what to include of them, and the Schema to
+  as `name, sub_include, sub_policy`: what to include of them, and the Policy to
   render them with. `application/_record` loops over it, as it does
   `attributes`:
 
-      schema.includes(includes).each do |name, sub_include, sub_schema|
+      policy.includes(includes).each do |name, sub_include, sub_policy|
         json.set! name do
           json.partial! 'application/record', record: photo.send(name),
-            includes: sub_include, schema: sub_schema
+            includes: sub_include, policy: sub_policy
         end
       end
 
-- `association_schema(name)` gives the Schema to pass on to an association's
+- `association_policy(name)` gives the Policy to pass on to an association's
   records, or `nil` for their own.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
@@ -220,18 +220,18 @@ the `schema` local.
 `test/standard_api/test_app/views/photos/_photo.json.jbuilder` is a complete
 worked example of a custom partial.
 
-Fragment caching is disabled automatically for any response a Schema that
+Fragment caching is disabled automatically for any response a Policy that
 varies by requester or a `mask_for` row mask could affect, since cache keys are
 built from record timestamps and cannot distinguish one requester from another.
 
-##### Schemas
+##### Policies
 
 A model's controller can declare how its attributes are described by nesting a
-subclass of `StandardAPI::Schema`, like an `ACL`. `StandardAPI::Controller`
+subclass of `StandardAPI::Policy`, like an `ACL`. `StandardAPI::Controller`
 finds them, and every model it renders needs one:
 
     class PhotosController < ApplicationController
-      class Schema < StandardAPI::Schema
+      class Policy < StandardAPI::Policy
         attributes :id, :format, :created_at                 # use these as they are
         attribute :caption, comment: 'Shown under the photo' # use one and change it
         attribute :thumbnail_url, :string                    # add one
@@ -241,23 +241,23 @@ finds them, and every model it renders needs one:
       end
     end
 
-Like strong parameters, a Schema is explicit: only the attributes and
+Like strong parameters, a Policy is explicit: only the attributes and
 associations it declares are rendered or described, so a column or association
 added later stays hidden until it's listed. Types, defaults and validations of
 a declared attribute still come from the model.
 
-`remove` takes back a declaration, such as one inherited from a parent Schema.
+`remove` takes back a declaration, such as one inherited from a parent Policy.
 
-Every model that's rendered or described needs a Schema, including one only
-rendered as an include, or `StandardAPI::MissingSchema` is raised, so nothing is
+Every model that's rendered or described needs a Policy, including one only
+rendered as an include, or `StandardAPI::MissingPolicy` is raised, so nothing is
 exposed that no one chose to. A model with no controller of its own declares
-its Schema by name, `ToolCallSchema` for `ToolCall`:
+its Policy by name, `ToolCallPolicy` for `ToolCall`:
 
-    class ToolCallSchema < StandardAPI::Schema
+    class ToolCallPolicy < StandardAPI::Policy
       attributes :id, :name, :arguments
     end
 
-A custom partial that doesn't use `record_schema` isn't checked.
+A custom partial that doesn't use `record_policy` isn't checked.
 
 `attribute` takes any key of the definition below. With a type it adds an
 attribute the model doesn't have, read from the record by name
@@ -278,20 +278,20 @@ the model or the declaration. `serialize_attribute` reads values with
 `attribute_value(record, name)`; an override of it should too. A custom partial
 renders its own values, so isn't changed.
 
-Declarations are inherited, so `class Schema < BaseSchema` works, and a Schema's
-private methods stay on the Schema rather than the controller.
+Declarations are inherited, so `class Policy < BasePolicy` works, and a Policy's
+private methods stay on the Policy rather than the controller.
 
-The Schema runs on one instance per model for the length of a request. A method
+The Policy runs on one instance per model for the length of a request. A method
 it doesn't define goes to its `controller`, private ones and ACL methods
-included, so `params` and `admin?` just work. The Schema's own methods win, so
-`attributes`, `model` and `schemas` are its own; call `controller.model` for the
-controller's. Don't call `record_schema` from a condition, as
-they call back into the Schema.
+included, so `params` and `admin?` just work. The Policy's own methods win, so
+`attributes`, `model` and `definitions` are its own; call `controller.model` for the
+controller's. Don't call `record_policy` from a condition, as
+they call back into the Policy.
 
-Every controller describes and renders a Photo with the same Schema, including
-as an include of a property, so two controllers of one model with a Schema
-raise `StandardAPI::InvalidConfiguration`, as does a nested `Schema` that isn't
-a `StandardAPI::Schema`.
+Every controller describes and renders a Photo with the same Policy, including
+as an include of a property, so two controllers of one model with a Policy
+raise `StandardAPI::InvalidConfiguration`, as does a nested `Policy` that isn't
+a `StandardAPI::Policy`.
 
 `attributes_for` declares attributes only known at runtime. Its key is a method
 name or Proc that reads `record` (`nil` for a model), and records with the same
@@ -317,11 +317,11 @@ each record, takes no arguments and reads the record from `record`. A controller
 method can't read `record`, so a named one is called without it; pass the record
 to one that needs it: `unless: -> { hide?(record) }`. Don't memoize
 something about `record` in an instance variable, as the instance serves every
-record of the model. For `record_schema(Photo)` and the JSON Schemas, `record` is
+record of the model. For `record_policy(Photo)` and the JSON Schemas, `record` is
 `nil`, so decide what that means: `if: -> { record&.public? }` hides the attribute
 from them, while `unless: -> { record&.private? }` shows it. Hidden and
 undeclared attributes aren't rendered or named in validation errors, and
-fragments that include the model of a Schema that could vary by requester
+fragments that include the model of a Policy that could vary by requester
 aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
@@ -330,19 +330,19 @@ reveal its value.
 
 ###### Associations
 
-What a request may include is what the Schema declares with `association` or
+What a request may include is what the Policy declares with `association` or
 `associations`, an association or a method rendered as an include. Including
 anything else is rejected with a 400. What's included of an included record is
-checked against what its own Schema declares, or the `schema` the association
+checked against what its own Policy declares, or the `policy` the association
 gives in its place, at every level below it:
 
-    class PhotoSchema < StandardAPI::Schema
-      associations :author, :camera        # include[author][photos] if AuthorSchema declares photos
+    class PhotoPolicy < StandardAPI::Policy
+      associations :author, :camera        # include[author][photos] if AuthorPolicy declares photos
     end
 
 An association only renders when the `include` param asks for it. On
 `#create` and `#update`, so do the associations written through nested
-attributes (the ACL's `nested`), where the Schema declares them.
+attributes (the ACL's `nested`), where the Policy declares them.
 
 Declarations are checked for the model, with a `nil` record: `if` and `unless`
 don't stop an association from being asked for, only from rendering, and one
@@ -350,76 +350,76 @@ declared in an `attributes_for` block can be asked for when it's declared for
 the key a `nil` record gives.
 
 Under a polymorphic association or a method there's no single model to check
-what's included of it against. It's checked against the `schema` the
-association gives, if it gives a Schema class, or else the Schemas of the
+what's included of it against. It's checked against the `policy` the
+association gives, if it gives a Policy class, or else the Policies of the
 models its `types` name: each include is permitted if one of them declares it,
 and checked below it against that model. A `where` or `order` under it is
 rejected, and a `when` isn't checked, as its records can be of any type:
 
-    association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertySchema or AccountSchema declares it
+    association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertyPolicy or AccountPolicy declares it
 
-Without `schema` or `types`, nothing can be included of it.
+Without `policy` or `types`, nothing can be included of it.
 
 `if` and `unless` hide an association per record, as they do an attribute:
 
     association :comments, unless: -> { record&.locked? }
 
-The included records render with their own model's Schema, found from the
+The included records render with their own model's Policy, found from the
 association (or, for a polymorphic one, from each record's class), unless
-`schema` gives one to render them with in its place:
+`policy` gives one to render them with in its place:
 
-    class NameSchema < StandardAPI::Schema
+    class NamePolicy < StandardAPI::Policy
       attributes :id, :name
     end
 
-    association :account, schema: NameSchema
-    association :subject, schema: NameSchema                     # any model with an id and name
-    association :owner, schema: -> { NameSchema if redacted?(record) }
+    association :account, policy: NamePolicy
+    association :subject, policy: NamePolicy                     # any model with an id and name
+    association :owner, policy: -> { NamePolicy if redacted?(record) }
 
 It decides everything about the included records, their associations and
-values too: `NameSchema` declares no associations, so nothing can be included
+values too: `NamePolicy` declares no associations, so nothing can be included
 through `account`. Given a method name or Proc, it runs like a condition, on
-the record including them, and returns a Schema, or `nil` to render them with
+the record including them, and returns a Policy, or `nil` to render them with
 their own.
 
-**It replaces their own Schema, so nothing their own Schema hides is hidden
-unless it declares so too.** To start from what their own Schema renders, and
+**It replaces their own Policy, so nothing their own Policy hides is hidden
+unless it declares so too.** To start from what their own Policy renders, and
 hide more, inherit from it:
 
-    class AccountWithoutEmailSchema < AccountSchema
+    class AccountWithoutEmailPolicy < AccountPolicy
       remove :email
     end
 
-The Schema is passed to the included records' partial as the `schema` local,
-and `record_schema(record, local_assigns[:schema])` renders with it, so a custom
+The Policy is passed to the included records' partial as the `policy` local,
+and `record_policy(record, local_assigns[:policy])` renders with it, so a custom
 partial that calls it does too.
 
-`varies_by_requester?` is true for a Schema with `if`, `unless`, `value` or
-`attributes_for`, or an association whose `schema` is a method name, a Proc, or
-a Schema that varies. Override it when a Schema doesn't vary, so fragments can
+`varies_by_requester?` is true for a Policy with `if`, `unless`, `value` or
+`attributes_for`, or an association whose `policy` is a method name, a Proc, or
+a Policy that varies. Override it when a Policy doesn't vary, so fragments can
 be cached.
 
-A Schema's definitions come only from its declarations. For a value that
+A Policy's definitions come only from its declarations. For a value that
 differs by record, key it with `attributes_for`:
 
     attributes_for(-> { record&.title }) { |title| attribute :caption, comment: title }
 
-`record_schema(Photo).attributes` returns the result, and `schema.json` and the
+`record_policy(Photo).attributes` returns the result, and `schema.json` and the
 JSON Schemas (see [Schema Discovery](#schema-discovery)) are built from it.
 Records are rendered from it too: `application/_record` renders the attributes
-in `record_schema(record).attributes`. `record_schema` is available in
+in `record_policy(record).attributes`. `record_policy` is available in
 controllers and views, so other code (an MCP tool describing your models, for
 instance) can read the same definitions without rendering a schema view and
 parsing it back.
 
-Before the Schema sees them, there is one definition per entry in
+Before the Policy sees them, there is one definition per entry in
 `model.attribute_names`, or, given a record, in `record.attribute_names`: the
 attributes its query selected. A record loaded with `select(:id)` has only
 `id`, and one loaded with `select('*, 1 AS rank')` also has `rank`, with a
 `nil` type since the model doesn't have it. Records of a model with the same
-attributes share their definitions before the Schema sees them.
+attributes share their definitions before the Policy sees them.
 
-    record_schema(Property).attributes.find { |s| s[:name] == 'name' }
+    record_policy(Property).attributes.find { |s| s[:name] == 'name' }
     # => { name: 'name', type: 'string', enum: nil, default: nil,
     #      primary_key: false, null: true, array: false, comment: nil,
     #      auto_populated: false, read_only: false, required: true,
@@ -445,18 +445,18 @@ An attribute the model declares without a column (`attribute :nickname,
 `auto_populated`. The ACL's `attributes` is called without a record
 (`attributes(nil)`), so `read_only` is the answer for the model as a whole.
 
-A Schema `attribute` adding one the model doesn't have starts from
-`StandardAPI::Schema::Builder::DEFAULTS`: `null` and `read_only` are `true`,
+A Policy `attribute` adding one the model doesn't have starts from
+`StandardAPI::Policy::Builder::DEFAULTS`: `null` and `read_only` are `true`,
 `auto_populated` is `false`.
 
-For an STI subclass, ie. `Pdf < Document`, without an ACL or Schema of its
-own, the base class's `attributes` and Schema are used
-(`document_attributes`, `DocumentSchema`), as they are for `orders` and
+For an STI subclass, ie. `Pdf < Document`, without an ACL or Policy of its
+own, the base class's `attributes` and Policy are used
+(`document_attributes`, `DocumentPolicy`), as they are for `orders` and
 `wheres`.
 
-`schema.json` lists the same attributes as `record_schema(model).attributes`, with the same
+`schema.json` lists the same attributes as `record_policy(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
-a Schema declares another, so it reports `datetime` for date and time columns,
+a Policy declares another, so it reports `datetime` for date and time columns,
 `hash` for JSON and `decimal` for floats.
 
 # API Usage
@@ -537,7 +537,7 @@ The only change on calculate routes is the `selects` paramater contains the func
 ## Schema Discovery
 
 Each resource serves three [JSON Schemas](https://json-schema.org/draft/2020-12)
-(2020-12) built from its ACL and Schema, so a client (an MCP tool, for
+(2020-12) built from its ACL and Policy, so a client (an MCP tool, for
 instance) can learn what it may send and what it will get back:
 
 ```
@@ -549,31 +549,31 @@ GET /records/schema/query.json  params #index and #calculate accept
 Each route is only drawn with the actions it describes: `read_schema` with
 `show` or `index`, `write_schema` with `create` or `update`, and
 `query_schema` with `index` or `calculate`. Attributes are described from
-their definitions in `record_schema(model).attributes` (see [Schemas](#schemas)), so only
-what the model's Schema declares is described, with the `record` its
+their definitions in `record_policy(model).attributes` (see [Policies](#policies)), so only
+what the model's Policy declares is described, with the `record` its
 conditions see being `nil`.
 
 - **`schema/read.json`** describes every definition as rendered (decimals as
   strings, binary columns as hex), and the associations in the `include`
-  param, which is checked against the Schemas as on `#index`. A
+  param, which is checked against the Policies as on `#index`. A
   singular association allows `null` unless its presence is validated.
   Columns and includes are `required`; other attributes aren't, since a
-  partial `select` can leave them out. When a Schema condition could hide
+  partial `select` can leave them out. When a Policy condition could hide
   something from a record, what it hides is still
   described and nothing is `required`. A model with a custom partial is
   described as any object.
 - **`schema/write.json`** describes `{ "record": { ... } }` with only the
   attributes the ACL's `attributes(nil)` permit, with their validations, and
   the associations its `nested` permits (by attributes, `_ids` and foreign
-  key). One the ACL permits but the Schema doesn't declare is `{}`.
+  key). One the ACL permits but the Policy doesn't declare is `{}`.
   `required` lists the definitions' `required`, for a create; an update may
   send any of the properties. A `read_only` definition is `readOnly`: an
   `attr_readonly` attribute, which can be set on create but not changed, or
-  one the Schema declares read only. A model with an ACL `filter` is
+  one the Policy declares read only. A model with an ACL `filter` is
   described as any object.
 - **`schema/query.json`** describes `where` and `order` as the ACL's `wheres`
-  and `orders` permit them, and `include` as the Schemas declare it, following
-  associations into the associated models' ACLs and Schemas through `$defs`, plus `limit`, `offset`,
+  and `orders` permit them, and `include` as the Policies declare it, following
+  associations into the associated models' ACLs and Policies through `$defs`, plus `limit`, `offset`,
   `distinct` and `group_by`. Columns to `group_by` and associations to `join`
   aren't listed by name, as not all of them need be exposed. An include's `where` and
   `order` are those the included model's ACL permits. A column permitted with
@@ -594,7 +594,7 @@ conditions see being `nil`.
 
 The schemas are built by `read_schema_for(model, includes)`,
 `write_schema_for(model)` and `query_schema_for(model)`, which are public like
-`record_schema`. Called on a controller handling a request, they give what the
+`record_policy`. Called on a controller handling a request, they give what the
 actions render, so a caller can validate params in-process before running an
 action. `query_schema_for` builds the where, order and include of every model
 reachable through a permitted association into `$defs`; given `ref:`, it

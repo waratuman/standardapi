@@ -3,20 +3,20 @@ require 'active_support/core_ext/hash/keys'
 
 module StandardAPI
   # Declares how a model's attributes and associations are described and
-  # rendered. Nest a subclass in the model's controller; StandardAPI::Schemas
+  # rendered. Nest a subclass in the model's controller; StandardAPI::Policies
   # finds it. Like strong parameters, only what it declares is used, so a new
   # column or association stays hidden until it's listed. Types and
   # validations still come from the model.
   #
   #   class PhotosController < ApplicationController
-  #     class Schema < StandardAPI::Schema
+  #     class Policy < StandardAPI::Policy
   #       attributes :id, :format, :created_at
   #       attribute :caption, comment: 'Shown under the photo'
   #       attribute :thumbnail_url, :string
   #       attribute :location, if: :admin?
   #
   #       associations :camera, :properties
-  #       association :account, schema: AccountNameSchema
+  #       association :account, policy: AccountNamePolicy
   #       association :comments, unless: -> { record&.locked? }
   #
   #       attributes_for :account_id do |account_id|
@@ -33,9 +33,9 @@ module StandardAPI
   #
   # One instance serves a model for the length of a request, on its controller.
   # A method it doesn't define goes to the controller, private ones included.
-  class Schema
+  class Policy
 
-    # The changes a Schema's declarations make to a model's definitions
+    # The changes a Policy's declarations make to a model's definitions
     class Builder
       DEFAULTS = {
         name: nil, type: nil, enum: nil, default: nil, primary_key: false,
@@ -43,7 +43,7 @@ module StandardAPI
         read_only: true, required: false, validations: [].freeze
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
-      ASSOCIATION_OPTIONS = [:schema, :types].freeze
+      ASSOCIATION_OPTIONS = [:policy, :types].freeze
 
       # +association_options+ are each declared association's options, and
       # +values+ each attribute's declared +value+
@@ -82,11 +82,11 @@ module StandardAPI
 
       # Declare the association +name+, or a method rendered as an include,
       # so a request may include it and it renders. +if+ and +unless+ hide it
-      # per record. The included records render with +schema+ in place of
-      # their own model's Schema, if it's given. Under a polymorphic
+      # per record. The included records render with +policy+ in place of
+      # their own model's Policy, if it's given. Under a polymorphic
       # association or a method there's no single model to check what's
       # included of it against, so +types+ lists the models it can be, ie.
-      # `types: [Property, 'Account']`, and what one of their Schemas declares
+      # `types: [Property, 'Account']`, and what one of their Policies declares
       # can be included of it.
       def association(name, **options)
         name = name.to_s
@@ -104,7 +104,7 @@ module StandardAPI
         self
       end
 
-      # Take back a declaration, ie. one inherited from a parent Schema
+      # Take back a declaration, ie. one inherited from a parent Policy
       def remove(*names)
         names.map(&:to_s).each do |name|
           @changes.delete(name)
@@ -116,10 +116,10 @@ module StandardAPI
         self
       end
 
-      # New definitions; those in +default_schema+ are shared, so aren't changed
-      def apply(default_schema, model)
+      # New definitions; those in +defaults+ are shared, so aren't changed
+      def apply(defaults, model)
         pending = @changes.dup
-        definitions = default_schema.filter_map do |definition|
+        definitions = defaults.filter_map do |definition|
           changes = pending.delete(definition[:name])
           definition.merge(changes) if changes
         end
@@ -143,11 +143,11 @@ module StandardAPI
       end
     end
 
-    class_attribute :schema_steps, instance_accessor: false, default: [].freeze
+    class_attribute :policy_steps, instance_accessor: false, default: [].freeze
 
     class << self
       # See Builder#attribute. Conditions may be a Symbol naming a method or a
-      # Proc. Both run on the Schema instance, take no arguments and read the
+      # Proc. Both run on the Policy instance, take no arguments and read the
       # record from +record+, which is nil for a model. So does +value+, which
       # is only run for a record.
       def attribute(name, type = nil, **options)
@@ -165,23 +165,23 @@ module StandardAPI
         add_step { attributes(*names) }
       end
 
-      # See Builder#association. +schema+ is a Schema class, or a Symbol or
+      # See Builder#association. +policy+ is a Policy class, or a Symbol or
       # Proc run like a condition, on the record including them, that returns
-      # one, or nil to render the included records with their own Schema. To
-      # keep what their own Schema hides, it inherits from it.
+      # one, or nil to render the included records with their own Policy. To
+      # keep what their own Policy hides, it inherits from it.
       def association(name, **options)
-        schema = options[:schema]
-        if schema && !schema.is_a?(Proc) && !schema.is_a?(Symbol) && !(schema.is_a?(Class) && schema < StandardAPI::Schema)
-          raise ArgumentError, "the schema of association #{name} must be a subclass of StandardAPI::Schema, a Symbol or a Proc"
+        policy = options[:policy]
+        if policy && !policy.is_a?(Proc) && !policy.is_a?(Symbol) && !(policy.is_a?(Class) && policy < StandardAPI::Policy)
+          raise ArgumentError, "the policy of association #{name} must be a subclass of StandardAPI::Policy, a Symbol or a Proc"
         end
 
         if !Array(options[:types]).all? { |type| type.is_a?(String) || type.is_a?(Class) }
           raise ArgumentError, "the types of association #{name} must be models or their names"
         end
 
-        varies = options.key?(:if) || options.key?(:unless) || schema.is_a?(Proc) || schema.is_a?(Symbol)
-        # The Schema it gives can vary too, and may not be fully declared yet
-        varies ||= -> { schema.varies_by_requester? } if schema.is_a?(Class)
+        varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
+        # The Policy it gives can vary too, and may not be fully declared yet
+        varies ||= -> { policy.varies_by_requester? } if policy.is_a?(Class)
         add_step(varies: varies) { association(name, **options) }
       end
 
@@ -195,7 +195,7 @@ module StandardAPI
 
       # Declare attributes only known at runtime. +key+ is a Symbol or Proc that
       # reads +record+ (nil for a model), and records with the same result share
-      # them: the block runs on the Schema instance once a request per key, is
+      # them: the block runs on the Policy instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+,
       # +association+, +associations+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
@@ -207,16 +207,16 @@ module StandardAPI
 
       # Whether the definitions could differ by requester, which fragment
       # caching has to know as its keys can't tell requesters apart. Assumed of
-      # conditions, values, attributes_for and an association's +schema+ given
+      # conditions, values, attributes_for and an association's +policy+ given
       # as a Symbol or Proc, or one that varies; override to say otherwise.
       def varies_by_requester?
-        schema_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
+        policy_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
       end
 
       private
 
       def add_step(key: nil, varies: false, &block)
-        self.schema_steps += [{ key: key, varies: varies, block: block }.freeze]
+        self.policy_steps += [{ key: key, varies: varies, block: block }.freeze]
       end
     end
 
@@ -232,7 +232,7 @@ module StandardAPI
     end
 
     # The definitions to use for +record+, or nil for a model, from
-    # +defaults+, the ones Schemas#default_definitions builds. What they leave
+    # +defaults+, the ones Policies#default_definitions builds. What they leave
     # out is hidden_attributes.
     def definitions(defaults, record)
       builder = builder_for(record)
@@ -262,22 +262,22 @@ module StandardAPI
       builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
     end
 
-    # What a request may include, as name => { schema:, types: }: each
-    # declared association or method, with the Schema class its +schema+
+    # What a request may include, as name => { policy:, types: }: each
+    # declared association or method, with the Policy class its +policy+
     # gives for a model (a nil record), and the models its +types+ name. +if+
     # and +unless+ don't apply, as they only hide it per record.
     def declared_includes
       @declared_includes ||= builder_for(nil).association_options.to_h do |name, options|
         types = Array(options[:types]).map { |type| type.is_a?(String) ? type.constantize : type }
-        [name, { schema: association_schema(nil, name), types: types }]
+        [name, { policy: association_policy(nil, name), types: types }]
       end.with_indifferent_access
     end
 
-    # The Schema class the records +record+ includes through the association
+    # The Policy class the records +record+ includes through the association
     # +name+ render with in place of their own model's, or nil
-    def association_schema(record, name)
-      schema = builder_for(record).association_options.dig(name.to_s, :schema)
-      schema.is_a?(Proc) || schema.is_a?(Symbol) ? resolve(schema, record) : schema
+    def association_policy(record, name)
+      policy = builder_for(record).association_options.dig(name.to_s, :policy)
+      policy.is_a?(Proc) || policy.is_a?(Symbol) ? resolve(policy, record) : policy
     end
 
     private
@@ -337,7 +337,7 @@ module StandardAPI
     end
 
     def builder_for(record)
-      steps = self.class.schema_steps
+      steps = self.class.policy_steps
       keys = steps.map { |step| resolve(step[:key], record) if step[:key] }
 
       @builders[keys] ||= begin
@@ -359,4 +359,4 @@ module StandardAPI
   end
 end
 
-require 'standard_api/schema/record'
+require 'standard_api/policy/record'

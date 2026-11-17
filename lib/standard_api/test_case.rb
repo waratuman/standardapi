@@ -149,17 +149,17 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    schema = @controller.record_schema(record)
+    policy = @controller.record_policy(record)
     record.attributes.select do |x|
-      !schema.hidden?(x)
+      !policy.hidden?(x)
     end
   end
 
   def update_attributes(record)
     return [] if record.nil?
-    schema = @controller.record_schema(record)
+    policy = @controller.record_policy(record)
     record.attributes.select do |x|
-      !record.class.readonly_attributes.include?(x.to_s) && !schema.hidden?(x)
+      !record.class.readonly_attributes.include?(x.to_s) && !policy.hidden?(x)
     end
   end
   alias_method :create_attributes, :update_attributes

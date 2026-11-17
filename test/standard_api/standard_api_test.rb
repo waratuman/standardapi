@@ -67,13 +67,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'include StandardAPI includes Controller, AccessControlList and Schemas' do
+  test 'include StandardAPI includes Controller, AccessControlList and Policies' do
     klass = Class.new(ActionController::Base) do
       include StandardAPI
     end
     assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
     assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
-    assert klass.ancestors.include?(StandardAPI::Schemas), "Expected StandardAPI::Schemas to be included"
+    assert klass.ancestors.include?(StandardAPI::Policies), "Expected StandardAPI::Policies to be included"
   end
 
   test 'StandardAPI-Version' do
@@ -134,26 +134,26 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [:id], wheres_for.call(Pdf)
   end
 
-  test "Schema#declared_includes is what the Schema declares can be included" do
-    includes = AccountSchema.new(AccountsController.new, Account).declared_includes
+  test "Policy#declared_includes is what the Policy declares can be included" do
+    includes = AccountPolicy.new(AccountsController.new, Account).declared_includes
     assert_equal %w[photos property subject], includes.keys.sort
     assert_equal [Property], includes['subject'][:types]
-    assert_nil includes['photos'][:schema]
+    assert_nil includes['photos'][:policy]
   end
 
-  test "Includes#sanitize_includes checks an STI subclass against its base class's Schema" do
+  test "Includes#sanitize_includes checks an STI subclass against its base class's Policy" do
     sanitize = -> { DocumentsController.new.send(:sanitize_includes, :file, Pdf) }
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call }
 
     # file is a method of Document
-    schemas = ApplicationController.standard_api_schemas.merge('document' => Class.new(DocumentSchema) { association :file })
-    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+    policies = ApplicationController.standard_api_policies.merge('document' => Class.new(DocumentPolicy) { association :file })
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
     assert_equal({ 'file' => {} }, sanitize.call)
   ensure
-    ApplicationController.unstub(:standard_api_schemas)
+    ApplicationController.unstub(:standard_api_policies)
   end
 
-  test 'Includes#sanitize_includes permits nothing without a model or Schema' do
+  test 'Includes#sanitize_includes permits nothing without a model or Policy' do
     assert_raises(StandardAPI::UnpermittedParameters) do
       DocumentsController.new.send(:sanitize_includes, :anything, nil)
     end
@@ -261,7 +261,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        # CamerasController::Schema declares a comment of its own
+        # CamerasController::Policy declares a comment of its own
         comment = model == Camera && column.name == 'make' ? 'The manufacturer' : column.comment
         if comment
           assert_equal comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
@@ -925,13 +925,13 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     error = assert_raises(StandardAPI::InvalidConfiguration) do
       StandardAPI::AccessControlList.include_acl(Class.new(ActionController::Base), acl, 'camera')
     end
-    assert_equal "CameraACL#includes is no longer supported; declare what can be included with association and associations in the model's Schema instead", error.message
+    assert_equal "CameraACL#includes is no longer supported; declare what can be included with association and associations in the model's Policy instead", error.message
   end
 
-  test "a polymorphic association's types permit what their Schemas declare" do
+  test "a polymorphic association's types permit what their Policies declare" do
     sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
 
-    # AccountSchema declares subject with types: ['Property']
+    # AccountPolicy declares subject with types: ['Property']
     assert_equal({ 'subject' => { 'landlord' => { 'photos' => {} } } }, sanitize.call({ subject: { landlord: :photos } }))
     assert_equal({ 'subject' => { 'limit' => 1 } }, sanitize.call({ subject: { limit: 1 } }))
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :document_attachments }) }
@@ -939,19 +939,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a polymorphic association's includes can each come from a different type" do
-    schemas = ApplicationController.standard_api_schemas.merge('account' => Class.new(AccountSchema) { association :subject, types: [Property, Photo] })
-    ApplicationController.stubs(:standard_api_schemas).returns(schemas)
+    policies = ApplicationController.standard_api_policies.merge('account' => Class.new(AccountPolicy) { association :subject, types: [Property, Photo] })
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
     sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
 
-    # landlord is PropertySchema's and account PhotoSchema's
+    # landlord is PropertyPolicy's and account PhotoPolicy's
     assert_equal({ 'subject' => { 'landlord' => {}, 'account' => {} } }, sanitize.call({ subject: [:landlord, :account] }))
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :camera }) }
   ensure
-    ApplicationController.unstub(:standard_api_schemas)
+    ApplicationController.unstub(:standard_api_policies)
   end
 
   test 'types must be models or their names' do
-    assert_raises(ArgumentError) { Class.new(StandardAPI::Schema) { association :subject, types: [:property] } }
+    assert_raises(ArgumentError) { Class.new(StandardAPI::Policy) { association :subject, types: [:property] } }
   end
 
   test 'Controller#model_includes overrides raise' do
@@ -968,25 +968,25 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       get account_path(account, include: :photos, format: 'json')
     end
     assert_instance_of StandardAPI::InvalidConfiguration, error.cause
-    assert_equal "AccountsController#model_includes is not supported, declare what can be included with association and associations in Account's Schema instead", error.cause.message
+    assert_equal "AccountsController#model_includes is not supported, declare what can be included with association and associations in Account's Policy instead", error.cause.message
   ensure
     AccountsController.send(:remove_method, :model_includes)
   end
 
-  test "Includes#sanitize_includes checks an association's includes against its model's Schema" do
+  test "Includes#sanitize_includes checks an association's includes against its model's Policy" do
     sanitize = ->(includes) { PropertiesController.new.send(:sanitize_includes, includes, Property) }
 
-    # PropertySchema declares landlord, an Account, and AccountSchema photos
+    # PropertyPolicy declares landlord, an Account, and AccountPolicy photos
     assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }))
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: :agents }) }
     assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ document_attachments: true }) }
   end
 
-  test "Includes#sanitize_includes checks an association's includes against its schema" do
-    through = Class.new(StandardAPI::Schema) { associations :property }
-    schema = Class.new(PropertySchema) { association :landlord, schema: through }
+  test "Includes#sanitize_includes checks an association's includes against its policy" do
+    through = Class.new(StandardAPI::Policy) { associations :property }
+    policy = Class.new(PropertyPolicy) { association :landlord, policy: through }
     controller = PropertiesController.new
-    controller.stubs(:model_schema).with(Property).returns(schema.new(controller, Property))
+    controller.stubs(:model_policy).with(Property).returns(policy.new(controller, Property))
 
     assert_equal({ 'landlord' => { 'property' => {} } }, controller.send(:sanitize_includes, { landlord: :property }, Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
@@ -1054,7 +1054,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_raises(StandardAPI::UnpermittedParameters) { method.call(:x) }
     assert_raises(StandardAPI::UnpermittedParameters) { method.call([:photos, :x]) }
-    # PhotoSchema declares account, not property
+    # PhotoPolicy declares account, not property
     assert_raises(StandardAPI::UnpermittedParameters) { method.call({ photos: { property: true } }) }
   end
 

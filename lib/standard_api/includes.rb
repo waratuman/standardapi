@@ -1,6 +1,6 @@
 module StandardAPI
   # Included in StandardAPI::Controller. What can be included is what each
-  # model's Schema declares with +association+ and +associations+.
+  # model's Policy declares with +association+ and +associations+.
   module Includes
 
     private
@@ -66,23 +66,23 @@ module StandardAPI
       normalized
     end
 
-    # Checks +includes+ of +model+ against what its Schema declares
-    # (Schema#declared_includes), or +schema+, the Schema class an association
+    # Checks +includes+ of +model+ against what its Policy declares
+    # (Policy#declared_includes), or +policy+, the Policy class an association
     # gives in its place, raising UnpermittedParameters for anything else, and
     # returns them normalized. An association's includes are checked against
-    # its model's Schema, or the Schema class its +schema+ gives. Under a
+    # its model's Policy, or the Policy class its +policy+ gives. Under a
     # polymorphic association or a method there is no single model, so they're
-    # checked against that Schema class, or else the Schemas of the models
+    # checked against that Policy class, or else the Policies of the models
     # the association's +types+ name (#sanitize_typed_includes).
     #
-    #   association :photos                     # include[photos][account]: PhotoSchema declares account?
-    #   association :subject, types: [Property] # include[subject][photos]: PropertySchema declares photos?
-    def sanitize_includes(includes, model, schema = nil, normalized: false)
+    #   association :photos                     # include[photos][account]: PhotoPolicy declares account?
+    #   association :subject, types: [Property] # include[subject][photos]: PropertyPolicy declares photos?
+    def sanitize_includes(includes, model, policy = nil, normalized: false)
       includes = normalize_includes(includes) if !normalized
-      declared = if (instance = schema ? schema_instance(schema, model) : (model_schema(model) if model))
+      declared = if (instance = policy ? policy_instance(policy, model) : (model_policy(model) if model))
         instance.declared_includes
       else
-        # Under a polymorphic association without a +schema+
+        # Under a polymorphic association without a +policy+
         {}
       end
       permitted = ActiveSupport::HashWithIndifferentAccess.new
@@ -94,9 +94,9 @@ module StandardAPI
           entry = declared[k]
           association = model&.reflect_on_association(k)
           if association && !association.polymorphic?
-            sanitize_includes(v, association.klass, entry[:schema], normalized: true)
-          elsif entry[:schema]
-            sanitize_includes(v, nil, entry[:schema], normalized: true)
+            sanitize_includes(v, association.klass, entry[:policy], normalized: true)
+          elsif entry[:policy]
+            sanitize_includes(v, nil, entry[:policy], normalized: true)
           else
             sanitize_typed_includes(v, entry[:types])
           end
@@ -126,7 +126,7 @@ module StandardAPI
 
     # Checks +includes+ under a polymorphic association or a method, whose
     # records can be any of +types+: each include is permitted if one of their
-    # Schemas declares it, and checked below it against that model, so one
+    # Policies declares it, and checked below it against that model, so one
     # request can include what different models declare. Like any include
     # without a model, a +where+ or +order+ is rejected.
     def sanitize_typed_includes(includes, types)

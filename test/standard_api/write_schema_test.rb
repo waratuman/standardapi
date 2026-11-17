@@ -19,7 +19,7 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
   # The JSON Schema of +name+ in cameras' schema/write.json, with the
   # +validations+ declared on it and no description
   def camera_attribute_schema(name, validations)
-    with_camera_schema(proc { attribute name, validations: validations, comment: nil }) do
+    with_camera_policy(proc { attribute name, validations: validations, comment: nil }) do
       camera_schema.dig('properties', name)
     end
   end
@@ -87,23 +87,23 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal({ 'type' => 'string' }, aliases['items'])
   end
 
-  test "Controller#write_schema.json description from the Schema's comment" do
+  test "Controller#write_schema.json description from the Policy's comment" do
     assert_equal 'The manufacturer', camera_schema.dig('properties', 'make', 'description')
   end
 
-  test 'Controller#write_schema.json lists an attribute a Schema adds when the ACL permits it' do
+  test 'Controller#write_schema.json lists an attribute a Policy adds when the ACL permits it' do
     CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :thumbnail_url])
 
     # null defaults to true, and an added attribute is read only unless it says
-    with_camera_schema(proc { attribute :thumbnail_url, :string }) do
+    with_camera_policy(proc { attribute :thumbnail_url, :string }) do
       assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, camera_schema.dig('properties', 'thumbnail_url'))
     end
-    with_camera_schema(proc { attribute :thumbnail_url, :string, read_only: false }) do
+    with_camera_policy(proc { attribute :thumbnail_url, :string, read_only: false }) do
       assert_equal({ 'type' => ['string', 'null'] }, camera_schema.dig('properties', 'thumbnail_url'))
     end
   end
 
-  test "Controller#write_schema.json describes an attribute the ACL permits but the Schema doesn't declare as anything" do
+  test "Controller#write_schema.json describes an attribute the ACL permits but the Policy doesn't declare as anything" do
     CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :created_at])
 
     assert_equal({}, camera_schema.dig('properties', 'created_at'))

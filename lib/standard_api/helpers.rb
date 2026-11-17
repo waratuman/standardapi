@@ -4,7 +4,7 @@ module StandardAPI
 
     # Yield the base controller (the topmost class including +owner+), the
     # +const+ module nested in it (ie. PhotosController::ACL) and the model's
-    # prefix for each controller with one, so AccessControlList and Schemas
+    # prefix for each controller with one, so AccessControlList and Policies
     # can make it available to every controller.
     def self.each_nested(owner, const)
       ActionController::Metal.descendants.each do |controller|
@@ -19,13 +19,13 @@ module StandardAPI
       end
     end
 
-    # The value of attribute +name+ to render for +record+, from the Schema it
-    # renders with (Schema#value), so a declared +value+ renders in place of
+    # The value of attribute +name+ to render for +record+, from the Policy it
+    # renders with (Policy#value), so a declared +value+ renders in place of
     # the record's. An override of serialize_attribute should read the value
     # with this.
     def attribute_value(record, name)
-      schema = controller.send(:rendering_schema, record) if respond_to?(:controller) && controller.respond_to?(:rendering_schema, true)
-      schema ? schema.value(record, name) : record.send(name)
+      policy = controller.send(:rendering_policy, record) if respond_to?(:controller) && controller.respond_to?(:rendering_policy, true)
+      policy ? policy.value(record, name) : record.send(name)
     end
 
     def serialize_attribute(json, record, name, type)
@@ -105,14 +105,14 @@ module StandardAPI
       end
     end
 
-    # +schema+ is the Schema class the records of this relation render with in
-    # place of their model's (Schema::Record#association_schema). A fragment it
+    # +policy+ is the Policy class the records of this relation render with in
+    # place of their model's (Policy::Record#association_policy). A fragment it
     # renders isn't cached, as its key doesn't include it.
-    def can_cache_relation?(record, relation, subincludes, schema = nil)
+    def can_cache_relation?(record, relation, subincludes, policy = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if schema
+      return false if policy
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?
@@ -128,7 +128,7 @@ module StandardAPI
     end
 
     # False when rendering +klass+ with +includes+ could vary by requester,
-    # through a Schema that varies or a row mask. Cache keys are built from
+    # through a Policy that varies or a row mask. Cache keys are built from
     # record timestamps and the include digest alone, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.
@@ -136,9 +136,9 @@ module StandardAPI
     # Returns true outside a StandardAPI controller, where neither mechanism
     # exists.
     def requester_independent?(klass, includes)
-      return true if !respond_to?(:schema_varies?)
+      return true if !respond_to?(:policy_varies?)
 
-      !schema_varies?(klass, includes) && !mask_affect?(klass, includes)
+      !policy_varies?(klass, includes) && !mask_affect?(klass, includes)
     end
 
     def association_cache_key(record, relation, subincludes)
@@ -206,7 +206,7 @@ module StandardAPI
     end
 
     # The `type` schema.json reports for an attribute definition. A
-    # column keeps its SQL based type, unless a Schema declared another.
+    # column keeps its SQL based type, unless a Policy declared another.
     def schema_json_type(model, schema)
       column = model.columns_hash[schema[:name]]
       attribute_type = model.type_for_attribute(schema[:name])
