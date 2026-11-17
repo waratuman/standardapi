@@ -386,12 +386,6 @@ module StandardAPI
     end
 
     def includes
-      # #model_includes was removed; raise rather than ignore an override of it
-      # TODO: Remove this check in 10.0
-      if respond_to?(:model_includes, true)
-        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, declare what can be included with association and associations in #{ model.name }'s Policy instead"
-      end
-
       @includes ||= if params[:include]
         sanitize_includes(params[:include], model)
       else

@@ -20,8 +20,8 @@
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
   checked against the Policies of the models the association's `types:` name.
-  An ACL `includes` method
-  raises `StandardAPI::InvalidConfiguration`.
+  An ACL `includes` method is no longer renamed, so it overrides
+  `Controller#includes`: delete it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
@@ -43,8 +43,7 @@
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
 - Remove `Controller#model_includes`. Declare what can be included in the
-  model's Policy instead. A controller that still overrides `model_includes`
-  raises `StandardAPI::InvalidConfiguration`.
+  model's Policy instead. An override of `model_includes` isn't used.
 - Remove `StandardAPI::Includes.sanitize` and `.normalize`.
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
   `sanitize_includes` and `normalize_includes` instead.
@@ -125,9 +124,9 @@ out of each model's Policy, which renders only what it declares:
     end
 
 ACL `includes` has been replaced by the associations each model's Policy
-declares, which decide both what can be included and what renders. An ACL
-`includes` method raises `StandardAPI::InvalidConfiguration` at boot. Move what
-it permitted into the Policy. For anything it permitted under a polymorphic
+declares, which decide both what can be included and what renders. Delete ACL
+`includes` methods and move what they permitted into the Policy: one left in
+place overrides `Controller#includes`, so the `include` param is ignored. For anything it permitted under a polymorphic
 association or a method, list the models it can be in that association's
 `types`, and declare what can be included of them in their Policies:
 

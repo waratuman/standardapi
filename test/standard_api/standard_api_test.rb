@@ -848,21 +848,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal account.id, JSON(response.body)['photo']['account']['id']
   end
 
-  test 'an ACL includes method raises' do
-    acl = Module.new do
-      def self.name = 'CameraACL'
-
-      def includes
-        [ :photo ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      StandardAPI::AccessControlList.include_acl(Class.new(ActionController::Base), acl, 'camera')
-    end
-    assert_equal "CameraACL#includes is no longer supported; declare what can be included with association and associations in the model's Policy instead", error.message
-  end
-
   test "a polymorphic association's types permit what their Policies declare" do
     sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
 
@@ -887,25 +872,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test 'types must be models or their names' do
     assert_raises(ArgumentError) { Class.new(StandardAPI::Policy) { association :subject, types: [:property] } }
-  end
-
-  test 'Controller#model_includes overrides raise' do
-    AccountsController.class_eval do
-      private def model_includes
-        [ :photos ]
-      end
-    end
-
-    account = create(:account)
-
-    # #show first calls #includes from the view, which wraps the error
-    error = assert_raises(ActionView::Template::Error) do
-      get account_path(account, include: :photos, format: 'json')
-    end
-    assert_instance_of StandardAPI::InvalidConfiguration, error.cause
-    assert_equal "AccountsController#model_includes is not supported, declare what can be included with association and associations in Account's Policy instead", error.cause.message
-  ensure
-    AccountsController.send(:remove_method, :model_includes)
   end
 
   test "Includes#sanitize_includes checks an association's includes against its model's Policy" do

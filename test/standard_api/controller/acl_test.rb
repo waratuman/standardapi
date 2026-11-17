@@ -68,16 +68,6 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_equal StandardAPI::Controller, @acl_controller.instance_method(:wheres).owner
   end
 
-  test "includes in a nested ACL raise" do
-    acl_controller(Attachment) do
-      def includes
-        [ :record ]
-      end
-    end
-
-    assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-  end
-
   test "nested and filter are renamed to their own names" do
     acl_controller(Attachment) do
       def nested
