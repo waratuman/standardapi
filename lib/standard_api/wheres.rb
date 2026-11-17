@@ -46,22 +46,19 @@ module StandardAPI
     # associated model's Policy makes filterable. A +filter_on+ filter is
     # permitted by name, and its value is not checked.
     def sanitize_wheres(wheres, policy)
-      check_wheres(wheres, policy)
-      wheres
-    end
-
-    def check_wheres(wheres, policy)
       case wheres
       when nil
       when Array
         wheres.each do |where|
-          check_wheres(where, policy) unless where == 'AND' || where == 'OR'
+          sanitize_wheres(where, policy) unless where == 'AND' || where == 'OR'
         end
       when Hash, ActionController::Parameters
         wheres.each_pair { |key, value| check_where(key.to_s, value, policy) }
       else
         check_where('id', wheres, policy)
       end
+
+      wheres
     end
 
     # Checks +key+ the way activerecord-filter resolves it: a filter_on
@@ -92,7 +89,7 @@ module StandardAPI
 
         check_association_where(key, association, value)
       elsif key.end_with?('_ids') && association = model.reflect_on_association(key.sub(/_ids\z/, 's'))
-        check_wheres({ id: value }, record_policy(association.klass))
+        sanitize_wheres({ id: value }, record_policy(association.klass))
       end
     end
 
@@ -118,7 +115,7 @@ module StandardAPI
         association.klass
       end
 
-      check_wheres(value, record_policy(klass))
+      sanitize_wheres(value, record_policy(klass))
     end
 
     # The operators a where +value+ on +column+ uses, including the implicit

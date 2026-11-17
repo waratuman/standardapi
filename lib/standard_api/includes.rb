@@ -177,7 +177,7 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
         end
 
-        check_wheres({ name.to_s => true }, record_policy(model))
+        sanitize_wheres({ name.to_s => true }, record_policy(model))
       end
     end
 

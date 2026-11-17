@@ -539,7 +539,7 @@ module StandardAPI
         defs.external_ref(model, 'Where') || json_schema_ref(defs, json_schema_name(model, 'Where')) { json_schema_where(model, defs) }
       end
 
-      # Mirrors StandardAPI::Wheres#check_wheres: a Hash of permitted keys, or
+      # Mirrors StandardAPI::Wheres#sanitize_wheres: a Hash of permitted keys, or
       # an Array of them joined by "AND" and "OR".
       def json_schema_where(model, defs)
         permit = json_schema_wheres(model)
