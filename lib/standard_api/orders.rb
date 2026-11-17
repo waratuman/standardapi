@@ -1,48 +1,17 @@
 module StandardAPI
-  # Included in StandardAPI::Controller, so the ACL +orders+ methods are
-  # called on the controller.
+  # Included in StandardAPI::Controller. What can be ordered by is what each
+  # model's Policy declares +orderable+, record_policy(model).orderable.
   module Orders
 
     private
 
-    # The ACL +orders+ method for +klass+, falling back to the one for its
-    # base class (ie. an STI subclass), or nil if there is none
-    def orders_method_for(klass)
-      [klass, klass.base_class].uniq.map { |k| "#{k.model_name.singular}_orders" }.find do |method|
-        self.respond_to?(method, true)
-      end
-    end
-
-    # The orders the ACL permits on +klass+, or [] if it has none
-    def orders_for(klass)
-      return [] if !(method = orders_method_for(klass))
-
-      # ACL orders list the columns and associations that can be ordered by;
-      # what can be ordered by through an association is up to its own ACL
-      orders = self.send(method)
-      orders.grep(Hash).flat_map(&:keys).each do |name|
-        association = klass.reflect_on_association(name)
-        instead = if association.nil?
-          "permit :#{ name } instead"
-        elsif association.polymorphic?
-          "ordering through a polymorphic association is not supported"
-        else
-          "permit :#{ name } in #{ klass.name }ACL#orders and its columns in #{ association.klass.name }ACL#orders instead"
-        end
-
-        raise StandardAPI::InvalidConfiguration, "#{ klass.name }ACL#orders permitting #{ name } in a Hash is not supported, #{ instead }"
-      end
-
-      orders
-    end
-
     # Sanitize +orders+ of +model+ against +permit+, the names of the columns
     # and associations of +model+ that can be ordered by. Ordering through an
-    # association (ie. +:owner+) is checked against the orders the ACL permits
-    # on the associated model:
+    # association (ie. +:owner+) is checked against what the associated
+    # model's Policy makes orderable:
     #
-    #   sanitize_orders({ owner: { name: :asc } }, [:owner], Property)
-    #   # => { owner: { name: :asc } } if owner_orders includes :name
+    #   sanitize_orders({ owner: { name: :asc } }, ['owner'], Property)
+    #   # => { owner: { name: :asc } } if OwnerPolicy makes name orderable
     def sanitize_orders(orders, permit, model)
       return nil if orders.nil?
 
@@ -59,9 +28,9 @@ module StandardAPI
             association = model.reflect_on_association(key)
 
             value = if association
-              # A polymorphic association has no single ACL to check against
+              # A polymorphic association has no single Policy to check against
               raise(StandardAPI::UnpermittedParameters.new([orders])) if association.polymorphic?
-              sanitize_orders(value, orders_for(association.klass), association.klass)
+              sanitize_orders(value, record_policy(association.klass).orderable, association.klass)
             else
               case value
               when Hash

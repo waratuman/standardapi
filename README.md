@@ -10,8 +10,7 @@ minimal configuration.
 - [Controllers](#controllers)
   - [Including StandardAPI](#including-standardapi)
   - [Whitelisting Attributes](#whitelisting-attributes)
-  - [Whitelisting Orders](#whitelisting-orders)
-  - [Limits and Pagination](#limits-and-pagination)
+- [Limits and Pagination](#limits-and-pagination)
   - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
 - [Access Control List (ACL)](#access-control-list-acl)
 - [Policies](#policies)
@@ -38,8 +37,8 @@ In your `Gemfile`:
 
 # Quick Start
 
-Include `StandardAPI` in a controller, define the allowed attributes and
-orders, and give each model a Policy for what it renders and can include:
+Include `StandardAPI` in a controller, define the allowed attributes, and give
+each model a Policy for what it renders, can include and can be ordered by:
 
         # QueryEncoding middleware intercepts and parses the query string
         # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
@@ -66,25 +65,11 @@ inherited controllers an exposed API.
       def photo_params
         [:caption]
       end
-      
-      # Allowed orderings
-      # The ordering is whitelisted as well, you will mostly likely want to
-      # ensure indexes have been created on these columns. In this example the
-      # response can be ordered by any permutation of `id`, `created_at`, and
-      # `updated_at`.
-      #
-      # An association can be listed by name, ie. `:account`, to allow
-      # ordering by the columns the associated model's orders permit
-      # (`account_orders`). Only names can be listed here; a Hash, ie.
-      # `{ account: [:name] }`, raises.
-      def photo_orders
-        [:id, :created_at, :updated_at]
-      end
     end
 
-What can be included (relationships in the response) is declared in the
-model's Policy, with `association` and `associations` (see
-[Associations](#associations)).
+What can be included (relationships in the response) and ordered by is
+declared in the model's Policy (see [Associations](#associations) and
+[Orders](#orders)).
 
 ##### Access Control List
 
@@ -119,13 +104,8 @@ following files:
       def nested
         [ :camera ]
       end
-      
-      # Allowed orders
-      def orders
-        [ :id, :created_at, :updated_at ]
-      end
-      
-      # Allowed filters in the `where` param
+
+# Allowed filters in the `where` param
       #
       # A column, or a column with "*", permits any operator on it, or the
       # operators it permits can be listed (aliases such as `greater_than` for
@@ -141,9 +121,9 @@ following files:
     end
 
 All of these methods are optional and will be included in ApplicationController
-for StandardAPI to determine allowed attributes, nested attributes, orders and
-filters. What can be included is declared in each model's Policy (see
-[Associations](#associations)).
+for StandardAPI to determine allowed attributes, nested attributes and
+filters. What can be included and ordered by is declared in each model's
+Policy (see [Associations](#associations) and [Orders](#orders)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
@@ -153,16 +133,16 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
           [ :caption ]
         end
 
-        def orders
-          [ :id, :created_at, :updated_at ]
+        def wheres
+          [ :id, :caption ]
         end
       end
     end
 
 It is included in ApplicationController the same way as an
 `app/controllers/acl` file, under the model's name (`photo_attributes`,
-`photo_orders`, ...), so it is never included in its own controller and its
-`orders` don't override the controller's own.
+`photo_wheres`, ...), so it is never included in its own controller and its
+`wheres` don't override the controller's own.
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
 
@@ -170,8 +150,9 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-An ACL decides what can be written, filtered and ordered. What's shown, and
-what can be included, is up to the model's Policy (see [Policies](#policies)).
+An ACL decides what can be written and filtered. What's shown, what can be
+included and what can be ordered by is up to the model's Policy (see
+[Policies](#policies)).
 
 ##### Custom partials
 
@@ -212,6 +193,8 @@ the `policy` local.
 
 - `association_policy(name)` gives the Policy to pass on to an association's
   records, or `nil` for their own.
+- `orderable` names what a request may order by (see [Orders](#orders)),
+  decided for the model whatever the record.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
 - `errors` are the record's validation errors, less those on what it hides.
@@ -232,8 +215,9 @@ finds them, and every model it renders needs one:
 
     class PhotosController < ApplicationController
       class Policy < StandardAPI::Policy
-        attributes :id, :format, :created_at                 # use these as they are
-        attribute :caption, comment: 'Shown under the photo' # use one and change it
+        attributes :id, :created_at, orderable: true         # use these, and order by them
+        attribute :format                                    # use one as it is
+attribute :caption, comment: 'Shown under the photo' # use one and change it
         attribute :thumbnail_url, :string                    # add one
         attribute :location, if: :admin?                     # hide one, per request
 
@@ -325,8 +309,30 @@ fragments that include the model of a Policy that could vary by requester
 aren't cached.
 
 Hiding an attribute controls what the API shows, not what it permits: its ACL
-still decides whether it can be written, and filtered or ordered by, which can
-reveal its value.
+still decides whether it can be written, and filtered on, which can reveal its
+value. It can't be ordered by while it's hidden from the model (see
+[Orders](#orders)).
+
+###### Orders
+
+What a request may order by, with the `order` param or an include's `order`,
+is what the Policy declares `orderable`. Ordering by anything else is rejected
+with a 400. You'll most likely want an index on each of them:
+
+    class PhotoPolicy < StandardAPI::Policy
+      attributes :id, :created_at, orderable: true
+      attribute :caption, orderable: true
+      association :account, orderable: true    # order[account][name] if AccountPolicy makes name orderable
+    end
+
+An association declared `orderable` can be ordered by what its model's own
+Policy makes orderable, one association deep; a polymorphic one can't be
+ordered by. `orderable: false` takes back one inherited from a parent Policy.
+
+What's orderable is decided for the model, with a `nil` record, so an
+attribute an `if` or `unless` hides from the model can't be ordered by. One
+declared in an `attributes_for` block is orderable when it's declared for the
+key a `nil` record gives.
 
 ###### Associations
 
@@ -451,8 +457,7 @@ A Policy `attribute` adding one the model doesn't have starts from
 
 For an STI subclass, ie. `Pdf < Document`, without an ACL or Policy of its
 own, the base class's `attributes` and Policy are used
-(`document_attributes`, `DocumentPolicy`), as they are for `orders` and
-`wheres`.
+(`document_attributes`, `DocumentPolicy`), as they are for `wheres`.
 
 `schema.json` lists the same attributes as `record_policy(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
@@ -571,12 +576,13 @@ conditions see being `nil`.
   `attr_readonly` attribute, which can be set on create but not changed, or
   one the Policy declares read only. A model with an ACL `filter` is
   described as any object.
-- **`schema/query.json`** describes `where` and `order` as the ACL's `wheres`
-  and `orders` permit them, and `include` as the Policies declare it, following
+- **`schema/query.json`** describes `where` as the ACL's `wheres` permit it,
+  and `order` and `include` as the Policies declare them, following
   associations into the associated models' ACLs and Policies through `$defs`, plus `limit`, `offset`,
   `distinct` and `group_by`. Columns to `group_by` and associations to `join`
-  aren't listed by name, as not all of them need be exposed. An include's `where` and
-  `order` are those the included model's ACL permits. A column permitted with
+  aren't listed by name, as not all of them need be exposed. An include's `where` is
+  what the included model's ACL permits, and its `order` what its Policy makes
+  orderable. A column permitted with
   any operator lists the operators that apply to its type. An include's `when`
   lists the attributes of the model it's on that its ACL `wheres` permit an
   `eq` on. It also describes the params no ACL checks yet, as they're used,
@@ -626,12 +632,7 @@ And example contoller and it's tests.
           [:id, :file, :caption]
         end
   
-        # Allowed orderings
-        def photo_orders
-          [:id, :created_at, :updated_at, :caption]
-        end
-
-        # Mask for Photo. Provide this method if you want to mask some records
+# Mask for Photo. Provide this method if you want to mask some records
         # The mask is then applyed to all actions when querring ActiveRecord
         # Will only allow photos that have id one. For more on the syntax see
         # the activerecord-filter gem.

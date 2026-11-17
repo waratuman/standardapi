@@ -27,7 +27,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "a nested ACL is renamed under the model's prefix and included into the base controller" do
     assert_includes ApplicationController.ancestors, DocumentsController::ACL
-    assert_equal [:document_attributes, :document_orders], DocumentsController::ACL.instance_methods(false).sort
+    assert_equal [:document_attributes], DocumentsController::ACL.instance_methods(false).sort
     assert_equal DocumentsController::ACL, PropertiesController.instance_method(:document_attributes).owner
   end
 
@@ -44,7 +44,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_equal [:file, :type, :rating], controller.model_attributes(Document, movie)
   end
 
-  test "GET index applies orders from a nested ACL" do
+  test "GET index orders by what the Policy makes orderable" do
     documents = [create(:document), create(:document)]
 
     get documents_path, params: { limit: 10, order: { id: :desc } }, as: :json
@@ -55,27 +55,17 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "orders in a nested ACL do not shadow the controller's" do
+  test "wheres in a nested ACL do not shadow the controller's" do
     acl_controller(Attachment) do
-      def orders
+      def wheres
         [ :id ]
       end
     end
     StandardAPI::AccessControlList.load!
 
     controller = @acl_base.new
-    assert_equal [:id], controller.attachment_orders
-    assert_equal StandardAPI::Controller, @acl_controller.instance_method(:includes).owner
-  end
-
-  test "includes in a nested ACL raise" do
-    acl_controller(Attachment) do
-      def includes
-        [ :record ]
-      end
-    end
-
-    assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
+    assert_equal [:id], controller.attachment_wheres
+    assert_equal StandardAPI::Controller, @acl_controller.instance_method(:wheres).owner
   end
 
   test "nested and filter are renamed to their own names" do
@@ -96,7 +86,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "a nested ACL on a controller without a model is skipped" do
     controller = acl_controller(nil) do
-      def orders
+      def wheres
         [ :id ]
       end
     end
@@ -107,7 +97,7 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "an ACL constant in a controller that doesn't use StandardAPI is skipped" do
     controller = Class.new(ActionController::Base)
-    controller.const_set(:ACL, Module.new { def orders = [ :id ] })
+    controller.const_set(:ACL, Module.new { def wheres = [ :id ] })
     (@acl_controllers ||= []) << controller
 
     assert_nothing_raised { StandardAPI::AccessControlList.load! }
@@ -116,32 +106,32 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "two nested ACLs of one model defining the same method raise" do
     acl_controller(Attachment) do
-      def orders
+      def wheres
         [ :id ]
       end
     end
     acl_controller(Attachment) do
-      def orders
+      def wheres
         [ :id, :created_at ]
       end
     end
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/both define attachment_orders/, error.message)
+    assert_match(/both define attachment_wheres/, error.message)
   end
 
   test "load! can be repeated" do
     acl_controller(Attachment) do
-      def orders
+      def wheres
         [ :id ]
       end
     end
     StandardAPI::AccessControlList.load!
     StandardAPI::AccessControlList.load!
 
-    assert_equal [:attachment_orders], @acl_controller::ACL.instance_methods(false)
+    assert_equal [:attachment_wheres], @acl_controller::ACL.instance_methods(false)
     assert_equal 1, @acl_base.ancestors.count(@acl_controller::ACL)
-    assert_equal [:id], @acl_base.new.attachment_orders
+    assert_equal [:id], @acl_base.new.attachment_wheres
   end
 
 end

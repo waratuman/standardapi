@@ -263,11 +263,11 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_not schemer.valid?({ 'include' => { 'english_name' => { 'where' => { 'id' => 1 } } }, 'limit' => 1 })
   end
 
-  test 'Controller#query_schema.json include order is checked against the included model ACL orders' do
+  test "Controller#query_schema.json include order is checked against what the included model's Policy makes orderable" do
     schema = camera_schema
     schemer = schemer(schema)
 
-    # PhotoACL orders permit id, created_at and account_id
+    # PhotoPolicy makes id, created_at and account_id orderable
     assert_equal ['id', 'created_at', 'account_id'], schema.dig('$defs', 'PhotoOrder', 'anyOf', 0, 'enum')
     assert_equal({ '$ref' => '#/$defs/PhotoOrderObject' }, schema.dig('$defs', 'PhotoOrder', 'anyOf', 1))
     assert schemer.valid?({ 'include' => { 'photo' => { 'order' => { 'id' => 'desc' } } }, 'limit' => 1 })

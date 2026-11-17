@@ -4,10 +4,6 @@ module AccountACL
     [ "property_id", "name" ]
   end
 
-  def orders
-    [ "id", "property" ]
-  end
-
   def wheres
     [ "id" ]
   end

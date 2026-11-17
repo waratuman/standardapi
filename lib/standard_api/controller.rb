@@ -386,12 +386,6 @@ module StandardAPI
     end
 
     def includes
-      # #model_includes was removed; raise rather than ignore an override of it
-      # TODO: Remove this check in 10.0
-      if respond_to?(:model_includes, true)
-        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, declare what can be included with association and associations in #{ model.name }'s Policy instead"
-      end
-
       @includes ||= if params[:include]
         sanitize_includes(params[:include], model)
       else
@@ -462,15 +456,7 @@ module StandardAPI
         params[:order] = exluded_required_orders.unshift(params[:order])
       end
 
-      @orders ||= begin
-        # #model_orders was removed; raise rather than ignore an override of it
-        # TODO: Remove this check in 10.0
-        if respond_to?(:model_orders, true)
-          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
-        end
-
-        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
-      end
+      @orders ||= sanitize_orders(params[:order] || default_orders, record_policy(model).orderable | required_orders, model)
     end
 
     # The maximum number of results returned by #index

@@ -48,10 +48,6 @@ class DocumentsController < ApplicationController
       ]
     end
 
-    def orders
-      [ :id ]
-    end
-
   end
 
 end
@@ -60,10 +56,6 @@ class PhotosController < ApplicationController
 
   def photo_attributes(record = nil)
     [ :id, :account_id, :property_id, :format ]
-  end
-
-  def photo_orders
-    [ :id ]
   end
 
 end

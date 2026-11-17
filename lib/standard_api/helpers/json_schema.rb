@@ -117,8 +117,8 @@ module StandardAPI
       end
 
       # The shape of the params #index and #calculate accept for +model+: the
-      # +where+, +order+ and +include+ the ACL permits, +limit+, +offset+,
-      # +distinct+, +group_by+, and the unchecked
+      # +where+ the ACL permits, +order+ and +include+ the Policies permit,
+      # +limit+, +offset+, +distinct+, +group_by+, and the unchecked
       # +distinct_on+, +join+ and +select+.
       #
       # The where, order and include of each other model reachable through a
@@ -224,7 +224,7 @@ module StandardAPI
       end
 
       def json_schema_orders(model)
-        controller.send(:orders_for, model)
+        controller.record_policy(model).orderable
       end
 
       def json_schema_required_orders

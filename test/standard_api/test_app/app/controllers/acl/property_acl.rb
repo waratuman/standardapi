@@ -14,24 +14,6 @@ module PropertyACL
     ]
   end
 
-  # Orderings allowed
-  def orders
-    [
-      "id",
-      "name",
-      "aliases",
-      "description",
-      "constructed",
-      "size",
-      "created_at",
-      "active",
-      "numericality",
-      "build_type",
-      "phone_number",
-      "agree_to_terms"
-    ]
-  end
-
   # Filters allowed in the `where` param
   def wheres
     [ :id, :accounts, :landlord ]

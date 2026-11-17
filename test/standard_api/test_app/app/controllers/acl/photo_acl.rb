@@ -5,11 +5,6 @@ module PhotoACL
       :format
     ]
   end
-  
-  # Sub resources allowed to be included in the response
-  def orders
-    [ :id, :created_at, :account_id ]
-  end
 
   def wheres
     [ :id, :account_id, :properties ]

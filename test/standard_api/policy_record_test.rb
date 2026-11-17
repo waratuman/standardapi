@@ -56,6 +56,18 @@ class PolicyRecordTest < ActiveSupport::TestCase
     end
   end
 
+  test "orderable is the model's, whatever the record" do
+    with_account_policy(Class.new(AccountPolicy) { attribute :name, orderable: true, if: -> { record&.persisted? } }) do
+      assert_equal %w[id property], controller.record_policy(Account).orderable
+      assert_equal %w[id property], controller.record_policy(create(:account)).orderable
+    end
+  end
+
+  test 'orderable is [] without a Policy' do
+    controller.stubs(:model_policy).returns(nil)
+    assert_equal [], controller.record_policy(Account).orderable
+  end
+
   test 'hidden? is false for a name that is neither an attribute nor an association' do
     assert_not controller.record_policy(create(:account)).hidden?(:not_an_attribute)
   end
