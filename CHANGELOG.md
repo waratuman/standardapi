@@ -38,7 +38,7 @@
 - Orders ActiveRecord::Sort can't order by, ie. through more than one
   association, are rejected with a 400 rather than failing with a 500.
 - Remove `Controller#model_orders`. Declare what can be ordered by in the
-  model's Policy and use `orders_for(model)` instead. A controller that still
+  model's Policy and use `record_policy(model).orderable` instead. A controller that still
   overrides `model_orders` raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
@@ -170,7 +170,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
-  `association_policy`, `value`, `hidden?` and `errors`.
+  `association_policy`, `orderable`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.

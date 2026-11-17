@@ -1,21 +1,9 @@
 module StandardAPI
   # Included in StandardAPI::Controller. What can be ordered by is what each
-  # model's Policy declares +orderable+.
+  # model's Policy declares +orderable+, record_policy(model).orderable.
   module Orders
 
     private
-
-    # The names of the attributes and associations of +klass+ its Policy
-    # declares +orderable+, or [] without a Policy
-    def orders_for(klass)
-      # TODO: Remove this check in 10.0
-      if respond_to?(method = "#{klass.model_name.singular}_orders", true)
-        raise StandardAPI::InvalidConfiguration, "#{ self.method(method).owner.name }##{ method } is not supported, declare what can be ordered by with orderable in #{ klass.name }'s Policy instead"
-      end
-
-      policy = model_policy(klass)
-      policy ? policy.orderable : []
-    end
 
     # Sanitize +orders+ of +model+ against +permit+, the names of the columns
     # and associations of +model+ that can be ordered by. Ordering through an
@@ -42,7 +30,7 @@ module StandardAPI
             value = if association
               # A polymorphic association has no single Policy to check against
               raise(StandardAPI::UnpermittedParameters.new([orders])) if association.polymorphic?
-              sanitize_orders(value, orders_for(association.klass), association.klass)
+              sanitize_orders(value, record_policy(association.klass).orderable, association.klass)
             else
               case value
               when Hash

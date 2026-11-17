@@ -113,7 +113,7 @@ module StandardAPI
           # ie. under a polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_orders(v, orders_for(model), model)
+          sanitize_orders(v, record_policy(model).orderable, model)
         elsif ['limit', 'when', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else

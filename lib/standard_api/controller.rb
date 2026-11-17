@@ -463,13 +463,16 @@ module StandardAPI
       end
 
       @orders ||= begin
-        # #model_orders was removed; raise rather than ignore an override of it
+        # #model_orders and ACL orders, named <model>_orders, were removed;
+        # raise rather than ignore an override of either
         # TODO: Remove this check in 10.0
-        if respond_to?(:model_orders, true)
-          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, declare what can be ordered by with orderable in #{ model.name }'s Policy instead"
+        ['model_orders', "#{model.model_name.singular}_orders"].each do |removed|
+          next if !respond_to?(removed, true)
+
+          raise StandardAPI::InvalidConfiguration, "#{ method(removed).owner.name }##{ removed } is not supported, declare what can be ordered by with orderable in #{ model.name }'s Policy instead"
         end
 
-        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
+        sanitize_orders(params[:order] || default_orders, record_policy(model).orderable | required_orders, model)
       end
     end
 

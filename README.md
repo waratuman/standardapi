@@ -193,6 +193,8 @@ the `policy` local.
 
 - `association_policy(name)` gives the Policy to pass on to an association's
   records, or `nil` for their own.
+- `orderable` names what a request may order by (see [Orders](#orders)),
+  decided for the model whatever the record.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
 - `errors` are the record's validation errors, less those on what it hides.

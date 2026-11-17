@@ -60,7 +60,7 @@ module StandardAPI::TestCase
   end
 
   def orders
-    controller_class.new.send(:orders_for, model)
+    controller_class.new.record_policy(model).orderable
   end
   
   def default_orders

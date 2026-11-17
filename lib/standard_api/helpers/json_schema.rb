@@ -224,7 +224,7 @@ module StandardAPI
       end
 
       def json_schema_orders(model)
-        controller.send(:orders_for, model)
+        controller.record_policy(model).orderable
       end
 
       def json_schema_required_orders

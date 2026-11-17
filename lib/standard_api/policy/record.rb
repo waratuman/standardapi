@@ -64,6 +64,13 @@ module StandardAPI
         !!policy&.association?(record, name)
       end
 
+      # The names of the attributes and associations of the model a request
+      # may order by (Policy#orderable), decided for the model whatever the
+      # record. Without a Policy, nothing can be.
+      def orderable
+        policy ? policy.orderable : []
+      end
+
       # The Policy class the records included through +name+ render with in
       # place of their own model's, or nil
       def association_policy(name)

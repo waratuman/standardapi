@@ -91,9 +91,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Orders#orders_for is [] when the Policy makes nothing orderable' do
-    @controller = ReferencesController.new
-    assert_equal @controller.send(:orders_for, Reference), []
+  test 'Policy::Record#orderable is [] when the Policy makes nothing orderable' do
+    assert_equal [], ReferencesController.new.record_policy(Reference).orderable
   end
 
   test 'Controller#model_orders overrides raise' do
@@ -111,11 +110,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     AccountsController.send(:remove_method, :model_orders)
   end
 
-  test "Orders#orders_for falls back to the base class's Policy" do
-    assert_equal ['id'], DocumentsController.new.send(:orders_for, Pdf)
+  test "Policy::Record#orderable falls back to the base class's Policy" do
+    assert_equal ['id'], DocumentsController.new.record_policy(Pdf).orderable
   end
 
-  test 'Orders#orders_for raises on a <model>_orders method' do
+  test 'Controller#orders raises on a <model>_orders method' do
     ApplicationController.class_eval do
       private def account_orders = [:id]
     end
