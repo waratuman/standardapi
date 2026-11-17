@@ -10,7 +10,8 @@ module StandardAPI
   #
   #   class PhotosController < ApplicationController
   #     class Policy < StandardAPI::Policy
-  #       attributes :id, :format, :created_at
+  #       attributes :id, :created_at, orderable: true
+  #       attribute :format
   #       attribute :caption, comment: 'Shown under the photo'
   #       attribute :thumbnail_url, :string
   #       attribute :location, if: :admin?
@@ -45,9 +46,10 @@ module StandardAPI
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
 
-      # +association_options+ are each declared association's options, and
-      # +values+ each attribute's declared +value+
-      attr_reader :conditions, :association_options, :association_conditions, :values
+      # +association_options+ are each declared association's options,
+      # +values+ each attribute's declared +value+, and +orderable+ the names
+      # of those declared +orderable+
+      attr_reader :conditions, :association_options, :association_conditions, :values, :orderable
 
       def initialize
         @changes = {}
@@ -55,15 +57,18 @@ module StandardAPI
         @values = {}
         @association_options = {}
         @association_conditions = {}
+        @orderable = []
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
       # when +type+ is given and the model doesn't have it. +if+ and +unless+
       # hide it per record, and +value+ renders it in place of the record's.
+      # +orderable+ lets a request order by it.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
         value = options.delete(:value)
+        orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -75,8 +80,8 @@ module StandardAPI
         self
       end
 
-      def attributes(*names)
-        names.each { |name| attribute(name) }
+      def attributes(*names, **options)
+        names.each { |name| attribute(name, **options) }
         self
       end
 
@@ -87,10 +92,12 @@ module StandardAPI
       # association or a method there's no single model to check what's
       # included of it against, so +types+ lists the models it can be, ie.
       # `types: [Property, 'Account']`, and what one of their Policies declares
-      # can be included of it.
+      # can be included of it. +orderable+ lets a request order by what the
+      # associated model's own Policy makes orderable.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
+        orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
         unknown = options.keys - ASSOCIATION_OPTIONS
         raise ArgumentError, "unknown options for association #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -99,8 +106,8 @@ module StandardAPI
         self
       end
 
-      def associations(*names)
-        names.each { |name| association(name) }
+      def associations(*names, **options)
+        names.each { |name| association(name, **options) }
         self
       end
 
@@ -112,6 +119,7 @@ module StandardAPI
           @values.delete(name)
           @association_options.delete(name)
           @association_conditions.delete(name)
+          @orderable.delete(name)
         end
         self
       end
@@ -141,6 +149,13 @@ module StandardAPI
       def hidden_attributes(model)
         model.attribute_names - @changes.keys
       end
+
+      private
+
+      # +orderable: false+ takes back an inherited one
+      def orderable!(name, orderable)
+        orderable ? (@orderable |= [name]) : @orderable.delete(name)
+      end
     end
 
     class_attribute :policy_steps, instance_accessor: false, default: [].freeze
@@ -161,8 +176,8 @@ module StandardAPI
         add_step(varies: varies) { attribute(name, type, **options) }
       end
 
-      def attributes(*names)
-        add_step { attributes(*names) }
+      def attributes(*names, **options)
+        add_step { attributes(*names, **options) }
       end
 
       # See Builder#association. +policy+ is a Policy class, or a Symbol or
@@ -185,8 +200,8 @@ module StandardAPI
         add_step(varies: varies) { association(name, **options) }
       end
 
-      def associations(*names)
-        add_step { associations(*names) }
+      def associations(*names, **options)
+        add_step { associations(*names, **options) }
       end
 
       def remove(*names)
@@ -273,6 +288,14 @@ module StandardAPI
       end.with_indifferent_access
     end
 
+    # What a request may order by, for a model (a nil record): the names of
+    # the attributes and associations declared +orderable+ whose conditions
+    # pass. Ordering through an association is checked against its model's
+    # own Policy.
+    def orderable
+      @orderable ||= builder_for(nil).orderable - failed_conditions(nil) - failed_association_conditions(nil)
+    end
+
     # The Policy class the records +record+ includes through the association
     # +name+ render with in place of their own model's, or nil
     def association_policy(record, name)
@@ -302,16 +325,16 @@ module StandardAPI
       declarations.attribute(name, type, **options)
     end
 
-    def attributes(*names)
-      declarations.attributes(*names)
+    def attributes(*names, **options)
+      declarations.attributes(*names, **options)
     end
 
     def association(name, **options)
       declarations.association(name, **options)
     end
 
-    def associations(*names)
-      declarations.associations(*names)
+    def associations(*names, **options)
+      declarations.associations(*names, **options)
     end
 
     def remove(*names)

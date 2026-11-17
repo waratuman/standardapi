@@ -91,7 +91,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Orders#orders_for defaults to []' do
+  test 'Orders#orders_for is [] when the Policy makes nothing orderable' do
     @controller = ReferencesController.new
     assert_equal @controller.send(:orders_for, Reference), []
   end
@@ -106,18 +106,26 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     error = assert_raises(StandardAPI::InvalidConfiguration) do
       get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
     end
-    assert_equal 'AccountsController#model_orders is not supported, define account_orders in AccountACL instead', error.message
+    assert_equal "AccountsController#model_orders is not supported, declare what can be ordered by with orderable in Account's Policy instead", error.message
   ensure
     AccountsController.send(:remove_method, :model_orders)
   end
 
-  test 'Orders#orders_for falls back to the orders of the base class' do
-    orders_for = Class.new do
-      include StandardAPI::Orders
-      private def document_orders = [:id]
-    end.new.method(:orders_for)
+  test "Orders#orders_for falls back to the base class's Policy" do
+    assert_equal ['id'], DocumentsController.new.send(:orders_for, Pdf)
+  end
 
-    assert_equal [:id], orders_for.call(Pdf)
+  test 'Orders#orders_for raises on a <model>_orders method' do
+    ApplicationController.class_eval do
+      private def account_orders = [:id]
+    end
+
+    error = assert_raises(StandardAPI::InvalidConfiguration) do
+      get accounts_path(order: { id: :asc }, limit: 10, format: 'json')
+    end
+    assert_equal "ApplicationController#account_orders is not supported, declare what can be ordered by with orderable in Account's Policy instead", error.message
+  ensure
+    ApplicationController.send(:remove_method, :account_orders)
   end
 
   test 'TestCase#where_permitted? checks the ACL wheres' do
@@ -658,10 +666,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
 
-  test 'include with order key rejects orders the included ACL does not permit' do
+  test "include with order key rejects orders the included model's Policy doesn't make orderable" do
     property = create(:property, photos: [create(:photo)])
 
-    # PhotoACL#orders doesn't permit format
+    # PhotoPolicy doesn't make format orderable
     get property_path(property, include: { photos: { order: { format: :asc } } }, format: 'json')
     assert_response :bad_request
 
@@ -669,22 +677,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'include with order key through an association uses the associated ACL' do
-    ApplicationController.class_eval do
-      private def photo_orders
-        [ :id, :account ]
-      end
-    end
-
+  test "include with order key through an association uses the associated model's Policy" do
     b = create(:photo, account: create(:account, name: 'b'))
     a = create(:photo, account: create(:account, name: 'a'))
     property = create(:property, photos: [b, a])
 
-    get property_path(property, include: { photos: { order: { account: { id: :desc } } } }, format: 'json')
+    with_model_policy(Photo, Class.new(PhotoPolicy) { association :account, orderable: true }) do
+      get property_path(property, include: { photos: { order: { account: { id: :desc } } } }, format: 'json')
+    end
     assert_response :ok
     assert_equal [a.id, b.id], JSON(response.body)['photos'].map { |x| x['id'] }
-  ensure
-    ApplicationController.send(:remove_method, :photo_orders)
   end
 
   test 'include with order key under a polymorphic association is rejected' do
@@ -819,23 +821,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'order through an association rejects orders ActiveRecord::Sort can not order by' do
-    ApplicationController.class_eval do
-      private def property_orders
-        [ "name", "landlord" ]
-      end
-    end
-
     create(:account, property: create(:property))
 
     # ActiveRecord::Sort only orders one association deep
-    get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    with_model_policy(Property, Class.new(PropertyPolicy) { association :landlord, orderable: true }) do
+      get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    end
     assert_response :bad_request
     assert_equal 'Unknown column landlord', response.body
-  ensure
-    ApplicationController.send(:remove_method, :property_orders)
   end
 
-  test 'order through an association rejects orders the associated ACL does not permit' do
+  test "order through an association rejects orders the associated model's Policy doesn't make orderable" do
     create(:account, property: create(:property))
 
     get accounts_path(order: { property: { updated_at: :asc } }, limit: 10, format: 'json')
@@ -843,38 +839,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     get accounts_path(order: 'property.updated_at', limit: 10, format: 'json')
     assert_response :bad_request
-  end
-
-  test 'orders permitting columns of an association raise' do
-    ApplicationController.class_eval do
-      private def account_orders
-        [ "id", { property: [:name] } ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
-    end
-    assert_equal 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead', error.message
-  ensure
-    ApplicationController.send(:remove_method, :account_orders)
-  end
-
-  test 'Orders#orders_for raises on any Hash permit' do
-    orders_for = Class.new do
-      include StandardAPI::Orders
-      private def account_orders = @orders
-    end.new
-
-    {
-      { property: [:name] } => 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead',
-      { subject: [:id] } => 'AccountACL#orders permitting subject in a Hash is not supported, ordering through a polymorphic association is not supported',
-      { name: [:asc] } => 'AccountACL#orders permitting name in a Hash is not supported, permit :name instead'
-    }.each do |permit, message|
-      orders_for.instance_variable_set(:@orders, ["id", permit])
-      error = assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
-      assert_equal message, error.message
-    end
   end
 
   test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
@@ -994,32 +958,30 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
-    sanitize = Class.new do
-      include StandardAPI::Orders
-      private def account_orders = [:name]
-    end.new.method(:sanitize_orders)
+  test "Orders#sanitize_orders checks an association permitted by name against its model's Policy" do
+    # AccountPolicy makes id orderable, not name
+    sanitize = PropertiesController.new.method(:sanitize_orders)
 
-    assert_equal({ landlord: { name: :asc } }, sanitize.call({ landlord: { name: :asc } }, [:landlord], Property))
-    assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
+    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, [:landlord], Property))
+    assert_equal({ landlord: :id }, sanitize.call('landlord.id', [:landlord], Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
+      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
     end
 
     # A column is unchanged
     assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
   end
 
-  test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
-    sanitize = Class.new do
-      include StandardAPI::Orders
-    end.new.method(:sanitize_orders)
+  test 'Orders#sanitize_orders rejects ordering through an association whose model has nothing orderable' do
+    sanitize = PropertiesController.new.method(:sanitize_orders)
 
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call('landlord.name', [:landlord], Property)
+    with_model_policy(Account, Class.new(AccountPolicy) { attribute :id, orderable: false }) do
+      assert_raises(StandardAPI::UnpermittedParameters) do
+        sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
+      end
+      assert_raises(StandardAPI::UnpermittedParameters) do
+        sanitize.call('landlord.id', [:landlord], Property)
+      end
     end
   end
 
@@ -1080,7 +1042,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ name: { desc: :nulls_last } }, method.call([{ name: { desc: :nulls_last } }], [:name]))
     assert_equal({ name: { desc: :nulls_first }}, method.call([{ name: { desc: :nulls_first } }], [:name]))
 
-    # Through an association, checked against PropertyACL#orders
+    # Through an association, checked against PropertyPolicy
     assert_equal({ property: :id }, method.call(['property.id'], [:property]))
     assert_equal({ property: :id }, method.call([{ property: :id }], [:property]))
     assert_equal({ property: :id }, method.call([{ property: [:id] }], [:property]))

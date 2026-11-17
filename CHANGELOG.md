@@ -26,21 +26,20 @@
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
   leave what it hid out of each model's Policy instead.
-- Ordering through an association listed by name in ACL `orders`, ie.
-  `:property`, is checked against the associated model's ACL `orders`. Orders
-  it doesn't permit, including any through an association whose model's ACL
-  has no `orders`, are rejected with a 400.
-- ACL `orders` list only the names of columns and associations that can be
-  ordered by. A Hash in ACL `orders`, ie. `{ property: [:name] }`, raises
-  `StandardAPI::InvalidConfiguration`. List the association by name and permit
-  its columns in the associated model's ACL `orders` instead.
+- Remove ACL `orders`. What can be ordered by is what the model's Policy
+  declares `orderable`, ie. `attributes :id, :name, orderable: true`; ordering
+  by anything else is rejected with a 400. An association declared
+  `orderable` can be ordered by what its model's own Policy makes orderable.
+  An ACL `orders` method raises `StandardAPI::InvalidConfiguration` at boot,
+  as does a controller's `<model>_orders` method, ie. `photo_orders`, when
+  ordering that model.
 - Ordering through a polymorphic association is rejected with a 400; there is
-  no single ACL to check it against.
+  no single Policy to check it against.
 - Orders ActiveRecord::Sort can't order by, ie. through more than one
   association, are rejected with a 400 rather than failing with a 500.
-- Remove `Controller#model_orders`. Define the model's ACL `orders` and use
-  `orders_for(model)` instead. A controller that still overrides
-  `model_orders` raises `StandardAPI::InvalidConfiguration`.
+- Remove `Controller#model_orders`. Declare what can be ordered by in the
+  model's Policy and use `orders_for(model)` instead. A controller that still
+  overrides `model_orders` raises `StandardAPI::InvalidConfiguration`.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead.
 - Remove `Controller#model_includes`. Declare what can be included in the
@@ -50,9 +49,9 @@
   `StandardAPI::Includes` is included in `StandardAPI::Controller`; use
   `sanitize_includes` and `normalize_includes` instead.
 - An include's `order`, ie. `include[photos][order][id]=desc`, is checked
-  against the included model's ACL `orders`, like the `order` param. Orders
-  it doesn't permit, and any under a polymorphic association, are rejected
-  with a 400; before, any column could be ordered by.
+  against what the included model's Policy makes orderable, like the `order`
+  param. Anything else, and any order under a polymorphic association, is
+  rejected with a 400; before, any column could be ordered by.
 - The `where` param is checked against a new ACL `wheres` method, which lists
   what can be filtered on. Without one, nothing can: every `where` is
   rejected with a 400 until the model's ACL defines `wheres`, including for
@@ -143,6 +142,23 @@ association or a method, list the models it can be in that association's
       association :subject, types: [Property]
     end
 
+ACL `orders`, and a controller's `<model>_orders` methods, have been replaced
+by what each model's Policy declares `orderable`, and raise
+`StandardAPI::InvalidConfiguration`. Declare what they permitted `orderable`
+in the Policy instead. An association they permitted by name is declared
+`orderable` too, and its columns made orderable in its own model's Policy:
+
+    # Before, in PhotoACL
+    def orders
+      [ :id, :created_at, :account ]
+    end
+
+    # After: AccountPolicy makes what can be ordered by of an account orderable
+    class PhotoPolicy < StandardAPI::Policy
+      attributes :id, :created_at, orderable: true
+      association :account, orderable: true
+    end
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
@@ -180,6 +196,10 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   `if` and `unless` hide one per record, and the included records render
   with `policy:` in place of their own model's Policy; to keep what that
   hides, it inherits from it.
+  `orderable: true` on an attribute or association, ie. `attributes :id,
+  :name, orderable: true`, lets a request order by it, and `orderable: false`
+  takes back an inherited one. `attributes` and `associations` take the same
+  options as `attribute` and `association`.
   `attribute ..., value:` renders a computed value in place of the record's;
   `serialize_attribute` reads values with `attribute_value(record, name)`.
   `record_policy(record_or_model).attributes` returns the result, for use

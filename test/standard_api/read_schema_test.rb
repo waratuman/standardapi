@@ -8,15 +8,6 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
     JSON(response.body)
   end
 
-  # Describe and render +model+ with +policy+ for the length of the block
-  def with_model_policy(model, policy)
-    policies = ApplicationController.standard_api_policies.merge(model.model_name.singular => policy)
-    ApplicationController.stubs(:standard_api_policies).returns(policies)
-    yield
-  ensure
-    ApplicationController.unstub(:standard_api_policies)
-  end
-
   test 'Controller#read_schema.json lists every column' do
     schema = read_schema(read_schema_properties_path(format: 'json'))
 

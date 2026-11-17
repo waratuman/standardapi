@@ -33,6 +33,15 @@ class ActiveSupport::TestCase
     CamerasController.unstub(:standard_api_policies)
   end
 
+  # Describe and render +model+ with +policy+ for the length of the block
+  def with_model_policy(model, policy)
+    policies = ApplicationController.standard_api_policies.merge(model.model_name.singular => policy)
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
+    yield
+  ensure
+    ApplicationController.unstub(:standard_api_policies)
+  end
+
   def setup
     @routes ||= TestApplication.routes
     @subscribers, @layouts, @partials = [], {}, {}

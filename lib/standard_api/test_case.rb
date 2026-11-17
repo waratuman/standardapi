@@ -60,7 +60,7 @@ module StandardAPI::TestCase
   end
 
   def orders
-    controller_class.new.send(model.model_name.singular + "_orders")
+    controller_class.new.send(:orders_for, model)
   end
   
   def default_orders

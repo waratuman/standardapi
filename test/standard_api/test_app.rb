@@ -59,17 +59,26 @@ end
 require 'standard_api/test_app/models'
 
 # Every model the tests render declares all of its attributes, by name, as
-# most tests aren't about Policies, and what can be included of it. Before the
-# controllers, whose Policies inherit from them.
+# most tests aren't about Policies, and what can be included and ordered by of
+# it. Before the controllers, whose Policies inherit from them.
 {
   Account => -> {
-    associations :photos, :property
+    attribute :id, orderable: true
+    association :photos
+    association :property, orderable: true
     association :subject, types: ['Property']
   },
-  Photo => -> { associations :account },
-  Property => -> { associations :photos, :landlord, :english_name, :document, :accounts },
+  Photo => -> {
+    attributes :id, :created_at, :account_id, orderable: true
+    associations :account
+  },
+  Property => -> {
+    attributes :id, :name, :aliases, :description, :constructed, :size, :created_at, :active,
+      :numericality, :build_type, :phone_number, :agree_to_terms, orderable: true
+    associations :photos, :landlord, :english_name, :document, :accounts
+  },
   Reference => -> { association :subject, types: ['Property'] },
-  Document => -> {},
+  Document => -> { attribute :id, orderable: true },
   Attachment => -> {},
   UuidModel => -> {}
 }.each do |model, includes|
