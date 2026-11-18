@@ -36,11 +36,6 @@ module StandardAPI
     # Raises if another ACL included into +application_controller+ defines
     # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      if mod.instance_methods.include?(:attributes)
-        mod.send :alias_method, "#{prefix}_attributes".to_sym, :attributes
-        mod.send :remove_method, :attributes
-      end
-
       if mod.instance_methods.include?(:nested)
         mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
         mod.send :remove_method, :nested
@@ -72,29 +67,11 @@ module StandardAPI
       end
     end
 
-    # Resolve the ACL-permitted attribute list for +model+, optionally scoped to
-    # a specific +record+. ACL +attributes+ methods may accept a record so they
-    # can make per-record decisions; schema rendering has no record and passes
-    # +nil+. A zero-arity +attributes+ definition is still supported but
-    # deprecated. Returns +nil+ when no ACL +attributes+ method is defined.
-    def model_attributes(model, record = nil)
-      # An STI subclass falls back to its base class's ACL
-      method_name = [model, model.base_class].uniq.map { |k| "#{model_name(k)}_attributes" }.find { |m| respond_to?(m, true) }
-      return nil if !method_name
-
-      if self.method(method_name).arity == 0
-        logger.warn <<~NOTE.strip_heredoc
-          DEPRECATION WARNING: #{ model.name }ACL#attributes() has been deprecated, use #{ model.name }ACL#attributes(record = nil) instead
-        NOTE
-        self.send(method_name)
-      else
-        self.send(method_name, record)
-      end
-    end
-
+    # The params of +resource+ its Policy makes writable
+    # (Policy::Record#writable), and what the ACL's +nested+ permits
     def filter_model_params(resource, model_params, id: nil, allow_id: nil)
-      permits = model_attributes(resource.class, resource) if model_params
-      permitted_params = if permits
+      permitted_params = if model_params
+        permits = record_policy(resource).writable
         allow_id ? model_params.permit(permits, :id) : model_params.permit(permits)
       else
         ActionController::Parameters.new

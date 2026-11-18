@@ -90,36 +90,22 @@ following files:
 `app/controllers/acl/photo_acl.rb`:
 
     module PhotoACL
-      # Allowed attributes
-      #
-      # Accepts an optional record so the permitted list can vary per record
-      # (e.g. based on ownership or state). The record is `nil` when there is no
-      # record in context — most notably when rendering `schema.json` /
-      # `schema/write.json` — so always guard against `nil` (or default it).
-      def attributes(record = nil)
-        [ :caption ]
-      end
-      
       # Allowed saving / creating nested attributes
       def nested
         [ :camera ]
       end
     end
 
-All of these methods are optional and will be included in ApplicationController
-for StandardAPI to determine allowed attributes and nested attributes. What
-can be included, ordered by and filtered on is declared in each model's Policy
-(see [Associations](#associations), [Orders](#orders) and
+These methods are optional and will be included in ApplicationController for
+StandardAPI to determine allowed nested attributes. What can be written,
+included, ordered by and filtered on is declared in each model's Policy (see
+[Writes](#writes), [Associations](#associations), [Orders](#orders) and
 [Filters](#filters)).
 
 An ACL can instead be nested in the model's controller as an `ACL` module:
 
     class PhotosController < ApplicationController
       module ACL
-        def attributes(record = nil)
-          [ :caption ]
-        end
-
         def nested
           [ :camera ]
         end
@@ -127,9 +113,8 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
     end
 
 It is included in ApplicationController the same way as an
-`app/controllers/acl` file, under the model's name (`photo_attributes`,
-`nested_photo_attributes`, ...), so it is never included in its own
-controller.
+`app/controllers/acl` file, under the model's name (`nested_photo_attributes`,
+`filter_photo_params`), so it is never included in its own controller.
 Controllers are loaded at boot (and after each reload) so their ACLs are found
 before the first request.
 
@@ -137,9 +122,9 @@ The `nested` function tells StandardAPI what relations on `Photo` are allowed to
 be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
-An ACL decides what can be written. What's shown, what can be included,
-ordered by and filtered on is up to the model's Policy (see
-[Policies](#policies)).
+An ACL decides which associations can be written through nested attributes.
+What's shown, what can be written, included, ordered by and filtered on is up
+to the model's Policy (see [Policies](#policies)).
 
 ##### Custom partials
 
@@ -184,6 +169,8 @@ the `policy` local.
   decided for the model whatever the record.
 - `required_orders` names what every request is ordered by after its own
   orders, decided for the model too.
+- `writable` is what a create or update of the record may set, as strong
+  parameters permit it (see [Writes](#writes)); a model is a create.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model.
 - `errors` are the record's validation errors, less those on what it hides.
@@ -297,10 +284,9 @@ undeclared attributes aren't rendered or named in validation errors, and
 fragments that include the model of a Policy that could vary by requester
 aren't cached.
 
-Hiding an attribute controls what the API shows, not what it permits: its ACL
-still decides whether it can be written, which can reveal its value. It can't
-be ordered by or filtered on while it's hidden from the model (see
-[Orders](#orders) and [Filters](#filters)).
+An attribute hidden from a record can't be written to it either (see
+[Writes](#writes)). It can't be ordered by or filtered on while it's hidden
+from the model (see [Orders](#orders) and [Filters](#filters)).
 
 ###### Orders
 
@@ -367,6 +353,38 @@ Filtering on a column can reveal its values, ie. `where[salary][gt]=100000`, so
 make only what a requester may see filterable. What's filterable is decided for
 the model, with a `nil` record, so an attribute an `if` or `unless` hides from
 the model can't be filtered on. `filterable: false` and `remove` take one back.
+
+###### Writes
+
+What a create or update may set is what the Policy declares `writable`.
+Anything else in the params is dropped, as strong parameters drop it:
+
+    class PhotoPolicy < StandardAPI::Policy
+      attributes :caption, :metadata, writable: true    # metadata, a jsonb column, takes an object or null
+      attribute :account_id, writable: { on: :create }  # can't be changed after
+      attribute :tags, writable: [:name, { filter: {} }] # an array of objects
+      writable :file                                    # without rendering it
+    end
+
+`writable: true` permits what the column's type takes: an array for an array
+column, an object or `null` for a `json` or `jsonb` one, or else a single
+value. A strong parameters permit, as an Array, takes its place. `on: :create`
+or `on: :update` permits it only on one; a model, ie. for the schema, is a
+create.
+
+What's writable is decided for the record being created or updated, before
+the params are assigned, so an attribute an `if` or `unless` hides from it
+can't be written, and one declared in an `attributes_for` block is writable
+when it's declared for the record's key. `writable: false` and `remove` take
+one back.
+
+`writable` on its own permits names without declaring them, so they aren't
+rendered: a password, or an `attr_accessor`. It takes `on:`, and `permit:` for
+a strong parameters permit.
+
+A writable attribute's definition isn't `read_only`, unless it's only writable
+on create or the model makes it `attr_readonly`, and it's `required` when its
+column is NOT NULL and not auto populated, unless it's only writable on update.
 
 ###### Associations
 
@@ -476,22 +494,21 @@ attributes share their definitions before the Policy sees them.
 | `array`          | Whether the column is an array. `type` is then the type of its elements. The JSON Schemas put `readOnly`, `default` and `description` on the array and the type and validations on its `items` |
 | `comment`        | The column comment. The JSON Schemas render it as `description`                                             |
 | `auto_populated` | Whether the database fills it in (a serial id, a function default), so a create needn't set it. It doesn't make it `read_only` |
-| `read_only`      | Not in the ACL's `attributes`, or readonly on the model (`attr_readonly`)                                   |
-| `required`       | NOT NULL and writable on create (permitted by the ACL, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
+| `read_only`      | Not `writable` in the Policy, only writable on create, or readonly on the model (`attr_readonly`)           |
+| `required`       | NOT NULL and writable on create (`writable` in the Policy, not auto populated), or validated for presence or acceptance without `allow_nil`. An `attr_readonly` attribute can be set on create, so it can be both `read_only` and `required` |
 | `validations`    | `[{ kind: :length, options: { maximum: 12 } }, ...]`                                                        |
 
 An attribute the model declares without a column (`attribute :nickname,
 :string` in the model) has `nil` for `default`, `null`, `comment` and
-`auto_populated`. The ACL's `attributes` is called without a record
-(`attributes(nil)`), so `read_only` is the answer for the model as a whole.
+`auto_populated`. They're decided for a `nil` record, so `read_only` is the
+answer for the model as a whole.
 
 A Policy `attribute` adding one the model doesn't have starts from
 `StandardAPI::Policy::Builder::DEFAULTS`: `null` and `read_only` are `true`,
 `auto_populated` is `false`.
 
-For an STI subclass, ie. `Pdf < Document`, without an ACL or Policy of its
-own, the base class's `attributes` and Policy are used
-(`document_attributes`, `DocumentPolicy`).
+For an STI subclass, ie. `Pdf < Document`, without a Policy of its own, the
+base class's is used (`DocumentPolicy`).
 
 `schema.json` lists the same attributes as `record_policy(model).attributes`, with the same
 `readonly`. A column's `type` still comes from its SQL type unless
@@ -602,9 +619,10 @@ conditions see being `nil`.
   described and nothing is `required`. A model with a custom partial is
   described as any object.
 - **`schema/write.json`** describes `{ "record": { ... } }` with only the
-  attributes the ACL's `attributes(nil)` permit, with their validations, and
-  the associations its `nested` permits (by attributes, `_ids` and foreign
-  key). One the ACL permits but the Policy doesn't declare is `{}`.
+  attributes the Policy makes `writable` for a create, with their
+  validations, and the associations the ACL's `nested` permits (by
+  attributes, `_ids` and foreign key). One that's writable but not declared,
+  ie. with `writable :password`, is `{}`.
   `required` lists the definitions' `required`, for a create; an update may
   send any of the properties. A `read_only` definition is `readOnly`: an
   `attr_readonly` attribute, which can be set on create but not changed, or

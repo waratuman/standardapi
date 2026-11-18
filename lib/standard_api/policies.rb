@@ -84,25 +84,17 @@ module StandardAPI
     #   auto_populated  Boolean  whether the database fills the column in
     #                            itself, ie. a serial id or a column with a
     #                            function default
-    #   read_only       Boolean  true when the attribute can't be changed
-    #                            through the API: it is missing from the ACL's
-    #                            `attributes`, or the model marks it readonly
-    #                            (`attr_readonly`)
-    #   required        Boolean  true when a create must set it: the column is
-    #                            NOT NULL and writable on create (permitted by
-    #                            the ACL, not auto populated; an
-    #                            `attr_readonly` attribute can be set on
-    #                            create), or it has a presence
-    #                            validation, or an acceptance validation
-    #                            without `allow_nil`
+    #   read_only       Boolean  true, until the Policy makes the attribute
+    #                            `writable`
+    #   required        Boolean  true when it has a presence validation, or
+    #                            an acceptance validation without
+    #                            `allow_nil`; the Policy also makes a NOT NULL
+    #                            column it makes `writable` required
     #   validations     Array    the model's validations of the attribute, as
     #                            `{ kind: :length, options: { maximum: 12 } }`
     #
     # An attribute with no column has nil `default`, `null`, `comment` and
     # `auto_populated`.
-    #
-    # The ACL is consulted without a record, as `attributes(nil)`, so
-    # `read_only` is the model wide answer.
     #
     # They're built once a request per model and set of attribute names, so
     # records loaded by the same query share them, and so does what the Policy
@@ -110,24 +102,18 @@ module StandardAPI
     def default_definitions(model, names)
       @default_definitions ||= {}
       @default_definitions[[model, names]] ||= begin
-        permitted_attributes = model_attributes(model)&.map(&:to_s)
-
         columns = model.columns_hash
-        names.map do |name|
-          attribute_definition(model, name, columns[name], permitted_attributes.nil? || permitted_attributes.include?(name))
-        end
+        names.map { |name| attribute_definition(model, name, columns[name]) }
       end
     end
 
-    def attribute_definition(model, name, column, permitted)
+    def attribute_definition(model, name, column)
       attribute_type = model.type_for_attribute(name)
       enum = model.defined_enums[name] if attribute_type.is_a?(::ActiveRecord::Enum::EnumType)
       default = column_default_value(column, model) if column
       auto_populated = (!!column.auto_populated? if column)
       validations = model.validators_on(name).map { |v| { kind: v.kind, options: v.options } }
 
-      read_only = !permitted || model.readonly_attribute?(name)
-      writable_on_create = permitted && !auto_populated
 
       {
         name: name,
@@ -139,8 +125,8 @@ module StandardAPI
         array: column ? column.array : false,
         comment: column&.comment,
         auto_populated: auto_populated,
-        read_only: read_only,
-        required: (column&.null == false && writable_on_create) || validations.any? { |v|
+        read_only: true,
+        required: validations.any? { |v|
           v[:kind] == :presence || (v[:kind] == :acceptance && v[:options][:allow_nil] != true)
         },
         validations: validations

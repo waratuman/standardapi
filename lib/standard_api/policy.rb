@@ -45,15 +45,38 @@ module StandardAPI
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
+      WRITABLE_OPTIONS = [:on, :permit].freeze
+
+      # +writable+, as +attribute+ and +writable+ take it, as { on:, permit: },
+      # or nil when it's false. Raises ArgumentError if it's invalid.
+      def self.writable_options(name, writable)
+        options = case writable
+        when nil, false then return nil
+        when true then {}
+        when Array then { permit: writable }
+        when Hash then writable
+        else raise ArgumentError, "attribute #{name} can only be writable: true, false, a strong parameters permit Array, or { on:, permit: }"
+        end
+
+        unknown = options.keys - WRITABLE_OPTIONS
+        raise ArgumentError, "unknown writable options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
+        if ![nil, :create, :update].include?(options[:on])
+          raise ArgumentError, "attribute #{name} can only be writable on: :create or :update"
+        end
+
+        options.freeze
+      end
 
       # +association_options+ are each declared association's options,
       # +values+ each attribute's declared +value+, +orderable+ the names of
       # those declared +orderable+, +required+ those of +required_orders+ in
-      # order, and +filterable_operators+ what's declared +filterable+, as
+      # order, +filterable_operators+ what's declared +filterable+, as
       # name => :all or the canonical operators it permits, with
-      # +filterable_conditions+ those of a standalone +filterable+
+      # +filterable_conditions+ those of a standalone +filterable+, and
+      # +writable_attributes+ what's declared +writable+, as name =>
+      # { on:, permit: }
       attr_reader :conditions, :association_options, :association_conditions, :values, :orderable,
-        :required, :filterable_operators, :filterable_conditions
+        :required, :filterable_operators, :filterable_conditions, :writable_attributes
 
       def initialize
         @changes = {}
@@ -65,19 +88,22 @@ module StandardAPI
         @required = []
         @filterable_operators = {}
         @filterable_conditions = {}
+        @writable_attributes = {}
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
       # when +type+ is given and the model doesn't have it. +if+ and +unless+
       # hide it per record, and +value+ renders it in place of the record's.
       # +orderable+ lets a request order by it, and +filterable+ filter on it:
-      # +true+ with any operator, or only the operators it lists.
+      # +true+ with any operator, or only the operators it lists. +writable+
+      # lets a create or update set it, see #writable.
       def attribute(name, type = nil, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
         value = options.delete(:value)
         orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
         filterable!(name, options.delete(:filterable)) if options.key?(:filterable)
+        writable!(name, options.delete(:writable)) if options.key?(:writable)
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -153,6 +179,19 @@ module StandardAPI
         self
       end
 
+      # Let a create or update set +names+ without declaring them, so they
+      # aren't rendered, ie. a password or an attr_accessor. What each takes
+      # is what its column's type does: a scalar, an array for an array
+      # column, or a hash or null for a json one. +permit+ gives it as strong
+      # parameters do instead, ie. <tt>[:name, { filter: {} }]</tt> for an
+      # array of objects. +on+ is +:create+ or +:update+ to permit it only on
+      # one; a model, ie. for the schema, is a create.
+      def writable(*names, **options)
+        options = Builder.writable_options(names.first, options) || {}
+        names.map(&:to_s).each { |name| @writable_attributes[name] = options }
+        self
+      end
+
       # Take back a declaration, ie. one inherited from a parent Policy
       def remove(*names)
         names.map(&:to_s).each do |name|
@@ -165,6 +204,7 @@ module StandardAPI
           @required.delete(name)
           @filterable_operators.delete(name)
           @filterable_conditions.delete(name)
+          @writable_attributes.delete(name)
         end
         self
       end
@@ -174,7 +214,7 @@ module StandardAPI
         pending = @changes.dup
         definitions = defaults.filter_map do |definition|
           changes = pending.delete(definition[:name])
-          definition.merge(changes) if changes
+          writable_definition(definition.merge(changes), changes, model) if changes
         end
 
         pending.each do |name, changes|
@@ -184,7 +224,7 @@ module StandardAPI
           if !changes[:type]
             raise ArgumentError, "#{model.name} has no attribute #{name}; adding one needs a type"
           end
-          definitions << DEFAULTS.merge(name: name).merge(changes)
+          definitions << writable_definition(DEFAULTS.merge(name: name).merge(changes), changes, model)
         end
 
         definitions
@@ -196,6 +236,29 @@ module StandardAPI
       end
 
       private
+
+      # A writable attribute can be changed, unless only on create or the
+      # model makes it attr_readonly, and a create must set it when it's NOT
+      # NULL and not auto populated, unless declared otherwise
+      def writable_definition(definition, changes, model)
+        writable = @writable_attributes[definition[:name]]
+        return definition if !writable
+
+        name = definition[:name]
+        definition.merge(
+          read_only: changes.fetch(:read_only) { writable[:on] == :create || model.readonly_attribute?(name) },
+          required: changes.fetch(:required) do
+            definition[:required] ||
+              (writable[:on] != :update && definition[:null] == false && !definition[:auto_populated])
+          end
+        )
+      end
+
+      # +writable: false+ takes back an inherited one
+      def writable!(name, writable)
+        options = Builder.writable_options(name, writable)
+        options ? (@writable_attributes[name] = options) : @writable_attributes.delete(name)
+      end
 
       # +orderable: false+ takes back an inherited one, required or not
       def orderable!(name, orderable)
@@ -233,6 +296,7 @@ module StandardAPI
         if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
           raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
         end
+        Builder.writable_options(name, options[:writable])
 
         # A value can read the requester as a condition can
         varies = options.key?(:if) || options.key?(:unless) || !value.nil?
@@ -283,6 +347,12 @@ module StandardAPI
         add_step { required_orders(*names) }
       end
 
+      # See Builder#writable. It doesn't change what renders either.
+      def writable(*names, **options)
+        Builder.writable_options(names.first, options)
+        add_step { writable(*names, **options) }
+      end
+
       def remove(*names)
         add_step { remove(*names) }
       end
@@ -291,8 +361,8 @@ module StandardAPI
       # reads +record+ (nil for a model), and records with the same result share
       # them: the block runs on the Policy instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+,
-      # +association+, +associations+, +filterable+, +required_orders+ and
-      # +remove+.
+      # +association+, +associations+, +filterable+, +required_orders+,
+      # +writable+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
@@ -395,6 +465,31 @@ module StandardAPI
       end
     end
 
+    # What a create or update of +record+ may set, a model (nil) being a
+    # create, as strong parameters permit them: what's declared +writable+,
+    # on that action, unless a condition hides it from the record
+    def permitted_attributes(record)
+      builder = builder_for(record)
+      # Not memoized for the record, as it's asked before the params are
+      # assigned, which can change what its conditions decide
+      hidden = failed(builder.conditions, record)
+      skipped = record.nil? || record.new_record? ? :update : :create
+
+      builder.writable_attributes.flat_map do |name, options|
+        next [] if hidden.include?(name) || options[:on] == skipped
+
+        if options.key?(:permit)
+          [{ name => options[:permit] }]
+        elsif model.columns_hash[name]&.array
+          [{ name => [] }]
+        elsif [:json, :jsonb].include?(model.type_for_attribute(name).type)
+          [name, { name => {} }]
+        else
+          [name]
+        end
+      end
+    end
+
     # The Policy class the records +record+ includes through the association
     # +name+ render with in place of their own model's, or nil
     def association_policy(record, name)
@@ -442,6 +537,10 @@ module StandardAPI
 
     def required_orders(*names)
       declarations.required_orders(*names)
+    end
+
+    def writable(*names, **options)
+      declarations.writable(*names, **options)
     end
 
     def remove(*names)

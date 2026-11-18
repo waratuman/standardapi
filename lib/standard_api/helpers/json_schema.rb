@@ -2,11 +2,11 @@ module StandardAPI
   module Helpers
     # Builds the JSON Schemas served at schema/read, schema/write and
     # schema/query, included in StandardAPI::Helpers. Each is built from the
-    # ACL, read from the controller, so it only describes what the ACL
-    # permits. Attributes are described from their definitions in
+    # Policies and ACLs, read from the controller, so it only describes what
+    # they permit. Attributes are described from their definitions in
     # record_policy(model).attributes, so only what the model's Policy
-    # declares. Params the ACL doesn't check yet are described as they're
-    # used, and say so.
+    # declares. Params nothing checks yet are described as they're used, and
+    # say so.
     #
     # read_schema_for, write_schema_for and query_schema_for are delegated to
     # from the controller, so a caller can build a schema on
@@ -22,8 +22,8 @@ module StandardAPI
       # its definition's type. activerecord-filter accepts every operator on every
       # column and leaves it to the database to reject one that doesn't apply, so
       # this narrows the list to the ones that do. A type not listed, and an
-      # enum, gets EQUALITY_OPERATORS. Operators an ACL lists for a column are
-      # presented as listed.
+      # enum, gets EQUALITY_OPERATORS. Operators a Policy lists for a column
+      # are presented as listed.
       COMPARISON_OPERATORS = %i(eq neq in not_in gt gte lt lte).freeze
       EQUALITY_OPERATORS = %i(eq neq in not_in).freeze
       TYPE_OPERATORS = {
@@ -98,7 +98,7 @@ module StandardAPI
       end
 
       # The shape of the params #create and #update accept for +model+: the
-      # attributes the ACL's +attributes+ permit, and the associations its
+      # attributes its Policy makes +writable+, and the associations its ACL's
       # +nested+ permits. +required+ lists what a create needs; an update needs
       # none of it.
       def write_schema_for(model)
@@ -117,7 +117,7 @@ module StandardAPI
       end
 
       # The shape of the params #index and #calculate accept for +model+: the
-      # +where+ the ACL permits, +order+ and +include+ the Policies permit,
+      # +where+, +order+ and +include+ the Policies permit,
       # +limit+, +offset+, +distinct+, +group_by+, and the unchecked
       # +distinct_on+, +join+ and +select+.
       #
@@ -430,21 +430,24 @@ module StandardAPI
 
         properties = {}
         required = []
-        # Identifies the nested record to update, so is sent though it isn't
-        # one of the ACL's attributes
+        # Identifies the nested record to update, so is sent though the Policy
+        # doesn't make it writable
         properties['id'] = json_schema_attribute_write(model, model.primary_key, permitted: true) if nested && model.primary_key
         definitions = json_schema_definitions(model)
 
-        Array(controller.model_attributes(model)).flatten.each do |entry|
-          if entry.is_a?(Hash)
-            entry.each do |name, permit|
-              properties[name.to_s] = permit == [] ? { 'type' => 'array' } : { 'type' => 'object' }
-            end
+        controller.record_policy(model).writable.each do |entry|
+          name, permit = entry.is_a?(Hash) ? entry.first : [entry, nil]
+          name = name.to_s
+          # A json column is permitted as a value and as an object
+          next if properties.key?(name)
+
+          # A permitted shape without a definition only says what it is
+          properties[name] = if permit.nil? || definitions.key?(name)
+            json_schema_attribute_write(model, name)
           else
-            name = entry.to_s
-            properties[name] = json_schema_attribute_write(model, name)
-            required << name if !nested && definitions.dig(name, :required)
+            permit == [] ? { 'type' => 'array' } : { 'type' => 'object' }
           end
+          required << name if !nested && definitions.dig(name, :required)
         end
 
         properties.merge!(json_schema_nested_write(model, path + [model]))

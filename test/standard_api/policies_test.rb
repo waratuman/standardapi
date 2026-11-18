@@ -60,26 +60,30 @@ class PoliciesTest < ActionDispatch::IntegrationTest
       attribute(Document, 'rating', controller: DocumentsController.new)[:comment]
   end
 
-  test 'read_only follows the ACL attributes' do
+  test 'read_only follows writable' do
     assert_equal false, attribute(Property, 'name')[:read_only]
     assert_equal true, attribute(Property, 'created_at')[:read_only]
     assert_equal true, attribute(Property, 'id')[:read_only]
   end
 
-  test 'read_only falls back to the model without ACL attributes' do
-    # ReferenceACL defines no attributes
-    assert_equal false, attribute(Reference, 'key', controller: ReferencesController.new)[:read_only]
-
-    Reference.stubs(:readonly_attribute?).returns(false)
-    Reference.stubs(:readonly_attribute?).with('key').returns(true)
+  test 'read_only is true unless the Policy makes an attribute writable, and it is not attr_readonly' do
+    # ReferencePolicy makes nothing writable
     assert_equal true, attribute(Reference, 'key', controller: ReferencesController.new)[:read_only]
+
+    with_model_policy(Reference, Class.new(ReferencePolicy) { attribute :key, writable: true }) do
+      assert_equal false, attribute(Reference, 'key', controller: ReferencesController.new)[:read_only]
+
+      Reference.stubs(:readonly_attribute?).returns(false)
+      Reference.stubs(:readonly_attribute?).with('key').returns(true)
+      assert_equal true, attribute(Reference, 'key', controller: ReferencesController.new)[:read_only]
+    end
   end
 
-  test 'an STI subclass uses the ACL of its base class' do
+  test 'an STI subclass uses the Policy of its base class' do
     controller = DocumentsController.new
 
-    # DocumentsController::ACL permits file and type
-    assert_equal controller.model_attributes(Document), controller.model_attributes(Pdf)
+    # DocumentPolicy makes file and type writable
+    assert_equal controller.record_policy(Document).writable, controller.record_policy(Pdf).writable
     assert_equal false, attribute(Pdf, 'type', controller: controller)[:read_only]
     assert_equal true, attribute(Pdf, 'rating', controller: controller)[:read_only]
 
@@ -92,8 +96,7 @@ class PoliciesTest < ActionDispatch::IntegrationTest
     assert_equal 'From the Policy of Document', attribute(Pdf, 'type', controller: DocumentsController.new)[:comment]
   end
 
-  test 'a NOT NULL attr_readonly attribute is read only and required, without ACL attributes' do
-    # ReferenceACL defines no attributes, so read_only comes from the model
+  test 'a NOT NULL writable attr_readonly attribute is read only and required' do
     Reference.stubs(:readonly_attribute?).returns(false)
     Reference.stubs(:readonly_attribute?).with('key').returns(true)
     # Columns are frozen, so stub a NOT NULL copy of key's
@@ -103,9 +106,11 @@ class PoliciesTest < ActionDispatch::IntegrationTest
     Reference.stubs(:columns_hash).returns(columns)
 
     # It can be set on create, but never changed
-    key = attribute(Reference, 'key', controller: ReferencesController.new)
-    assert_equal true, key[:read_only]
-    assert_equal true, key[:required]
+    with_model_policy(Reference, Class.new(ReferencePolicy) { attribute :key, writable: true }) do
+      key = attribute(Reference, 'key', controller: ReferencesController.new)
+      assert_equal true, key[:read_only]
+      assert_equal true, key[:required]
+    end
   end
 
   test 'an attr_readonly attribute is read only even when the ACL permits it' do

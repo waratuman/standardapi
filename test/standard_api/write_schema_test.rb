@@ -91,36 +91,37 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal 'The manufacturer', camera_schema.dig('properties', 'make', 'description')
   end
 
-  test 'Controller#write_schema.json lists an attribute a Policy adds when the ACL permits it' do
-    CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :thumbnail_url])
-
-    # null defaults to true, and an added attribute is read only unless it says
+  test 'Controller#write_schema.json lists an attribute a Policy adds when it makes it writable' do
     with_camera_policy(proc { attribute :thumbnail_url, :string }) do
-      assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, camera_schema.dig('properties', 'thumbnail_url'))
+      assert_nil camera_schema.dig('properties', 'thumbnail_url')
     end
-    with_camera_policy(proc { attribute :thumbnail_url, :string, read_only: false }) do
+    # null defaults to true
+    with_camera_policy(proc { attribute :thumbnail_url, :string, writable: true }) do
       assert_equal({ 'type' => ['string', 'null'] }, camera_schema.dig('properties', 'thumbnail_url'))
+    end
+    # unless it says it's read only
+    with_camera_policy(proc { attribute :thumbnail_url, :string, writable: true, read_only: true }) do
+      assert_equal({ 'type' => ['string', 'null'], 'readOnly' => true }, camera_schema.dig('properties', 'thumbnail_url'))
     end
   end
 
-  test "Controller#write_schema.json describes an attribute the ACL permits but the Policy doesn't declare as anything" do
-    CamerasController.any_instance.stubs(:camera_attributes).returns([:make, :created_at])
-
-    assert_equal({}, camera_schema.dig('properties', 'created_at'))
+  test "Controller#write_schema.json describes what's writable but not declared as anything" do
+    with_camera_policy(proc { writable :created_at }) do
+      assert_equal({}, camera_schema.dig('properties', 'created_at'))
+    end
   end
 
   test 'Controller#write_schema.json what nested permits of a nested record is not readOnly' do
     photo = property_schema.dig('properties', 'photos', 'items', 'properties')
 
-    # Neither is one of PhotoACL's attributes, which the definition has as
-    # read only: the id says which photo to update, and PhotoACL nested
-    # permits its account
+    # The id says which photo to update, though PhotoPolicy doesn't make it
+    # writable, and account_id is writable
     assert_equal({ 'type' => 'integer' }, photo['id'])
     assert_equal({ 'type' => ['integer', 'null'] }, photo['account_id'])
     assert_equal({ 'type' => 'integer' }, property_schema.dig('properties', 'accounts', 'items', 'properties', 'id'))
   end
 
-  test 'Controller#write_schema.json an attr_readonly attribute the ACL permits is readOnly and required' do
+  test 'Controller#write_schema.json a writable attr_readonly attribute is readOnly and required' do
     Camera.stubs(:readonly_attribute?).returns(false)
     Camera.stubs(:readonly_attribute?).with('make').returns(true)
 
@@ -129,13 +130,13 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_includes schema['required'], 'make'
   end
 
-  test 'Controller#write_schema.json an auto populated attribute the ACL permits is not readOnly or required' do
-    CamerasController.any_instance.stubs(:camera_attributes).returns([:id, :make])
-
-    schema = camera_schema
-    # id is filled in by the database, but can be given
-    assert_nil schema.dig('properties', 'id', 'readOnly')
-    assert_not_includes schema['required'], 'id'
+  test 'Controller#write_schema.json a writable auto populated attribute is not readOnly or required' do
+    with_camera_policy(proc { attribute :id, writable: true }) do
+      schema = camera_schema
+      # id is filled in by the database, but can be given
+      assert_nil schema.dig('properties', 'id', 'readOnly')
+      assert_not_includes schema['required'], 'id'
+    end
   end
 
   test 'Controller#write_schema.json inclusion validations' do
@@ -200,15 +201,16 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal 'integer', properties.dig('account_ids', 'items', 'type')
 
     photo = properties.dig('photos', 'items', 'properties')
-    assert_equal ['id', 'format', 'account_id', 'account', 'camera'], photo.keys
+    assert_equal ['id', 'account_id', 'property_id', 'format', 'account', 'camera'], photo.keys
     assert_equal ['integer', 'null'], photo.dig('account_id', 'type')
     assert_equal ['object', 'null'], photo.dig('account', 'type')
     assert_nil properties.dig('photos', 'items', 'required')
   end
 
   test 'Controller#write_schema.json enum' do
-    DocumentsController.any_instance.stubs(:document_attributes).returns([:level, :rating])
-    properties = write_schema(write_schema_documents_path(format: 'json')).dig('properties', 'document', 'properties')
+    properties = with_model_policy(Document, Class.new(DocumentPolicy) { attributes :level, :rating, writable: true }) do
+      write_schema(write_schema_documents_path(format: 'json')).dig('properties', 'document', 'properties')
+    end
 
     assert_equal 'string', properties.dig('level', 'type')
     assert_equal ['public', 'secret'], properties.dig('level', 'enum')
@@ -218,10 +220,8 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
   end
 
   test 'Controller#write_schema.json validations' do
-    PropertiesController.any_instance.stubs(:property_attributes).returns([
-      :numericality, :build_type, :agree_to_terms, :phone_number
-    ])
-    properties = property_schema['properties']
+    writable = Class.new(PropertyPolicy) { attributes :numericality, :build_type, :agree_to_terms, :phone_number, writable: true }
+    properties = with_model_policy(Property, writable) { property_schema['properties'] }
 
     assert_equal 1, properties.dig('numericality', 'exclusiveMinimum')
     assert_equal 2, properties.dig('numericality', 'minimum')

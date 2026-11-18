@@ -162,27 +162,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_params).to_h, {}
   end
 
-  # Regression for #97: an ACL `attributes(record)` with a *required* argument
-  # must not raise `ArgumentError` when resolved in a schema context (no record).
-  # `model_attributes` forwards the record when present and `nil` otherwise, so
-  # both the filter path and the schema path share one arity contract.
-  test 'Controller#model_attributes forwards the record to a record-aware ACL' do
-    @controller = DocumentsController.new
-    @controller.define_singleton_method(:document_attributes) do |record|
-      record&.type == 'movie' ? [:file, :type, :rating] : [:file, :type]
-    end
+  test 'Policy::Record#writable is decided for the record, a model being a create' do
+    controller = DocumentsController.new
 
-    # Schema context: no record, ACL is invoked with nil rather than zero args.
-    assert_equal [:file, :type], @controller.model_attributes(Document)
-
-    # Filter context: the record is forwarded so per-record decisions still work.
-    movie = create(:document, type: 'movie')
-    assert_equal [:file, :type, :rating], @controller.model_attributes(Document, movie)
+    assert_equal ['type', 'file'], controller.record_policy(Document).writable
+    assert_equal ['type', 'file', 'rating'], controller.record_policy(create(:document, type: 'movie')).writable
   end
 
-  test 'Controller#model_attributes returns nil without an ACL attributes method' do
-    @controller = ReferencesController.new
-    assert_nil @controller.model_attributes(Reference)
+  test 'Policy::Record#writable is empty when the Policy makes nothing writable' do
+    assert_equal [], ReferencesController.new.record_policy(Reference).writable
   end
 
   test 'Controller#mask' do
@@ -251,8 +239,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
     assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
-    # ReferenceACL defines no attributes, so readonly comes from the model
-    assert_equal false, schema['models']['Reference']['attributes']['key']['readonly']
+    # ReferencePolicy makes nothing writable
+    assert_equal true, schema['models']['Reference']['attributes']['key']['readonly']
 
     assert_equal [
       {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}

@@ -43,6 +43,16 @@
 - Remove `Controller#required_orders`. Declare them in the model's Policy with
   `required_orders :id`; they're orderable without being declared `orderable`.
   An override of `required_orders` isn't used.
+- Remove ACL `attributes`. What a create or update may set is what the
+  model's Policy declares `writable`, ie. `attributes :name, writable: true`,
+  decided for the record being created or updated. A json column takes an
+  object or `null`, and an array column an array, without saying so. An ACL
+  `attributes` method is no longer renamed, so it isn't used: delete it.
+  `Controller#model_attributes` is removed, and a `<model>_attributes`
+  controller method isn't used.
+- `read_only` is true for an attribute the Policy doesn't make `writable`.
+  Before, a model without ACL `attributes` had every attribute not
+  `attr_readonly` described as writable, though none could be written.
 - Remove `StandardAPI::Orders.sanitize`. `StandardAPI::Orders` is included in
   `StandardAPI::Controller`; use `sanitize_orders` instead. It takes a
   `Policy::Record`, ie. `sanitize_orders(orders, record_policy(model))`, in
@@ -81,7 +91,7 @@
 - Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
   `schema/query.json` (see Added). `schema/read.json` describes records as
   rendered, with includes, as `json_schema.json` did; `schema/write.json` lists
-  only the attributes the ACL permits, where `json_schema.json` listed every
+  only the attributes the Policy makes writable, where `json_schema.json` listed every
   attribute and marked the rest `readOnly`. `include[only]` and
   `include[except]` have no equivalent, and `:json_schema` in a route's `only`
   or `except` raises Rails' `ArgumentError` for an unknown action.
@@ -175,10 +185,35 @@ it applies wherever that model is the one listed:
       required_orders :id
     end
 
+ACL `attributes` has been replaced by what each model's Policy declares
+`writable`. Delete them, and declare what they permitted `writable` in the
+Policy instead. List a json column once, rather than as both `:metadata` and
+`{ metadata: {} }`; a strong parameters permit, as an Array, takes the place
+of a shape the column's type doesn't give, and `on:` replaces checking
+`record.new_record?`. What isn't rendered, ie. a password, is declared with
+`writable` on its own:
+
+    # Before, in UserACL
+    def attributes(record = nil)
+      keys = [ :name, :password, :metadata, { metadata: {} }, { roles: [] } ]
+      keys << :email_address if record.nil? || record.new_record?
+      keys
+    end
+
+    # After
+    class UserPolicy < StandardAPI::Policy
+      attributes :name, :metadata, :roles, writable: true   # roles is an array column
+      attribute :email_address, writable: { on: :create }
+      writable :password
+    end
+
+What else an ACL `attributes` decided per record is declared in an
+`attributes_for` block, keyed on what it read of the record.
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
-accepts, `schema/write.json`, which lists only the attributes the ACL permits. `include[only]` and `include[except]` have no equivalent. A route
+accepts, `schema/write.json`, which lists only the attributes the Policy makes writable. `include[only]` and `include[except]` have no equivalent. A route
 that names `:json_schema` in `only` or `except` raises `ArgumentError`, so
 name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
@@ -186,8 +221,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
-  `association_policy`, `orderable`, `required_orders`, `filterable`, `value`,
-  `hidden?` and `errors`.
+  `association_policy`, `orderable`, `required_orders`, `filterable`,
+  `writable`, `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
@@ -218,6 +253,10 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   takes back an inherited one. `filterable: true`, or the operators it
   permits, lets a request filter on it the same way, and `filterable :name`
   permits a name without declaring it, ie. a `filter_on` filter.
+  `writable: true` on an attribute lets a create or update set it, as its
+  column's type takes it, or as a strong parameters permit Array gives;
+  `writable: { on: :create }` or `{ on: :update }` only on one, and
+  `writable :password` without declaring it.
   `attributes` and `associations` take the same options as `attribute` and
   `association`.
   `attribute ..., value:` renders a computed value in place of the record's;
@@ -238,8 +277,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
     validated, allow `null`; decimals are strings, binary is hex, and an
     enum lists its names.
   - `schema/write.json`: the params `#create` and `#update` accept, with only
-    the attributes the ACL's `attributes` permit, their validations, and the
-    associations its `nested` permits. `required` is for a create. A
+    the attributes the Policy makes `writable`, their validations, and the
+    associations the ACL's `nested` permits. `required` is for a create. A
     `read_only` definition is `readOnly`; an auto populated column isn't, and
     isn't `required`.
   - `schema/query.json`: the `where`, `order` and `include` the Policies
@@ -256,14 +295,14 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 ### Changed
 
-- The ACL `attributes` and Policy lookups fall back to the base
-  class's for an STI subclass. An STI
-  subclass without an ACL of its own can now be created and updated with the
-  attributes its base class's ACL permits, where before it permitted none,
-  and the JSON Schemas and `schema.json` describe it the same way.
+- The Policy lookup falls back to the base class's for an STI subclass. An
+  STI subclass without a Policy of its own can now be created and updated
+  with what its base class's Policy makes `writable`, where before it
+  permitted none, and the JSON Schemas and `schema.json` describe it the same
+  way.
 - `schema.json` lists only what the model's Policy declares, and `readonly` is
   the definition's `read_only`, so it's true for an `attr_readonly` attribute
-  even when the ACL permits it. A column's `type` still comes from its SQL type
+  even when it's `writable`. A column's `type` still comes from its SQL type
   unless the Policy declares another.
 
 ### Fixed
@@ -271,12 +310,12 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 - A controller with required orders sorts an index without an `order` by its
   `default_orders`, then the required orders; before, it ignored
   `default_orders`. They're no longer written into `params[:order]` either.
-- `read_only` is true for an `attr_readonly` attribute even when the ACL's
-  `attributes` permit it, since Rails won't change it after create. `required`
+- `read_only` is true for an `attr_readonly` attribute even when the Policy
+  makes it `writable`, since Rails won't change it after create. `required`
   is about create, so a NOT NULL `attr_readonly` attribute is both: it must be
   sent on create and can't be changed after.
-- The turbostreamer `schema.json` reports `readonly` like the jbuilder one when
-  a model has no ACL `attributes`, instead of always `true`.
+- The turbostreamer `schema.json` reports `readonly` like the jbuilder one,
+  instead of always `true`.
 
 ### Security
 

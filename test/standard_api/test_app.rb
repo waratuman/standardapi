@@ -59,20 +59,22 @@ end
 require 'standard_api/test_app/models'
 
 # Every model the tests render declares all of its attributes, by name, as
-# most tests aren't about Policies, and what can be included, ordered by and
-# filtered on of it. Before the controllers, whose Policies inherit from them.
+# most tests aren't about Policies, and what can be included, ordered by,
+# filtered on and written of it. Before the controllers, whose Policies inherit from them.
 {
   Account => -> {
     attribute :id, orderable: true, filterable: true
     association :photos
     association :property, orderable: true
     association :subject, types: ['Property']
+    attributes :property_id, :name, writable: true
   },
   Photo => -> {
     attributes :id, :created_at, :account_id, orderable: true
     attributes :id, :account_id, filterable: true
     associations :account
     filterable :properties
+    attributes :account_id, :property_id, :format, writable: true
   },
   Property => -> {
     attributes :id, :name, :aliases, :description, :constructed, :size, :created_at, :active,
@@ -80,9 +82,16 @@ require 'standard_api/test_app/models'
     attribute :id, filterable: true
     associations :photos, :landlord, :english_name, :document, :accounts
     associations :landlord, :accounts, filterable: true
+    attributes :name, :aliases, :description, :constructed, :size, :active, :numericality, writable: true
   },
   Reference => -> { association :subject, types: ['Property'] },
-  Document => -> { attribute :id, orderable: true },
+  Document => -> {
+    attribute :id, orderable: true
+    attribute :type, writable: true
+    writable :file
+    # Only a movie's rating can be written
+    attributes_for(-> { record&.type }) { |type| attribute :rating, writable: type == 'movie' }
+  },
   Attachment => -> {},
   UuidModel => -> {}
 }.each do |model, includes|
@@ -92,6 +101,9 @@ require 'standard_api/test_app/models'
     class_exec(&includes)
   })
 end
+
+# Its attributes_for only decides what's writable, not what renders
+DocumentPolicy.define_singleton_method(:varies_by_requester?) { false }
 
 # Test Application Controllers
 require 'standard_api/test_app/controllers'
