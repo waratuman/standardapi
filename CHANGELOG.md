@@ -278,9 +278,9 @@ checking `record.persisted?`:
       filter(on: :update) { |params| params.delete(:roles) if !admin? }
     end
 
-Delete the ACL `filter` once it's moved: while a model has one, it's used in
-place of the Policy's permits, filters included, and nested records of that
-model are written through it.
+Delete the ACL `filter` once it's moved. An ACL `filter` that calls
+`filter_model_params` runs the Policy's filters too, so a check left in both
+runs twice.
 
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
