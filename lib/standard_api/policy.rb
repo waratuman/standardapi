@@ -691,10 +691,20 @@ module StandardAPI
     end
 
     # What's declared with +assign+ for +record+, less what's only assigned
-    # on the other action
+    # on the other action. Raises ArgumentError for a name the model can't
+    # set, or one it makes attr_readonly that isn't only assigned on create.
     def assigned_for(record)
       on = action_for(record)
-      builder_for(record).assigned_attributes.reject { |_, options| options[:on] && options[:on] != on }
+      builder_for(record).assigned_attributes.reject do |name, options|
+        if !model.attribute_names.include?(name) && !model.method_defined?("#{name}=")
+          raise ArgumentError, "#{model.name} has no attribute #{name} to assign"
+        end
+        if options[:on] != :create && model.readonly_attribute?(name)
+          raise ArgumentError, "#{name} of #{model.name} is attr_readonly, so can only be assigned on: :create"
+        end
+
+        options[:on] && options[:on] != on
+      end
     end
 
     def action_for(record)

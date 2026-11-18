@@ -59,6 +59,29 @@ class PolicyAssignTest < ActionDispatch::IntegrationTest
     assert_raises(ArgumentError) { policy_for(policy).assigned_attributes(nil) }
   end
 
+  test 'assign raises for a name the model can not set, when it is first used' do
+    policy = empty_policy_class { assign :nmae, with: -> { 'Hancock' } }
+    error = assert_raises(ArgumentError) { policy_for(policy).assigned_attributes(nil) }
+    assert_match(/Property has no attribute nmae to assign/, error.message)
+    assert_raises(ArgumentError) { policy_for(policy).assigned_attribute_names(nil) }
+
+    # A setter that isn't a column, ie. an association, can be assigned
+    assert_equal %w[landlord], policy_for(empty_policy_class { assign :landlord, with: -> { nil } }).assigned_attribute_names(nil)
+  end
+
+  test 'an attr_readonly attribute can only be assigned on: :create' do
+    Property.stubs(:readonly_attribute?).returns(false)
+    Property.stubs(:readonly_attribute?).with('name').returns(true)
+
+    assert_equal({ 'name' => 'Hancock' }, policy_for(empty_policy_class { assign :name, on: :create, with: -> { 'Hancock' } }).assigned_attributes(nil))
+
+    [{}, { on: :update }].each do |on|
+      policy = empty_policy_class { assign :name, with: -> { 'Hancock' }, **on }
+      error = assert_raises(ArgumentError) { policy_for(policy).assigned_attributes(nil) }
+      assert_match(/name of Property is attr_readonly, so can only be assigned on: :create/, error.message)
+    end
+  end
+
   test 'Policy::Record#assigned_attributes is empty without a Policy' do
     record_policy = StandardAPI::Policy::Record.new(ApplicationController.new, Property, nil, nil)
     assert_equal({}, record_policy.assigned_attributes)

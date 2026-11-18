@@ -306,7 +306,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   attribute on a create or update, or both without `on:`, in place of what
   the params send, writable or not; `with:` is a Symbol or Proc run on the
   Policy for the record being written. It applies to nested records too, and
-  `schema/write.json` leaves it out.
+  `schema/write.json` leaves it out. A name the model can't set, or an
+  `attr_readonly` one not `on: :create`, raises `ArgumentError`.
   `attributes` and `associations` take the same options as `attribute` and
   `association`.
   `attribute ..., value:` renders a computed value in place of the record's;

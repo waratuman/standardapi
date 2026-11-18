@@ -397,7 +397,8 @@ the params send, and the attribute needn't be `writable`; `schema/write.json`
 doesn't list it. A nested record gets what its own Policy, or `writable: {
 policy: }`'s, assigns. `remove` takes one back, and
 `record_policy(record).assigned_attributes` gives what's set, as name =>
-value.
+value. Assigning a name the model can't set, or an `attr_readonly` one
+other than `on: :create`, raises `ArgumentError` when first used.
 
 An association is written through nested attributes:
 
