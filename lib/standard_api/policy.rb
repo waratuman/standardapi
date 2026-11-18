@@ -467,16 +467,13 @@ module StandardAPI
 
     # What a create or update of +record+ may set, a model (nil) being a
     # create, as strong parameters permit them: what's declared +writable+,
-    # on that action, unless a condition hides it from the record
+    # on that action. It's asked before the params are assigned, so +if+ and
+    # +unless+, which decide what renders, don't apply.
     def permitted_attributes(record)
-      builder = builder_for(record)
-      # Not memoized for the record, as it's asked before the params are
-      # assigned, which can change what its conditions decide
-      hidden = failed(builder.conditions, record)
       skipped = record.nil? || record.new_record? ? :update : :create
 
-      builder.writable_attributes.flat_map do |name, options|
-        next [] if hidden.include?(name) || options[:on] == skipped
+      builder_for(record).writable_attributes.flat_map do |name, options|
+        next [] if options[:on] == skipped
 
         if options.key?(:permit)
           [{ name => options[:permit] }]

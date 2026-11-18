@@ -284,9 +284,10 @@ undeclared attributes aren't rendered or named in validation errors, and
 fragments that include the model of a Policy that could vary by requester
 aren't cached.
 
-An attribute hidden from a record can't be written to it either (see
-[Writes](#writes)). It can't be ordered by or filtered on while it's hidden
-from the model (see [Orders](#orders) and [Filters](#filters)).
+Hiding an attribute controls what the API shows, not what it permits: it can
+still be written if it's `writable` (see [Writes](#writes)), which can reveal
+its value. It can't be ordered by or filtered on while it's hidden from the
+model (see [Orders](#orders) and [Filters](#filters)).
 
 ###### Orders
 
@@ -373,10 +374,10 @@ or `on: :update` permits it only on one; a model, ie. for the schema, is a
 create.
 
 What's writable is decided for the record being created or updated, before
-the params are assigned, so an attribute an `if` or `unless` hides from it
-can't be written, and one declared in an `attributes_for` block is writable
-when it's declared for the record's key. `writable: false` and `remove` take
-one back.
+the params are assigned. An `if` or `unless` decides what renders, not what's
+writable, so a hidden attribute can still be written; one declared in an
+`attributes_for` block is writable when it's declared for the record's key.
+`writable: false` and `remove` take one back.
 
 `writable` on its own permits names without declaring them, so they aren't
 rendered: a password, or an `attr_accessor`. It takes `on:`, and `permit:` for

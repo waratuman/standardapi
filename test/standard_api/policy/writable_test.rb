@@ -59,14 +59,12 @@ class PolicyWritableTest < ActionDispatch::IntegrationTest
     assert_equal %w[make hidden], writable(Class.new(parent) { remove :retired })
   end
 
-  test 'writable leaves out what a condition hides from the record' do
+  test "writable isn't changed by a condition, which decides what renders" do
     policy = empty_policy_class do
-      attribute :make, writable: true, unless: -> { record&.hidden? }
-      attribute :hidden, writable: true
+      attribute :make, writable: true, unless: -> { raise 'not run' }
     end
 
-    assert_equal %w[make hidden], writable(policy, create(:camera))
-    assert_equal %w[hidden], writable(policy, create(:camera, hidden: true))
+    assert_equal %w[make], writable(policy, Camera.new)
   end
 
   test 'writable can be declared in attributes_for, per record' do
