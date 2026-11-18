@@ -117,9 +117,7 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
 It is included in ApplicationController the same way as an
 `app/controllers/acl` file, under the model's name (`filter_photo_params`),
 so it is never included in its own controller. Controllers are loaded at boot
-(and after each reload) so their ACLs are found before the first request. An
-ACL that still defines `attributes` or `nested`, which moved to the Policy,
-raises `StandardAPI::InvalidConfiguration`.
+(and after each reload) so their ACLs are found before the first request.
 
 What's shown, what can be written, included, ordered by and filtered on is up
 to the model's Policy (see [Policies](#policies)).

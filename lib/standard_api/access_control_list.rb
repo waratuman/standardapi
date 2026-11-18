@@ -31,24 +31,11 @@ module StandardAPI
       end
     end
 
-    # What an ACL no longer declares, and what replaced it
-    MOVED = {
-      attributes: "the Policy's writable",
-      nested: "the Policy's association writable:"
-    }.freeze
-
     # Rename the ACL methods of +mod+ under +prefix+ and include it into
     # +application_controller+. A module already renamed is left as it is.
     # Raises if another ACL included into +application_controller+ defines
-    # any of the same methods, as one would silently override the other, or
-    # if it defines one that moved to the Policy, as it would be ignored.
+    # any of the same methods, as one would silently override the other.
     def self.include_acl(application_controller, mod, prefix)
-      MOVED.each do |method, replacement|
-        next if !mod.method_defined?(method, false) && !mod.private_method_defined?(method, false)
-
-        raise StandardAPI::InvalidConfiguration, "#{ mod.name }##{ method } is no longer used; declare it with #{ replacement } in place of it"
-      end
-
       if mod.instance_methods.include?(:filter)
         mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
         mod.send :remove_method, :filter

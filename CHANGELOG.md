@@ -47,14 +47,14 @@
   model's Policy declares `writable`, ie. `attributes :name, writable: true`,
   decided for the record being created or updated. A json column takes an
   object or `null`, and an array column an array, without saying so. An ACL
-  that still defines `attributes` raises `StandardAPI::InvalidConfiguration`
-  at boot. `Controller#model_attributes` is removed, and a
-  `<model>_attributes` controller method isn't used.
+  `attributes` method is no longer renamed, so it isn't used: delete it.
+  `Controller#model_attributes` is removed, and a `<model>_attributes`
+  controller method isn't used.
 - Remove ACL `nested`. What a create or update may write through nested
   attributes is the associations the model's Policy declares `writable`, ie.
   `association :photos, writable: true`, or `writable :photos` without
-  rendering them. An ACL that still defines `nested` raises
-  `StandardAPI::InvalidConfiguration` at boot.
+  rendering them. An ACL `nested` method is no longer renamed, so it isn't
+  used: delete it.
 - `read_only` is true for an attribute the Policy doesn't make `writable`.
   Before, a model without ACL `attributes` had every attribute not
   `attr_readonly` described as writable, though none could be written.

@@ -57,18 +57,6 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert @acl_base.method_defined?(:filter_attachment_params)
   end
 
-  test "an ACL defining what moved to the Policy raises" do
-    { nested: /AttachmentsACL#nested is no longer used; declare it with the Policy's association writable:/,
-      attributes: /AttachmentsACL#attributes is no longer used; declare it with the Policy's writable/ }.each do |method, message|
-      acl_controller(Attachment) { define_method(method) { [ :record ] } }
-      @acl_controller.const_get(:ACL).define_singleton_method(:name) { 'AttachmentsACL' }
-
-      error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-      assert_match message, error.message
-      @acl_controllers.pop.send(:remove_const, :ACL)
-    end
-  end
-
   test "a nested ACL on a controller without a model is skipped" do
     controller = acl_controller(nil) do
       def attributes(record = nil)
