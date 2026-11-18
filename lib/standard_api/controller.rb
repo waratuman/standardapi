@@ -328,7 +328,9 @@ module StandardAPI
 
     # True when what +klass+ renders could differ by requester: its Policy
     # could (Policy.varies_by_requester?), or that of any model +includes+
-    # reach through it.
+    # reach through it. A record loaded as +klass+ can be of one of its STI
+    # subclasses, which renders with its own Policy, so theirs count as well
+    # (#rendered_models).
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
@@ -340,7 +342,7 @@ module StandardAPI
     def policy_varies?(klass, includes = {})
       @policy_varies ||= {}
       varies = @policy_varies.fetch(klass) do
-        @policy_varies[klass] = !!model_policy(klass)&.class&.varies_by_requester?
+        @policy_varies[klass] = rendered_models(klass).any? { |k| model_policy(k)&.class&.varies_by_requester? }
       end
       return true if varies
 
@@ -355,6 +357,23 @@ module StandardAPI
 
         policy_varies?(association.klass, subinc.is_a?(Hash) ? subinc : {})
       end
+    end
+
+    # The models a record loaded as +klass+ could turn out to be: +klass+ and,
+    # with single table inheritance, its subclasses. Which one isn't known
+    # until the record is loaded, and a cached fragment never loads it.
+    #
+    # A subclass is only known once it's loaded, so without eager loading
+    # (ie. in development) the app is loaded first, as #models does.
+    # Otherwise a fragment rendered before the subclass was first referenced
+    # would be cached as though its Policy didn't exist.
+    def rendered_models(klass)
+      sti = klass.respond_to?(:inheritance_column) && klass.inheritance_column &&
+        klass.columns_hash.key?(klass.inheritance_column.to_s)
+      return [klass] if !sti
+
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+      [klass, *klass.descendants]
     end
 
     # True when #mask hides rows of +klass+ for this request.

@@ -108,6 +108,17 @@ end
 # Its attributes_for only decides what's writable, not what renders
 DocumentPolicy.define_singleton_method(:varies_by_requester?) { false }
 
+# Accessory has no controller, so its Policy is found by name, and so is the one
+# of its STI subclass, which renders `serial` to some requesters only. The
+# header stands in for the current user, as in CamerasController::Policy.
+class AccessoryPolicy < StandardAPI::Policy
+  attributes :id, :type, :camera_id, :name
+end
+
+class FlashPolicy < AccessoryPolicy
+  attribute :serial, if: -> { request.headers['X-Admin'] == '1' }
+end
+
 # Test Application Controllers
 require 'standard_api/test_app/controllers'
 

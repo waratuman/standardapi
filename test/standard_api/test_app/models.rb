@@ -110,6 +110,7 @@ end
 
 class Camera < ActiveRecord::Base
   belongs_to :photo, optional: true
+  has_one :accessory
 
   validates :make, presence: true
 
@@ -118,6 +119,15 @@ class Camera < ActiveRecord::Base
   def specs
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
+end
+
+# Single table inheritance: an accessory is loaded as an Accessory or as a Flash,
+# each rendered with its own Policy (AccessoryPolicy and FlashPolicy).
+class Accessory < ActiveRecord::Base
+  belongs_to :camera, optional: true
+end
+
+class Flash < Accessory
 end
 
 class UuidModel < ActiveRecord::Base
@@ -214,6 +224,13 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       # Enables the `photo` association fragment cache, so the exclude tests
       # exercise the cached render path and not just the uncached one.
       t.datetime 'photo_cached_at'
+    end
+
+    create_table "accessories", force: :cascade do |t|
+      t.string   'type'
+      t.integer  'camera_id'
+      t.string   'name'
+      t.string   'serial'
     end
 
     create_table "attachments", force: :cascade do |t|
