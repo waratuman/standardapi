@@ -32,6 +32,8 @@ class PolicyCachingTest < ActionDispatch::IntegrationTest
     assert_not controller.send(:policy_varies?, Account, { 'limit' => 1 })
     # A polymorphic association could be any model
     assert controller.send(:policy_varies?, Account, { 'subject' => {} })
+    # So could what a method returns
+    assert controller.send(:policy_varies?, Property, { 'english_name' => {} })
   end
 
   def property_hiding_name_by_header

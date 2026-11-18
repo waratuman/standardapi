@@ -109,4 +109,117 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     assert_response :no_content
   end
 
+  # = Including a method
+
+  # Render cameras with CamerasController::Policy and +declarations+, and
+  # accounts with +account_policy+, for the length of the block
+  def with_method_includes(declarations, account_policy = AccountPolicy)
+    camera_policy = Class.new(CamerasController::Policy)
+    camera_policy.class_exec(&declarations)
+    policies = CamerasController.standard_api_policies.merge('camera' => camera_policy, 'account' => account_policy)
+    CamerasController.stubs(:standard_api_policies).returns(policies)
+    yield
+  ensure
+    CamerasController.unstub(:standard_api_policies)
+  end
+
+  def show_camera(camera, include)
+    get "/cameras/#{camera.id}", params: { include: include }, as: :json
+    assert_response :ok
+    JSON.parse(response.body)
+  end
+
+  def camera_with_owner
+    account = create(:account, email: 'owner@example.com')
+    [create(:camera, photo: create(:photo, account: account)), account]
+  end
+
+  test "a method include that returns a record renders it with its model's Policy" do
+    camera, account = camera_with_owner
+
+    with_method_includes(-> { association :owner, types: ['Account'] }) do
+      json = show_camera(camera, [:owner])
+      assert_equal account.id, json['owner']['id']
+      assert_equal 'owner@example.com', json['owner']['email']
+    end
+
+    with_method_includes(-> { association :owner, types: ['Account'] }, Class.new(AccountPolicy) { remove :email }) do
+      json = show_camera(camera, [:owner])
+      assert_equal account.id, json['owner']['id']
+      assert_not json['owner'].key?('email'), "Expected 'email' hidden by the account's Policy"
+    end
+
+    hidden = Class.new(AccountPolicy) { attribute :email, unless: -> { record&.name == 'Hidden' } }
+    account.update!(name: 'Hidden')
+    with_method_includes(-> { association :owner, types: ['Account'] }, hidden) do
+      assert_not show_camera(camera, [:owner])['owner'].key?('email'), "Expected 'email' hidden by its condition"
+    end
+  end
+
+  test "a method include that returns a record renders it with the association's policy" do
+    camera, account = camera_with_owner
+
+    with_method_includes(-> { association :owner, policy: CamerasController::AccountWithoutEmailPolicy }) do
+      json = show_camera(camera, [:owner])
+      assert_equal account.id, json['owner']['id']
+      assert_not json['owner'].key?('email'), "Expected 'email' hidden by the association's policy"
+    end
+  end
+
+  test "a method include that returns a record renders what's included of it" do
+    camera, _account = camera_with_owner
+
+    with_method_includes(-> { association :owner, types: ['Account'] }, Class.new(AccountPolicy) { remove :email }) do
+      json = show_camera(camera, { owner: { photos: true } })
+      assert_equal [camera.photo_id], json['owner']['photos'].map { |photo| photo['id'] }
+      assert_not json['owner'].key?('email')
+    end
+  end
+
+  test "a method include that returns records renders each with its model's Policy" do
+    camera, account = camera_with_owner
+
+    [:owners, :owners_relation].each do |name|
+      with_method_includes(-> { association name, types: ['Account'] }, Class.new(AccountPolicy) { remove :email }) do
+        json = show_camera(camera, [name])
+        assert_equal [account.id], json[name.to_s].map { |owner| owner['id'] }
+        assert_not json[name.to_s].first.key?('email'), "Expected 'email' hidden by the account's Policy in #{name}"
+      end
+
+      with_method_includes(-> { association name, policy: CamerasController::AccountWithoutEmailPolicy }) do
+        json = show_camera(camera, [name])
+        assert_equal [account.id], json[name.to_s].map { |owner| owner['id'] }
+        assert_not json[name.to_s].first.key?('email'), "Expected 'email' hidden by the association's policy in #{name}"
+      end
+    end
+  end
+
+  test "a method include that returns no records renders an empty array" do
+    camera = create(:camera)
+
+    with_method_includes(-> { associations :owners, :owners_relation, types: ['Account'] }) do
+      json = show_camera(camera, [:owners, :owners_relation])
+      assert_equal [], json['owners']
+      assert_equal [], json['owners_relation']
+    end
+  end
+
+  test "a method include that returns nil renders null" do
+    camera = create(:camera)
+
+    with_method_includes(-> { association :owner, types: ['Account'] }) do
+      json = show_camera(camera, [:owner])
+      assert json.key?('owner')
+      assert_nil json['owner']
+    end
+  end
+
+  test "a method include that returns a model that isn't an ActiveRecord renders its as_json" do
+    camera = create(:camera)
+
+    with_method_includes(-> { association :lens }) do
+      assert_equal({ 'mount' => 'M', 'serial' => 'L-1' }, show_camera(camera, [:lens])['lens'])
+    end
+  end
+
 end

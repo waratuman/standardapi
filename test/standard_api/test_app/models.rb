@@ -118,6 +118,29 @@ class Camera < ActiveRecord::Base
   def specs
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
+
+  # Includes that resolve to a record, and to records, without an association
+  def owner
+    photo&.account
+  end
+
+  def owners
+    [owner].compact
+  end
+
+  def owners_relation
+    Account.where(id: photo&.account_id)
+  end
+
+  # An include that resolves to a model that isn't an ActiveRecord
+  def lens
+    Lens.new(mount: 'M', serial: 'L-1')
+  end
+end
+
+class Lens
+  include ActiveModel::Model
+  attr_accessor :mount, :serial
 end
 
 class UuidModel < ActiveRecord::Base
