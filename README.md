@@ -400,6 +400,33 @@ policy: }`'s, assigns. `remove` takes one back, and
 value. Assigning a name the model can't set, or an `attr_readonly` one
 other than `on: :create`, raises `ArgumentError` when first used.
 
+`filter` adjusts or rejects what a create or update sets, once it's been
+permitted and assigned:
+
+    class ChartPolicy < StandardAPI::Policy
+      filter do |params|
+        if (record&.global? || params[:global]) && !admin?
+          raise StandardAPI::UnpermittedParameters.new([{ chart: ['global'] }])
+        end
+      end
+      filter :limit_roles, on: :update   # a method of the Policy, given the params
+
+      private
+
+      def limit_roles(params) = params.delete(:roles) if !admin?
+    end
+
+A filter is a block, or a Symbol naming a method or a Proc, run on the Policy
+like a condition, with `record` the record being created or updated. It's
+given the permitted params, an `ActionController::Parameters`, after what's
+`assign`ed is set, so it sees those values, and it may change them in place
+or raise; `StandardAPI::UnpermittedParameters` responds with a 400. `on:`
+works as for `assign`. Filters run in the order they're declared, inherited
+ones first, and one declared in an `attributes_for` block runs for the
+records of its key. A nested record runs its own Policy's, or `writable: {
+policy: }`'s, filters. `record_policy(record).filter_params(params)` runs
+them.
+
 An association is written through nested attributes:
 
     class PropertyPolicy < StandardAPI::Policy

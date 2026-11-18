@@ -47,6 +47,7 @@ module StandardAPI
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
       WRITABLE_OPTIONS = [:on, :permit, :policy].freeze
       ASSIGN_OPTIONS = [:on, :with].freeze
+      FILTER_OPTIONS = [:on].freeze
 
       # +writable+, as standalone +writable+ takes it, as { on:, permit:,
       # policy: }, or nil when it's false. +permit+ is for an attribute and
@@ -88,6 +89,25 @@ module StandardAPI
         options.freeze
       end
 
+      # A +filter+ of +method+, a Symbol or Proc, or +block+, with
+      # +options+, as { with:, on: }. Raises ArgumentError if it's invalid.
+      def self.filter_options(method, block, options)
+        if !method.nil? && block
+          raise ArgumentError, 'filter takes a Symbol or a Proc, or a block, not both'
+        end
+        method ||= block
+        if !method.is_a?(Symbol) && !method.is_a?(Proc)
+          raise ArgumentError, 'filter needs a Symbol, a Proc or a block'
+        end
+        unknown = options.keys - FILTER_OPTIONS
+        raise ArgumentError, "unknown filter options: #{unknown.join(', ')}" if !unknown.empty?
+        if ![nil, :create, :update].include?(options[:on])
+          raise ArgumentError, 'a filter can only be on: :create or :update'
+        end
+
+        { with: method, on: options[:on] }.freeze
+      end
+
       # +writable+, as +attribute+ takes it: { on:, permit: }
       def self.attribute_writable_options(name, writable)
         options = writable_options(name, writable)
@@ -115,11 +135,12 @@ module StandardAPI
       # name => :all or the canonical operators it permits, with
       # +filterable_conditions+ those of a standalone +filterable+,
       # +writable_attributes+ what's declared +writable+, as name =>
-      # { on:, permit: }, and +assigned_attributes+ what's declared with
-      # +assign+, as name => { on:, with: }
+      # { on:, permit: }, +assigned_attributes+ what's declared with
+      # +assign+, as name => { on:, with: }, and +filters+ each +filter+, as
+      # { with:, on: }, in order
       attr_reader :conditions, :association_options, :association_conditions, :values, :orderable,
         :required, :filterable_operators, :filterable_conditions, :writable_attributes,
-        :assigned_attributes
+        :assigned_attributes, :filters
 
       def initialize
         @changes = {}
@@ -133,6 +154,7 @@ module StandardAPI
         @filterable_conditions = {}
         @writable_attributes = {}
         @assigned_attributes = {}
+        @filters = []
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
@@ -259,6 +281,15 @@ module StandardAPI
       def assign(*names, **options)
         options = Builder.assign_options(names.first, options)
         names.map(&:to_s).each { |name| @assigned_attributes[name] = options }
+        self
+      end
+
+      # Adjust or reject the permitted params of a create or update with
+      # +method+, a Symbol or a Proc, or the block, after what's +assign+ed is
+      # set. +on+ is +:create+ or +:update+ to run it only on one; a new
+      # record is a create. Filters run in the order they're declared.
+      def filter(method = nil, **options, &block)
+        @filters << Builder.filter_options(method, block, options)
         self
       end
 
@@ -436,6 +467,21 @@ module StandardAPI
         add_step { assign(*names, **options) }
       end
 
+      # See Builder#filter. It runs like a condition, for the record being
+      # written, and is given its permitted params, an
+      # ActionController::Parameters it may change in place, or raise for,
+      # ie. StandardAPI::UnpermittedParameters. It doesn't change what
+      # renders either.
+      #
+      #   filter do |params|
+      #     params.delete(:caption) if record&.locked?
+      #   end
+      #   filter :limit_roles, on: :update
+      def filter(method = nil, **options, &block)
+        Builder.filter_options(method, block, options)
+        add_step { filter(method, **options, &block) }
+      end
+
       def remove(*names)
         add_step { remove(*names) }
       end
@@ -445,7 +491,7 @@ module StandardAPI
       # them: the block runs on the Policy instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+,
       # +association+, +associations+, +filterable+, +required_orders+,
-      # +writable+, +assign+ and +remove+.
+      # +writable+, +assign+, +filter+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
@@ -605,6 +651,17 @@ module StandardAPI
       assigned_for(record).keys
     end
 
+    # Run what's declared with +filter+ on that action for +record+, a model
+    # (nil) being a create, on +params+, its permitted params, in order.
+    # Returns +params+, which they may have changed.
+    def filter_params(record, params)
+      on = action_for(record)
+      builder_for(record).filters.each do |filter|
+        resolve(filter[:with], record, params) if !filter[:on] || filter[:on] == on
+      end
+      params
+    end
+
     # The Policy class the records +record+ writes through the association
     # +name+ are written with in place of their own model's, as
     # <tt>writable: { policy: }</tt> gives it, or nil
@@ -675,6 +732,10 @@ module StandardAPI
       declarations.assign(*names, **options)
     end
 
+    def filter(method = nil, **options, &block)
+      declarations.filter(method, **options, &block)
+    end
+
     def remove(*names)
       declarations.remove(*names)
     end
@@ -738,9 +799,9 @@ module StandardAPI
       end
     end
 
-    def resolve(callable, record)
+    def resolve(callable, record, *args)
       previous, @record = @record, record
-      callable.is_a?(Proc) ? instance_exec(&callable) : send(callable)
+      callable.is_a?(Proc) ? instance_exec(*args, &callable) : send(callable, *args)
     ensure
       @record = previous
     end

@@ -66,12 +66,14 @@ module StandardAPI
     # writable (Policy::Record#writable), and of the associations it makes
     # writable (Policy::Record#writable_associations): the nested records'
     # own, their ids, or the foreign key. What it assigns
-    # (Policy::Record#assigned_attributes) overrides the params.
+    # (Policy::Record#assigned_attributes) overrides the params, and then its
+    # filters run on them (Policy::Record#filter_params).
     def filter_model_params(resource, model_params, id: nil, allow_id: nil, policy: nil)
       write_policy = record_policy(resource, policy)
       if !model_params
-        assigned = write_policy.assigned_attributes
-        return assigned.empty? ? ActionController::Parameters.new : ActionController::Parameters.new(assigned).permit!
+        params = write_policy.filter_params(ActionController::Parameters.new(write_policy.assigned_attributes))
+        # The server set all of it, so it's permitted
+        return params.empty? ? params : params.permit!
       end
 
       permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
@@ -141,7 +143,7 @@ module StandardAPI
       end
 
       write_policy.assigned_attributes.each { |name, value| permitted_params[name] = value }
-      permitted_params
+      write_policy.filter_params(permitted_params)
     end
 
   end
