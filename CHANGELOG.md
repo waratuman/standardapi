@@ -321,8 +321,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_policy`, `orderable`, `required_orders`, `filterable`,
   `writable`, `writable_associations`, `writable_policy`,
-  `assigned_attributes`, `assigned_attribute_names`, `filter_params`, `value`, `hidden?` and
-  `errors`.
+  `assigned_attributes`, `assigned_attribute_names`, `filter_params`,
+  `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
 - A controller can nest a subclass of `StandardAPI::Policy`
   (`PhotosController::Policy`), found by `StandardAPI::Policies`

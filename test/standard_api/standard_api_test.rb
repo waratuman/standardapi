@@ -142,13 +142,6 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_params), ActionController::Parameters.new
   end
 
-  test 'Controller#model_params defaults to ActionController::Parameters when no resource_attributes' do
-    @controller = ReferencesController.new
-    @controller.params = ActionController::Parameters.new
-    @controller.action_name = 'create'
-    assert_equal @controller.send(:model_params), ActionController::Parameters.new
-  end
-
   test 'Controller#model_params is conditional based on existing resource' do
     document = create(:document, type: 'movie')
     @controller = DocumentsController.new

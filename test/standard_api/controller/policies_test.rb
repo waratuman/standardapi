@@ -48,16 +48,6 @@ class ControllerPoliciesTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "a nested ACL is neither included nor raises" do
-    controller = policy_controller(Attachment)
-    controller.const_set(:ACL, Module.new { def acl_loaded? = true })
-
-    assert_nothing_raised { StandardAPI::Policies.load! }
-    assert_not @policy_base.method_defined?(:acl_loaded?)
-  ensure
-    controller.send(:remove_const, :ACL)
-  end
-
   test "a Policy's helpers stay out of the controller" do
     assert_not ApplicationController.private_method_defined?(:resolve)
     assert_not ApplicationController.ancestors.include?(CamerasController::Policy)

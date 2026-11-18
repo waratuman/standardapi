@@ -13,8 +13,15 @@ module StandardAPI
     # Register the +Policy+ nested in each controller with its base controller
     # (the topmost class that includes Policies)
     def self.load!
-      Helpers.each_nested(self, :Policy) do |base, policy, prefix|
-        register(base, policy, prefix)
+      ActionController::Metal.descendants.each do |controller|
+        next if !controller.const_defined?(:Policy, false)
+
+        # Only a controller using StandardAPI has a model; any other
+        # controller's Policy is none of our business
+        base = controller.ancestors.grep(Class).select { |c| c.include?(self) }.last
+        next if !base || !controller.model
+
+        register(base, controller.const_get(:Policy, false), controller.model.model_name.singular)
       end
     end
 
