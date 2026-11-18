@@ -90,10 +90,10 @@ following files:
 `app/controllers/acl/photo_acl.rb`:
 
     module PhotoACL
-      # Adjust what the Policy permits, ie. to set the author
+      # Adjust what the Policy permits; to set the author, use assign
       def filter(photo, photo_params, id: nil, allow_id: nil)
         filter_model_params(photo, photo_params, id: id, allow_id: allow_id).tap do |permitted|
-          permitted[:author_id] = current_user.id if photo.new_record?
+          permitted.delete(:caption) if photo.locked?
         end
       end
     end
@@ -378,6 +378,27 @@ writable, so a hidden attribute can still be written; one declared in an
 `writable` on its own permits names without declaring them, so they aren't
 rendered: a password, or an `attr_accessor`. It takes `on:`, and `permit:` for
 a strong parameters permit.
+
+`assign` sets an attribute on the server, ie. the author of a new record:
+
+    class CommentPolicy < StandardAPI::Policy
+      assign :author_id, on: :create, with: -> { current_user.id }
+      assign :ip_address, with: :remote_ip   # a method of the Policy, or the controller
+
+      private
+
+      def remote_ip = request.remote_ip
+    end
+
+`with:` is a Symbol naming a method or a Proc, run on the Policy like a
+condition, with `record` the record being created or updated. `on:` works as
+for `writable`, a new record being a create. What it gives replaces anything
+the params send, and the attribute needn't be `writable`; `schema/write.json`
+doesn't list it. A nested record gets what its own Policy, or `writable: {
+policy: }`'s, assigns. `remove` takes one back, and
+`record_policy(record).assigned_attributes` gives what's set, as name =>
+value. Assigning a name the model can't set, or an `attr_readonly` one
+other than `on: :create`, raises `ArgumentError` when first used.
 
 An association is written through nested attributes:
 

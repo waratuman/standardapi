@@ -435,12 +435,15 @@ module StandardAPI
         # doesn't make it writable
         properties['id'] = json_schema_attribute_write(model, model.primary_key, permitted: true) if nested && model.primary_key
         definitions = json_schema_definitions(model, policy)
+        write_policy = controller.record_policy(model, policy)
+        # The server sets what it assigns, whatever's sent
+        assigned = write_policy.assigned_attribute_names
 
-        controller.record_policy(model, policy).writable.each do |entry|
+        write_policy.writable.each do |entry|
           name, permit = entry.is_a?(Hash) ? entry.first : [entry, nil]
           name = name.to_s
           # A json column is permitted as a value and as an object
-          next if properties.key?(name)
+          next if properties.key?(name) || assigned.include?(name)
 
           # A permitted shape without a definition only says what it is
           properties[name] = if permit.nil? || definitions.key?(name)
@@ -451,7 +454,7 @@ module StandardAPI
           required << name if !nested && definitions.dig(name, :required)
         end
 
-        properties.merge!(json_schema_nested_write(model, path + [model], policy))
+        properties.merge!(json_schema_nested_write(model, path + [model], policy).except(*assigned))
 
         {
           'type' => 'object',

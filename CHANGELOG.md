@@ -238,6 +238,21 @@ An association that renders with a `policy:` also says which Policy writes
 it, ie. `association :landlord, policy: LandlordNamePolicy, writable: { policy:
 LandlordPolicy }` for its own model's.
 
+An ACL `filter` that only sets attributes on the server can be replaced with
+`assign` in the Policy:
+
+    # Before, in CommentACL
+    def filter(comment, comment_params, id: nil, allow_id: nil)
+      filter_model_params(comment, comment_params, id: id, allow_id: allow_id).tap do |whitelist|
+        whitelist[:author_id] = current_user.id unless comment.persisted?
+      end
+    end
+
+    # After
+    class CommentPolicy < StandardAPI::Policy
+      assign :author_id, on: :create, with: -> { current_user.id }
+    end
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
@@ -250,8 +265,9 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_policy`, `orderable`, `required_orders`, `filterable`,
-  `writable`, `writable_associations`, `writable_policy`, `value`, `hidden?`
-  and `errors`.
+  `writable`, `writable_associations`, `writable_policy`,
+  `assigned_attributes`, `assigned_attribute_names`, `value`, `hidden?` and
+  `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
@@ -286,6 +302,12 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   column's type takes it, or as a strong parameters permit Array gives;
   `writable: { on: :create }` or `{ on: :update }` only on one, and
   `writable :password` without declaring it.
+  `assign :author_id, on: :create, with: -> { current_user.id }` sets an
+  attribute on a create or update, or both without `on:`, in place of what
+  the params send, writable or not; `with:` is a Symbol or Proc run on the
+  Policy for the record being written. It applies to nested records too, and
+  `schema/write.json` leaves it out. A name the model can't set, or an
+  `attr_readonly` one not `on: :create`, raises `ArgumentError`.
   `attributes` and `associations` take the same options as `attribute` and
   `association`.
   `attribute ..., value:` renders a computed value in place of the record's;

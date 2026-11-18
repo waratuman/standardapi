@@ -78,6 +78,18 @@ module StandardAPI
         policy ? policy.permitted_attributes(record) : []
       end
 
+      # What a create or update of the record sets, the model being a create,
+      # as name => value (Policy#assigned_attributes). Without a Policy,
+      # nothing.
+      def assigned_attributes
+        policy ? policy.assigned_attributes(record) : {}
+      end
+
+      # The names #assigned_attributes sets, without working out their values
+      def assigned_attribute_names
+        policy ? policy.assigned_attribute_names(record) : []
+      end
+
       # The names of the associations a create or update of the record may
       # write through nested attributes, the model being a create, or on +on+
       # (:create or :update) when it's given
