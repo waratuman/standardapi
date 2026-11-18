@@ -78,6 +78,14 @@ module StandardAPI
         policy ? policy.permitted_attributes(record) : []
       end
 
+      # The names of the associations a create or update of the record may
+      # write through nested attributes, the model being a create, or on +on+
+      # (:create or :update) when it's given
+      # (Policy#permitted_associations). Without a Policy, none.
+      def writable_associations(on: nil)
+        policy ? policy.permitted_associations(record, on: on) : []
+      end
+
       # What every request is ordered by after its own orders
       # (Policy#permitted_required_orders), decided for the model whatever the
       # record. Without a Policy, nothing.

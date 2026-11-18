@@ -370,15 +370,19 @@ module StandardAPI
     end
 
     # The associations +attributes+ write through nested attributes, as
-    # includes, so #create and #update render what they wrote
-    def nested_includes(model, attributes)
+    # includes, so #create and #update render what they wrote. +on+ is the
+    # action writing them, as the record itself isn't loaded yet.
+    def nested_includes(model, attributes, on)
+      writable = record_policy(model).writable_associations(on: on)
       includes = {}
       attributes&.each do |key, value|
         association = model.reflect_on_association(key)
-        if association &&
-           self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
-           self.send("nested_#{model_name(model)}_attributes").include?(association.name)
-          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
+        if association && writable.include?(association.name.to_s)
+          includes[key] = if value.is_a?(Hash)
+            nested_includes(association.klass, value, value['id'] ? :update : :create)
+          else
+            {}
+          end
         end
       end
 
@@ -395,7 +399,7 @@ module StandardAPI
       # What a create or update wrote through nested attributes renders too,
       # where the Policy declares it
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
-        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h, action_name.to_sym))
       end
 
       @includes

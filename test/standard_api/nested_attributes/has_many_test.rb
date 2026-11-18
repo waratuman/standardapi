@@ -84,7 +84,7 @@ module NestedAttributes
     test "update record doesn't render a nested record its Policy doesn't declare" do
       account = create(:account, name: 'A Co.')
       property = create(:property, name: 'Empire State Building', accounts: [account])
-      policy = Class.new(PropertyPolicy) { remove :accounts }
+      policy = Class.new(PropertyPolicy) { remove :accounts; writable :accounts }
       policies = ApplicationController.standard_api_policies.merge('property' => policy)
       ApplicationController.stubs(:standard_api_policies).returns(policies)
 

@@ -98,8 +98,7 @@ module StandardAPI
       end
 
       # The shape of the params #create and #update accept for +model+: the
-      # attributes its Policy makes +writable+, and the associations its ACL's
-      # +nested+ permits. +required+ lists what a create needs; an update needs
+      # attributes and the associations its Policy makes +writable+. +required+ lists what a create needs; an update needs
       # none of it.
       def write_schema_for(model)
         schema = json_schema_record_write(model, [])
@@ -464,8 +463,8 @@ module StandardAPI
       # validations, or {} if the Policy doesn't declare it. It's readOnly
       # when the definition is read only: an attr_readonly attribute, which
       # can be set on create but not changed, or one the Policy says is.
-      # +permitted+ is for an attribute the ACL's +nested+ permits rather
-      # than its +attributes+, which the definition has as read only.
+      # +permitted+ is for a foreign key a writable association permits,
+      # which the definition may have as read only.
       def json_schema_attribute_write(model, name, permitted: false)
         definition = json_schema_definitions(model)[name.to_s]
         return {} if !definition
@@ -484,10 +483,7 @@ module StandardAPI
 
       # Mirrors AccessControlList#filter_model_params
       def json_schema_nested_write(model, path)
-        method = "nested_#{json_schema_param_key(model)}_attributes"
-        return {} if !controller.respond_to?(method, true)
-
-        controller.send(method).each_with_object({}) do |relation, schemas|
+        controller.record_policy(model).writable_associations.each_with_object({}) do |relation, schemas|
           association = model.reflect_on_association(relation)
           next if !association
 

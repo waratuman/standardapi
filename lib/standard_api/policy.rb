@@ -67,6 +67,18 @@ module StandardAPI
         options.freeze
       end
 
+      # +writable+, as +association+ takes it: as for an attribute, but
+      # without +permit+, as what the associated records take is up to their
+      # own model's Policy
+      def self.association_writable_options(name, writable)
+        options = writable_options(name, writable)
+        if options&.key?(:permit) || writable.is_a?(Array)
+          raise ArgumentError, "association #{name} can only be writable: true, false or { on: }; what can be written of it is up to the associated model's Policy"
+        end
+
+        options
+      end
+
       # +association_options+ are each declared association's options,
       # +values+ each attribute's declared +value+, +orderable+ the names of
       # those declared +orderable+, +required+ those of +required_orders+ in
@@ -129,7 +141,8 @@ module StandardAPI
       # `types: [Property, 'Account']`, and what one of their Policies declares
       # can be included of it. +orderable+ lets a request order by what the
       # associated model's own Policy makes orderable, and +filterable+ filter
-      # on what it makes filterable.
+      # on what it makes filterable. +writable+ lets a create or update write
+      # it through nested attributes, see #writable.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -140,6 +153,11 @@ module StandardAPI
             raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
           end
           filterable!(name, filterable)
+        end
+        if options.key?(:writable)
+          writable = options.delete(:writable)
+          Builder.association_writable_options(name, writable)
+          writable!(name, writable)
         end
         unknown = options.keys - ASSOCIATION_OPTIONS
         raise ArgumentError, "unknown options for association #{name}: #{unknown.join(', ')}" if !unknown.empty?
@@ -185,7 +203,9 @@ module StandardAPI
       # column, or a hash or null for a json one. +permit+ gives it as strong
       # parameters do instead, ie. <tt>[:name, { filter: {} }]</tt> for an
       # array of objects. +on+ is +:create+ or +:update+ to permit it only on
-      # one; a model, ie. for the schema, is a create.
+      # one; a model, ie. for the schema, is a create. An association is
+      # written through nested attributes, as with
+      # <tt>association name, writable: true</tt>, so can't take +permit+.
       def writable(*names, **options)
         options = Builder.writable_options(names.first, options) || {}
         names.map(&:to_s).each { |name| @writable_attributes[name] = options }
@@ -324,6 +344,7 @@ module StandardAPI
         if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
           raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
         end
+        Builder.association_writable_options(name, options[:writable])
 
         varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
         # The Policy it gives can vary too, and may not be fully declared yet
@@ -470,10 +491,8 @@ module StandardAPI
     # on that action. It's asked before the params are assigned, so +if+ and
     # +unless+, which decide what renders, don't apply.
     def permitted_attributes(record)
-      skipped = record.nil? || record.new_record? ? :update : :create
-
-      builder_for(record).writable_attributes.flat_map do |name, options|
-        next [] if options[:on] == skipped
+      writable_for(record).flat_map do |name, options|
+        next [] if model.reflect_on_association(name)
 
         if options.key?(:permit)
           [{ name => options[:permit] }]
@@ -484,6 +503,22 @@ module StandardAPI
         else
           [name]
         end
+      end
+    end
+
+    # The names of the associations a create or update of +record+ may write
+    # through nested attributes, a model (nil) being a create: those declared
+    # +writable+, on that action, or on +on+ when it's given. As with
+    # #permitted_attributes, +if+ and +unless+ don't apply. What's written of
+    # the associated records is up to their own model's Policy.
+    def permitted_associations(record, on: nil)
+      writable_for(record, on: on).filter_map do |name, options|
+        next if !model.reflect_on_association(name)
+        if options.key?(:permit)
+          raise ArgumentError, "association #{name} of #{model.name} can't be writable with permit:; what can be written of it is up to the associated model's Policy"
+        end
+
+        name
       end
     end
 
@@ -546,6 +581,13 @@ module StandardAPI
 
     def declarations
       @declarations || raise(ArgumentError, 'declare attributes in the class body or an attributes_for block')
+    end
+
+    # What's declared +writable+ for +record+, less what's only writable on
+    # the other action
+    def writable_for(record, on: nil)
+      on ||= record.nil? || record.new_record? ? :create : :update
+      builder_for(record).writable_attributes.reject { |_, options| options[:on] && options[:on] != on }
     end
 
     def failed_conditions(record)

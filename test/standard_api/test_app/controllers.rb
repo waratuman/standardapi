@@ -40,8 +40,8 @@ class DocumentsController < ApplicationController
 
   module ACL
 
-    def nested
-      []
+    def document_acl_loaded?
+      true
     end
 
   end
