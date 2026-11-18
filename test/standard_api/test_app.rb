@@ -112,8 +112,7 @@ DocumentPolicy.define_singleton_method(:varies_by_requester?) { false }
 require 'standard_api/test_app/controllers'
 
 # The controllers above are defined after boot, outside app/controllers, so the
-# Railtie never saw their nested ACLs and Policies.
-StandardAPI::AccessControlList.load!
+# Railtie never saw their nested Policies.
 StandardAPI::Policies.load!
 
 # Test Application Routes

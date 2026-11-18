@@ -65,7 +65,7 @@ class ReadSchemaTest < ActionDispatch::IntegrationTest
 
     # Left out rather than empty
     assert_not schema.key?('required')
-    # CameraACL#excludes hides make from hidden cameras only
+    # The Policy hides make from hidden cameras only
     assert_includes schema['properties'].keys, 'make'
   end
 

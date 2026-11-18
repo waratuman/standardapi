@@ -89,7 +89,7 @@ class PoliciesTest < ActionDispatch::IntegrationTest
 
     # and so does creating or updating one
     params = ActionController::Parameters.new(type: 'Pdf', rating: 3)
-    assert_equal({ 'type' => 'Pdf' }, controller.filter_model_params(Pdf.new, params).to_h)
+    assert_equal({ 'type' => 'Pdf' }, controller.send(:filter_model_params, Pdf.new, params).to_h)
 
     policy = Class.new(StandardAPI::Policy) { attribute :type, comment: 'From the Policy of Document' }
     DocumentsController.stubs(:standard_api_policies).returns('document' => policy)
@@ -113,8 +113,9 @@ class PoliciesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'an attr_readonly attribute is read only even when the ACL permits it' do
-    # CameraACL permits make, which is NOT NULL and validated for presence
+  test 'an attr_readonly attribute is read only even when the Policy makes it writable' do
+    # CamerasController::Policy makes make writable, which is NOT NULL and
+    # validated for presence
     Camera.stubs(:readonly_attribute?).returns(false)
     Camera.stubs(:readonly_attribute?).with('make').returns(true)
 
@@ -128,7 +129,7 @@ class PoliciesTest < ActionDispatch::IntegrationTest
     assert_equal true, attribute(Property, 'name')[:required]
     # acceptance validation, which allows nil unless told otherwise
     assert_equal false, attribute(Property, 'agree_to_terms')[:required]
-    # NOT NULL but read only through the ACL
+    # NOT NULL but not writable through the Policy
     assert_equal false, attribute(Property, 'created_at')[:required]
     # nullable without validations
     assert_equal false, attribute(Property, 'description')[:required]

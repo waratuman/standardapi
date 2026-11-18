@@ -9,7 +9,7 @@ module NestedAttributes
 
     # TODO: we maybe should return an error response when something is filtered
     # out of a create or update
-    test 'create record and nested polymorphic record not created because rejected by the ACL' do
+    test 'create record and nested polymorphic record not created because rejected by the Policy' do
       @controller = AccountsController.new
 
       assert_nothing_raised do

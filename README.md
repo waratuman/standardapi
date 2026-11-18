@@ -9,10 +9,8 @@ minimal configuration.
 - [Quick Start](#quick-start)
 - [Controllers](#controllers)
   - [Including StandardAPI](#including-standardapi)
-  - [Whitelisting Attributes](#whitelisting-attributes)
 - [Limits and Pagination](#limits-and-pagination)
   - [Masks (Row-Level Filtering)](#masks-row-level-filtering)
-- [Access Control List (ACL)](#access-control-list-acl)
 - [Policies](#policies)
 - [Routes](#routes)
 - [API Usage](#api-usage)
@@ -56,71 +54,13 @@ inherited controllers an exposed API.
 
     class PhotosController < ApplicationController
       include StandardAPI
-      
-      # Allowed paramaters
-      # By default any paramaters passed to update and create are whitelisted by
-      # the method named after the model the controller represents. For example,
-      # the following will only allow the `caption` attribute of the `Photo`
-      # model to be set on update or create.
-      def photo_params
-        [:caption]
-      end
     end
 
-What can be included (relationships in the response) and ordered by is
-declared in the model's Policy (see [Associations](#associations) and
-[Orders](#orders)).
-
-##### Access Control List
-
-For greater control of the allowed paramaters and nesting of paramaters
-`StandardAPI::AccessControlList` is available. To use it include it in your base
-controller:
-
-    class ApplicationController
-        include StandardAPI::Control
-        include StandardAPI::AccessControlList
-    end
-
-Then create an ACL file for each model you want in `app/controllers/acl`.
-
-Taking the above example we would remove the `photo_*` methods and create the
-following files:
-
-`app/controllers/acl/photo_acl.rb`:
-
-    module PhotoACL
-      # Adjust what the Policy permits; to set the author, use assign
-      def filter(photo, photo_params, id: nil, allow_id: nil)
-        filter_model_params(photo, photo_params, id: id, allow_id: allow_id).tap do |permitted|
-          permitted.delete(:caption) if photo.locked?
-        end
-      end
-    end
-
-These methods are optional and will be included in ApplicationController for
-StandardAPI to use in place of the Policy's permits. What can be written,
-included, ordered by and filtered on is declared in each model's Policy (see
-[Writes](#writes), [Associations](#associations), [Orders](#orders) and
-[Filters](#filters)).
-
-An ACL can instead be nested in the model's controller as an `ACL` module:
-
-    class PhotosController < ApplicationController
-      module ACL
-        def filter(photo, photo_params, **options)
-          filter_model_params(photo, photo_params, **options)
-        end
-      end
-    end
-
-It is included in ApplicationController the same way as an
-`app/controllers/acl` file, under the model's name (`filter_photo_params`),
-so it is never included in its own controller. Controllers are loaded at boot
-(and after each reload) so their ACLs are found before the first request.
-
-What's shown, what can be written, included, ordered by and filtered on is up
-to the model's Policy (see [Policies](#policies)).
+What's shown, what can be written, included (relationships in the response),
+ordered by and filtered on is up to the model's Policy (see
+[Policies](#policies)). A create or update may only set what the Policy makes
+`writable`, and its `assign` and `filter` set or check params per record (see
+[Writes](#writes)).
 
 ##### Custom partials
 
@@ -182,7 +122,7 @@ built from record timestamps and cannot distinguish one requester from another.
 ##### Policies
 
 A model's controller can declare how its attributes are described by nesting a
-subclass of `StandardAPI::Policy`, like an `ACL`. `StandardAPI::Controller`
+subclass of `StandardAPI::Policy`. `StandardAPI::Controller`
 finds them, and every model it renders needs one:
 
     class PhotosController < ApplicationController
@@ -238,7 +178,7 @@ Declarations are inherited, so `class Policy < BasePolicy` works, and a Policy's
 private methods stay on the Policy rather than the controller.
 
 The Policy runs on one instance per model for the length of a request. A method
-it doesn't define goes to its `controller`, private ones and ACL methods
+it doesn't define goes to its `controller`, private ones
 included, so `params` and `admin?` just work. The Policy's own methods win, so
 `attributes`, `model` and `definitions` are its own; call `controller.model` for the
 controller's. Don't call `record_policy` from a condition, as
@@ -439,7 +379,7 @@ A create or update may then send the associated records' attributes, which
 creates a record without an `id` and updates the one with it; only their
 `id`s, as `[{ id: 1 }]` or `photo_ids`; or the foreign key, ie.
 `landlord_id`. What can be set of an associated record is what its own model's
-Policy makes writable, or its ACL `filter`. `on:` works as for an attribute;
+Policy makes writable. `on:` works as for an attribute;
 `permit:` doesn't, as what an associated record takes is up to its Policy.
 
 `writable: { policy: }` writes the associated records with another Policy
@@ -456,8 +396,7 @@ it, so an association declared with both `policy:` and `writable:` has to say
 which Policy writes it, even when it's its own model's, or it raises
 `ArgumentError`: when it's declared, or when it's first written if the two are
 declared apart. As the associated records are written before they're loaded,
-it's a class, not a Symbol or Proc. An associated model with an ACL `filter`
-can only be written with its own Policy, as the filter permits with it.
+it's a class, not a Symbol or Proc.
 
 A writable attribute's definition isn't `read_only`, unless it's only writable
 on create or the model makes it `attr_readonly`, and it's `required` when its
@@ -670,7 +609,7 @@ The only change on calculate routes is the `selects` paramater contains the func
 ## Schema Discovery
 
 Each resource serves three [JSON Schemas](https://json-schema.org/draft/2020-12)
-(2020-12) built from its ACL and Policy, so a client (an MCP tool, for
+(2020-12) built from its Policy, so a client (an MCP tool, for
 instance) can learn what it may send and what it will get back:
 
 ```
@@ -703,8 +642,7 @@ conditions see being `nil`.
   `required` lists the definitions' `required`, for a create; an update may
   send any of the properties. A `read_only` definition is `readOnly`: an
   `attr_readonly` attribute, which can be set on create but not changed, or
-  one the Policy declares read only. A model with an ACL `filter` is
-  described as any object.
+  one the Policy declares read only.
 - **`schema/query.json`** describes `where`, `order` and `include` as the
   Policies declare them, following associations into the associated models'
   Policies through `$defs`, plus `limit`, `offset`,
@@ -714,8 +652,8 @@ conditions see being `nil`.
   orderable. A column permitted with
   any operator lists the operators that apply to its type. An include's `when`
   lists the attributes of the model it's on that its Policy makes filterable
-  with `eq`. It also describes the params no ACL checks yet, as they're used,
-  with a description ending "Not checked by the ACL.": `distinct_on`, `join`,
+  with `eq`. It also describes the params no Policy checks yet, as they're used,
+  with a description ending "Not checked by the Policy.": `distinct_on`, `join`,
   `#calculate`'s `select`, and `distinct_on` within an include. `limit` is
   required unless there is a `default_limit`, or the query has a `select`
   (`#calculate`).
@@ -756,11 +694,6 @@ And example contoller and it's tests.
         # action setup, the test will fail.
         hide_action :destroy
 
-        # Allowed params
-        def photo_params
-          [:id, :file, :caption]
-        end
-  
 # Mask for Photo. Provide this method if you want to mask some records
         # The mask is then applyed to all actions when querring ActiveRecord
         # Will only allow photos that have id one. For more on the syntax see

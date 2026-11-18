@@ -2,8 +2,8 @@ module StandardAPI
   module Helpers
     # Builds the JSON Schemas served at schema/read, schema/write and
     # schema/query, included in StandardAPI::Helpers. Each is built from the
-    # Policies and ACLs, read from the controller, so it only describes what
-    # they permit. Attributes are described from their definitions in
+    # Policies, read from the controller, so it only describes what they
+    # permit. Attributes are described from their definitions in
     # record_policy(model).attributes, so only what the model's Policy
     # declares. Params nothing checks yet are described as they're used, and
     # say so.
@@ -88,8 +88,8 @@ module StandardAPI
       end
 
       # The shape #show renders for +model+ with +includes+, ie. each record
-      # #index renders. +includes+ are normalized and checked against the ACL,
-      # as Controller#includes gives them.
+      # #index renders. +includes+ are normalized and checked against the
+      # Policies, as Controller#includes gives them.
       def read_schema_for(model, includes)
         {
           '$schema' => DIALECT,
@@ -167,15 +167,15 @@ module StandardAPI
         properties['distinct'] = { 'type' => 'boolean' }
 
         # Controller#group_by only accepts the model's columns, and #joins its
-        # associations. Neither is listed: a Policy needn't declare a column,
-        # nor an ACL permit an association, and their names would be shown.
+        # associations. Neither is listed: a Policy needn't declare either,
+        # and their names would be shown.
         column_name = { 'type' => 'string' }
         properties['group_by'] = {
           'anyOf' => [column_name, { 'type' => 'array', 'items' => column_name }],
           'description' => 'Columns of the model to group by, each by its name alone. #calculate returns an object keyed by group.'
         }
 
-        # Used by #resources and #calculate_selects, but not checked by the ACL
+        # Used by #resources and #calculate_selects, but not checked by the Policy
         properties['distinct_on'] = json_schema_unchecked(json_schema_columns, 'Columns to select distinct rows on, passed to `distinct_on`. Takes precedence over `distinct`.')
         properties['join'] = json_schema_unchecked({ 'type' => 'string' }, 'An association of the model to inner join, passed to `joins`.')
         properties['select'] = json_schema_unchecked(json_schema_select, 'The calculations #calculate returns.')
@@ -422,13 +422,6 @@ module StandardAPI
       # nested back into one of them isn't described again. +policy+ is the
       # Policy class a nested record is written with, if not its own.
       def json_schema_record_write(model, path, nested: false, policy: nil)
-        if controller.respond_to?("filter_#{json_schema_param_key(model)}_params", true)
-          return {
-            'type' => 'object',
-            'description' => "Filtered by #{model.name}ACL#filter"
-          }
-        end
-
         properties = {}
         required = []
         # Identifies the nested record to update, so is sent though the Policy
@@ -486,7 +479,7 @@ module StandardAPI
         schema
       end
 
-      # Mirrors AccessControlList#filter_model_params
+      # Mirrors Controller#filter_model_params
       def json_schema_nested_write(model, path, policy = nil)
         write_policy = controller.record_policy(model, policy)
         write_policy.writable_associations.each_with_object({}) do |relation, schemas|
@@ -847,7 +840,7 @@ module StandardAPI
           properties['limit'] = { 'type' => 'integer', 'minimum' => 0 }
           properties['distinct'] = { 'type' => 'boolean' }
 
-          # Passed through by #sanitize_includes, but not checked by the ACL
+          # Passed through by #sanitize_includes, but not checked by the Policy
           properties['distinct_on'] = json_schema_unchecked(json_schema_columns, 'Columns to select distinct included records on, passed to `distinct_on`.')
           properties['when'] = {
             'type' => 'object',
@@ -884,9 +877,9 @@ module StandardAPI
           json_schema_include(json_schema_includes(model), model, defs, name: json_schema_name(model, 'Include'))
       end
 
-      # +schema+, described as a param the ACL doesn't check
+      # +schema+, described as a param the Policy doesn't check
       def json_schema_unchecked(schema, description)
-        schema.merge('description' => "#{description} Not checked by the ACL.")
+        schema.merge('description' => "#{description} Not checked by the Policy.")
       end
 
       # A column, or columns, as a name or "table.column"

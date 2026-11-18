@@ -2,23 +2,6 @@ module StandardAPI
   module Helpers
     include StandardAPI::Helpers::JSONSchema
 
-    # Yield the base controller (the topmost class including +owner+), the
-    # +const+ module nested in it (ie. PhotosController::ACL) and the model's
-    # prefix for each controller with one, so AccessControlList and Policies
-    # can make it available to every controller.
-    def self.each_nested(owner, const)
-      ActionController::Metal.descendants.each do |controller|
-        next if !controller.const_defined?(const, false)
-
-        # Only a controller using StandardAPI has a model; any other
-        # controller's constant is none of our business
-        base = controller.ancestors.grep(Class).select { |c| c.include?(owner) }.last
-        next if !base || !controller.model
-
-        yield base, controller.const_get(const, false), controller.model.model_name.singular
-      end
-    end
-
     # The value of attribute +name+ to render for +record+, from the Policy it
     # renders with (Policy#value), so a declared +value+ renders in place of
     # the record's. An override of serialize_attribute should read the value

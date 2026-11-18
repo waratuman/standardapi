@@ -22,14 +22,12 @@ require 'standard_api/active_record/connection_adapters/abstract/schema_statemen
 require 'standard_api/railtie'
 
 module StandardAPI
-  autoload :AccessControlList, 'standard_api/access_control_list'
   autoload :Policy, 'standard_api/policy'
   autoload :Policies, 'standard_api/policies'
   autoload :Middleware, 'standard_api/middleware'
 
   def self.included(base)
     base.include StandardAPI::Controller
-    base.include StandardAPI::AccessControlList
   end
 end
 

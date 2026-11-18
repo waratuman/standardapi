@@ -69,18 +69,4 @@ class PolicyWritablePolicyTest < ActionDispatch::IntegrationTest
     assert_equal ['jpg', nil], [photo.format, photo.account_id]
   end
 
-  test 'writing with a policy other than its own raises when the associated model has an ACL filter' do
-    ApplicationController.class_eval { def filter_photo_params(photo, params, **options) = filter_model_params(photo, params, **options) }
-    policy = Class.new(PropertyPolicy) { association :photos, writable: { policy: FormatOnlyPolicy } }
-
-    with_model_policy(Property, policy) do
-      error = assert_raises(StandardAPI::InvalidConfiguration) do
-        post properties_path, params: { property: { name: 'Hancock', photos: [{ format: 'jpg' }] } }, as: :json
-      end
-      assert_match(/Property#photos is written with .*FormatOnlyPolicy, but Photo has an ACL filter/, error.message)
-    end
-  ensure
-    ApplicationController.send(:remove_method, :filter_photo_params)
-  end
-
 end

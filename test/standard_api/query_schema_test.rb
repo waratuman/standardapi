@@ -165,7 +165,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert schemer.valid?({ 'include' => ['photo', 'specs'], 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => 'camera', 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'properties' => true } }, 'limit' => 1 })
-    # Not ACL checked, but used
+    # Not checked by the Policy, but used
     assert schemer.valid?({ 'include' => { 'photo' => { 'distinct_on' => 'id' } }, 'limit' => 1 })
     assert_not schemer.valid?({ 'include' => { 'photo' => { 'offset' => 1 } }, 'limit' => 1 })
   end
@@ -281,7 +281,7 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     schema = camera_schema
     schemer = schemer(schema)
 
-    # A Policy needn't declare a column, nor an ACL permit an association,
+    # A Policy needn't declare a column or an association,
     # so neither is listed
     assert_equal({ 'type' => 'string' }, schema.dig('properties', 'group_by', 'anyOf', 0))
     assert_equal 'string', schema.dig('properties', 'join', 'type')
@@ -297,13 +297,13 @@ class QuerySchemaTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'Controller#query_schema.json params the ACL does not check' do
+  test 'Controller#query_schema.json params the Policy does not check' do
     properties = camera_schema['properties']
 
     %w(distinct_on join select).each do |name|
-      assert_match 'Not checked by the ACL.', properties.dig(name, 'description'), name
+      assert_match 'Not checked by the Policy.', properties.dig(name, 'description'), name
     end
-    assert_no_match 'Not checked by the ACL.', properties.dig('group_by', 'description')
+    assert_no_match 'Not checked by the Policy.', properties.dig('group_by', 'description')
   end
 
   test 'Controller#query_schema.json include when lists the attributes the Policy makes filterable with eq' do
