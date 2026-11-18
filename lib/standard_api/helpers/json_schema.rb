@@ -245,9 +245,10 @@ module StandardAPI
       end
 
       # record_policy(model).attributes, as name => definition
-      def json_schema_definitions(model)
+      # +policy+ is a Policy class to use in place of the model's own
+      def json_schema_definitions(model, policy = nil)
         @json_schema_definitions ||= {}
-        @json_schema_definitions[model] ||= record_policy(model).attributes.index_by { |definition| definition[:name].to_s }
+        @json_schema_definitions[[model, policy]] ||= record_policy(model, policy).attributes.index_by { |definition| definition[:name].to_s }
       end
 
       # The JSON Schema of a value of the attribute a definition describes, from
@@ -418,8 +419,9 @@ module StandardAPI
       # schema/write
 
       # +path+ holds the models already being described, so an association
-      # nested back into one of them isn't described again.
-      def json_schema_record_write(model, path, nested: false)
+      # nested back into one of them isn't described again. +policy+ is the
+      # Policy class a nested record is written with, if not its own.
+      def json_schema_record_write(model, path, nested: false, policy: nil)
         if controller.respond_to?("filter_#{json_schema_param_key(model)}_params", true)
           return {
             'type' => 'object',
@@ -432,9 +434,9 @@ module StandardAPI
         # Identifies the nested record to update, so is sent though the Policy
         # doesn't make it writable
         properties['id'] = json_schema_attribute_write(model, model.primary_key, permitted: true) if nested && model.primary_key
-        definitions = json_schema_definitions(model)
+        definitions = json_schema_definitions(model, policy)
 
-        controller.record_policy(model).writable.each do |entry|
+        controller.record_policy(model, policy).writable.each do |entry|
           name, permit = entry.is_a?(Hash) ? entry.first : [entry, nil]
           name = name.to_s
           # A json column is permitted as a value and as an object
@@ -442,14 +444,14 @@ module StandardAPI
 
           # A permitted shape without a definition only says what it is
           properties[name] = if permit.nil? || definitions.key?(name)
-            json_schema_attribute_write(model, name)
+            json_schema_attribute_write(model, name, policy: policy)
           else
             permit == [] ? { 'type' => 'array' } : { 'type' => 'object' }
           end
           required << name if !nested && definitions.dig(name, :required)
         end
 
-        properties.merge!(json_schema_nested_write(model, path + [model]))
+        properties.merge!(json_schema_nested_write(model, path + [model], policy))
 
         {
           'type' => 'object',
@@ -465,8 +467,8 @@ module StandardAPI
       # can be set on create but not changed, or one the Policy says is.
       # +permitted+ is for a foreign key a writable association permits,
       # which the definition may have as read only.
-      def json_schema_attribute_write(model, name, permitted: false)
-        definition = json_schema_definitions(model)[name.to_s]
+      def json_schema_attribute_write(model, name, permitted: false, policy: nil)
+        definition = json_schema_definitions(model, policy)[name.to_s]
         return {} if !definition
 
         schema = json_schema_value(model, definition, validations: true)
@@ -482,13 +484,14 @@ module StandardAPI
       end
 
       # Mirrors AccessControlList#filter_model_params
-      def json_schema_nested_write(model, path)
-        controller.record_policy(model).writable_associations.each_with_object({}) do |relation, schemas|
+      def json_schema_nested_write(model, path, policy = nil)
+        write_policy = controller.record_policy(model, policy)
+        write_policy.writable_associations.each_with_object({}) do |relation, schemas|
           association = model.reflect_on_association(relation)
           next if !association
 
           if association.belongs_to?
-            schemas[association.foreign_key.to_s] = json_schema_attribute_write(model, association.foreign_key.to_s, permitted: true)
+            schemas[association.foreign_key.to_s] = json_schema_attribute_write(model, association.foreign_key.to_s, permitted: true, policy: policy)
             schemas[association.foreign_type.to_s] = { 'type' => 'string' } if association.polymorphic?
           end
           next if association.polymorphic?
@@ -496,7 +499,7 @@ module StandardAPI
           record = if path.include?(association.klass)
             { 'type' => 'object' }
           else
-            json_schema_record_write(association.klass, path, nested: true)
+            json_schema_record_write(association.klass, path, nested: true, policy: write_policy.writable_policy(relation))
           end
 
           schemas[association.name.to_s] = if association.collection?

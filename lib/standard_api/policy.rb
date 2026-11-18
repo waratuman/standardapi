@@ -45,35 +45,48 @@ module StandardAPI
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
-      WRITABLE_OPTIONS = [:on, :permit].freeze
+      WRITABLE_OPTIONS = [:on, :permit, :policy].freeze
 
-      # +writable+, as +attribute+ and +writable+ take it, as { on:, permit: },
-      # or nil when it's false. Raises ArgumentError if it's invalid.
+      # +writable+, as standalone +writable+ takes it, as { on:, permit:,
+      # policy: }, or nil when it's false. +permit+ is for an attribute and
+      # +policy+ for an association, which it can't tell apart without the
+      # model. Raises ArgumentError if it's invalid.
       def self.writable_options(name, writable)
         options = case writable
         when nil, false then return nil
         when true then {}
         when Array then { permit: writable }
         when Hash then writable
-        else raise ArgumentError, "attribute #{name} can only be writable: true, false, a strong parameters permit Array, or { on:, permit: }"
+        else raise ArgumentError, "#{name} can only be writable: true, false, a strong parameters permit Array, or a Hash of options"
         end
 
         unknown = options.keys - WRITABLE_OPTIONS
-        raise ArgumentError, "unknown writable options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
+        raise ArgumentError, "unknown writable options for #{name}: #{unknown.join(', ')}" if !unknown.empty?
         if ![nil, :create, :update].include?(options[:on])
-          raise ArgumentError, "attribute #{name} can only be writable on: :create or :update"
+          raise ArgumentError, "#{name} can only be writable on: :create or :update"
+        end
+        if options.key?(:policy) && !(options[:policy].is_a?(Class) && options[:policy] < StandardAPI::Policy)
+          raise ArgumentError, "the writable policy of #{name} must be a subclass of StandardAPI::Policy"
         end
 
         options.freeze
       end
 
-      # +writable+, as +association+ takes it: as for an attribute, but
-      # without +permit+, as what the associated records take is up to their
-      # own model's Policy
+      # +writable+, as +attribute+ takes it: { on:, permit: }
+      def self.attribute_writable_options(name, writable)
+        options = writable_options(name, writable)
+        raise ArgumentError, "attribute #{name} can't be writable with policy:; that's for an association" if options&.key?(:policy)
+
+        options
+      end
+
+      # +writable+, as +association+ takes it: { on:, policy: }. What the
+      # associated records take is up to their own model's Policy, or
+      # +policy+ in its place, so it can't take +permit+.
       def self.association_writable_options(name, writable)
         options = writable_options(name, writable)
         if options&.key?(:permit) || writable.is_a?(Array)
-          raise ArgumentError, "association #{name} can only be writable: true, false or { on: }; what can be written of it is up to the associated model's Policy"
+          raise ArgumentError, "association #{name} can only be writable: true, false or { on:, policy: }; what can be written of it is up to the associated model's Policy"
         end
 
         options
@@ -115,7 +128,11 @@ module StandardAPI
         value = options.delete(:value)
         orderable!(name, options.delete(:orderable)) if options.key?(:orderable)
         filterable!(name, options.delete(:filterable)) if options.key?(:filterable)
-        writable!(name, options.delete(:writable)) if options.key?(:writable)
+        if options.key?(:writable)
+          writable = options.delete(:writable)
+          Builder.attribute_writable_options(name, writable)
+          writable!(name, writable)
+        end
         unknown = options.keys - OPTIONS
         raise ArgumentError, "unknown options for attribute #{name}: #{unknown.join(', ')}" if !unknown.empty?
 
@@ -142,7 +159,10 @@ module StandardAPI
       # can be included of it. +orderable+ lets a request order by what the
       # associated model's own Policy makes orderable, and +filterable+ filter
       # on what it makes filterable. +writable+ lets a create or update write
-      # it through nested attributes, see #writable.
+      # it through nested attributes, see #writable: what's written of the
+      # associated records is up to their own model's Policy, or the one
+      # <tt>writable: { policy: }</tt> gives. An association that renders with
+      # +policy+ has to give one, so writes don't use a Policy by accident.
       def association(name, **options)
         name = name.to_s
         conditions = options.extract!(:if, :unless)
@@ -205,7 +225,8 @@ module StandardAPI
       # array of objects. +on+ is +:create+ or +:update+ to permit it only on
       # one; a model, ie. for the schema, is a create. An association is
       # written through nested attributes, as with
-      # <tt>association name, writable: true</tt>, so can't take +permit+.
+      # <tt>association name, writable: true</tt>, so takes +policy+ in place
+      # of +permit+.
       def writable(*names, **options)
         options = Builder.writable_options(names.first, options) || {}
         names.map(&:to_s).each { |name| @writable_attributes[name] = options }
@@ -316,7 +337,7 @@ module StandardAPI
         if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
           raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
         end
-        Builder.writable_options(name, options[:writable])
+        Builder.attribute_writable_options(name, options[:writable])
 
         # A value can read the requester as a condition can
         varies = options.key?(:if) || options.key?(:unless) || !value.nil?
@@ -344,7 +365,10 @@ module StandardAPI
         if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
           raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
         end
-        Builder.association_writable_options(name, options[:writable])
+        writable = Builder.association_writable_options(name, options[:writable])
+        if writable && options[:policy] && !writable.key?(:policy)
+          raise ArgumentError, Policy.writable_policy_message(name)
+        end
 
         varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
         # The Policy it gives can vary too, and may not be fully declared yet
@@ -493,6 +517,9 @@ module StandardAPI
     def permitted_attributes(record)
       writable_for(record).flat_map do |name, options|
         next [] if model.reflect_on_association(name)
+        if options.key?(:policy)
+          raise ArgumentError, "#{name} of #{model.name} isn't an association, so can't be writable with policy:"
+        end
 
         if options.key?(:permit)
           [{ name => options[:permit] }]
@@ -512,14 +539,32 @@ module StandardAPI
     # #permitted_attributes, +if+ and +unless+ don't apply. What's written of
     # the associated records is up to their own model's Policy.
     def permitted_associations(record, on: nil)
+      builder = builder_for(record)
       writable_for(record, on: on).filter_map do |name, options|
         next if !model.reflect_on_association(name)
         if options.key?(:permit)
           raise ArgumentError, "association #{name} of #{model.name} can't be writable with permit:; what can be written of it is up to the associated model's Policy"
         end
+        # Declared apart, ie. policy: in one association and writable: in another
+        if !builder.association_options.dig(name, :policy).nil? && !options.key?(:policy)
+          raise ArgumentError, Policy.writable_policy_message(name, model)
+        end
 
         name
       end
+    end
+
+    # The Policy class the records +record+ writes through the association
+    # +name+ are written with in place of their own model's, as
+    # <tt>writable: { policy: }</tt> gives it, or nil
+    def writable_policy(record, name)
+      builder_for(record).writable_attributes.dig(name.to_s, :policy)
+    end
+
+    # Why an association that renders with +policy+ needs a writable +policy+
+    def self.writable_policy_message(name, model = nil)
+      of = model ? " of #{model.name}" : ''
+      "association #{name}#{of} renders with policy:, so say which Policy writes it with writable: { policy: }, ie. its own model's or the same one"
     end
 
     # The Policy class the records +record+ includes through the association

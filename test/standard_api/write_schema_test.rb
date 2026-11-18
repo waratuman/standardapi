@@ -207,6 +207,14 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_nil properties.dig('photos', 'items', 'required')
   end
 
+  test 'Controller#write_schema.json describes nested records as their writable policy permits them' do
+    format_only = Class.new(StandardAPI::Policy) { attributes :id, :format, writable: true }
+    policy = Class.new(PropertyPolicy) { association :photos, writable: { policy: format_only } }
+
+    photo = with_model_policy(Property, policy) { property_schema.dig('properties', 'photos', 'items', 'properties') }
+    assert_equal %w[id format], photo.keys
+  end
+
   test 'Controller#write_schema.json enum' do
     properties = with_model_policy(Document, Class.new(DocumentPolicy) { attributes :level, :rating, writable: true }) do
       write_schema(write_schema_documents_path(format: 'json')).dig('properties', 'document', 'properties')

@@ -371,15 +371,17 @@ module StandardAPI
 
     # The associations +attributes+ write through nested attributes, as
     # includes, so #create and #update render what they wrote. +on+ is the
-    # action writing them, as the record itself isn't loaded yet.
-    def nested_includes(model, attributes, on)
-      writable = record_policy(model).writable_associations(on: on)
+    # action writing them, as the record itself isn't loaded yet, and
+    # +policy+ the Policy class they're written with, if not their own.
+    def nested_includes(model, attributes, on, policy = nil)
+      write_policy = record_policy(model, policy)
+      writable = write_policy.writable_associations(on: on)
       includes = {}
       attributes&.each do |key, value|
         association = model.reflect_on_association(key)
         if association && writable.include?(association.name.to_s)
           includes[key] = if value.is_a?(Hash)
-            nested_includes(association.klass, value, value['id'] ? :update : :create)
+            nested_includes(association.klass, value, value['id'] ? :update : :create, write_policy.writable_policy(association.name))
           else
             {}
           end
