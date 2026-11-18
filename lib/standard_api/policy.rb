@@ -46,6 +46,7 @@ module StandardAPI
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
       ASSOCIATION_OPTIONS = [:policy, :types].freeze
       WRITABLE_OPTIONS = [:on, :permit, :policy].freeze
+      ASSIGN_OPTIONS = [:on, :with].freeze
 
       # +writable+, as standalone +writable+ takes it, as { on:, permit:,
       # policy: }, or nil when it's false. +permit+ is for an attribute and
@@ -67,6 +68,21 @@ module StandardAPI
         end
         if options.key?(:policy) && !(options[:policy].is_a?(Class) && options[:policy] < StandardAPI::Policy)
           raise ArgumentError, "the writable policy of #{name} must be a subclass of StandardAPI::Policy"
+        end
+
+        options.freeze
+      end
+
+      # +options+, as +assign+ takes them: { on:, with: }. Raises
+      # ArgumentError if they're invalid.
+      def self.assign_options(name, options)
+        unknown = options.keys - ASSIGN_OPTIONS
+        raise ArgumentError, "unknown assign options for #{name}: #{unknown.join(', ')}" if !unknown.empty?
+        if !options[:with].is_a?(Symbol) && !options[:with].is_a?(Proc)
+          raise ArgumentError, "assign #{name} needs with:, a Symbol or a Proc"
+        end
+        if ![nil, :create, :update].include?(options[:on])
+          raise ArgumentError, "#{name} can only be assigned on: :create or :update"
         end
 
         options.freeze
@@ -97,11 +113,13 @@ module StandardAPI
       # those declared +orderable+, +required+ those of +required_orders+ in
       # order, +filterable_operators+ what's declared +filterable+, as
       # name => :all or the canonical operators it permits, with
-      # +filterable_conditions+ those of a standalone +filterable+, and
+      # +filterable_conditions+ those of a standalone +filterable+,
       # +writable_attributes+ what's declared +writable+, as name =>
-      # { on:, permit: }
+      # { on:, permit: }, and +assigned_attributes+ what's declared with
+      # +assign+, as name => { on:, with: }
       attr_reader :conditions, :association_options, :association_conditions, :values, :orderable,
-        :required, :filterable_operators, :filterable_conditions, :writable_attributes
+        :required, :filterable_operators, :filterable_conditions, :writable_attributes,
+        :assigned_attributes
 
       def initialize
         @changes = {}
@@ -114,6 +132,7 @@ module StandardAPI
         @filterable_operators = {}
         @filterable_conditions = {}
         @writable_attributes = {}
+        @assigned_attributes = {}
       end
 
       # Declare the attribute +name+, changing it with +options+, or add it
@@ -233,6 +252,16 @@ module StandardAPI
         self
       end
 
+      # Set +names+ on a create or update to what +with+ gives, in place of
+      # anything the params send, whether or not they're +writable+. +on+ is
+      # +:create+ or +:update+ to set them only on one; a new record is a
+      # create.
+      def assign(*names, **options)
+        options = Builder.assign_options(names.first, options)
+        names.map(&:to_s).each { |name| @assigned_attributes[name] = options }
+        self
+      end
+
       # Take back a declaration, ie. one inherited from a parent Policy
       def remove(*names)
         names.map(&:to_s).each do |name|
@@ -246,6 +275,7 @@ module StandardAPI
           @filterable_operators.delete(name)
           @filterable_conditions.delete(name)
           @writable_attributes.delete(name)
+          @assigned_attributes.delete(name)
         end
         self
       end
@@ -398,6 +428,14 @@ module StandardAPI
         add_step { writable(*names, **options) }
       end
 
+      # See Builder#assign. +with+ is a Symbol naming a method or a Proc, run
+      # like a condition, for the record being written. It doesn't change
+      # what renders either.
+      def assign(*names, **options)
+        Builder.assign_options(names.first, options)
+        add_step { assign(*names, **options) }
+      end
+
       def remove(*names)
         add_step { remove(*names) }
       end
@@ -407,7 +445,7 @@ module StandardAPI
       # them: the block runs on the Policy instance once a request per key, is
       # given the key, and declares with +attribute+, +attributes+,
       # +association+, +associations+, +filterable+, +required_orders+,
-      # +writable+ and +remove+.
+      # +writable+, +assign+ and +remove+.
       # +record+ raises in the block, as the result is shared between records.
       def attributes_for(key, &block)
         raise ArgumentError, 'attributes_for needs a block' if !block
@@ -554,6 +592,19 @@ module StandardAPI
       end
     end
 
+    # What a create or update of +record+ sets, a model (nil) being a
+    # create, as name => value: what's declared with +assign+ on that
+    # action, each +with+ run for +record+. It overrides the params.
+    def assigned_attributes(record)
+      assigned_for(record).to_h { |name, options| [name, resolve(options[:with], record)] }
+    end
+
+    # The names #assigned_attributes sets for +record+, without running
+    # their +with+
+    def assigned_attribute_names(record)
+      assigned_for(record).keys
+    end
+
     # The Policy class the records +record+ writes through the association
     # +name+ are written with in place of their own model's, as
     # <tt>writable: { policy: }</tt> gives it, or nil
@@ -620,6 +671,10 @@ module StandardAPI
       declarations.writable(*names, **options)
     end
 
+    def assign(*names, **options)
+      declarations.assign(*names, **options)
+    end
+
     def remove(*names)
       declarations.remove(*names)
     end
@@ -631,8 +686,19 @@ module StandardAPI
     # What's declared +writable+ for +record+, less what's only writable on
     # the other action
     def writable_for(record, on: nil)
-      on ||= record.nil? || record.new_record? ? :create : :update
+      on ||= action_for(record)
       builder_for(record).writable_attributes.reject { |_, options| options[:on] && options[:on] != on }
+    end
+
+    # What's declared with +assign+ for +record+, less what's only assigned
+    # on the other action
+    def assigned_for(record)
+      on = action_for(record)
+      builder_for(record).assigned_attributes.reject { |_, options| options[:on] && options[:on] != on }
+    end
+
+    def action_for(record)
+      record.nil? || record.new_record? ? :create : :update
     end
 
     def failed_conditions(record)
