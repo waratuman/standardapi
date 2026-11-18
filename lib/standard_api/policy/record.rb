@@ -71,6 +71,13 @@ module StandardAPI
         policy ? policy.permitted_orders : []
       end
 
+      # What a create or update of the record may set, the model being a
+      # create, as strong parameters permit them
+      # (Policy#permitted_attributes). Without a Policy, nothing.
+      def writable
+        policy ? policy.permitted_attributes(record) : []
+      end
+
       # What every request is ordered by after its own orders
       # (Policy#permitted_required_orders), decided for the model whatever the
       # record. Without a Policy, nothing.

@@ -40,12 +40,8 @@ class DocumentsController < ApplicationController
 
   module ACL
 
-    def attributes(document=nil)
-      document&.type == "movie" ? [
-        :file, :type, :rating
-      ] : [
-        :file, :type
-      ]
+    def nested
+      []
     end
 
   end
@@ -53,11 +49,6 @@ class DocumentsController < ApplicationController
 end
 
 class PhotosController < ApplicationController
-
-  def photo_attributes(record = nil)
-    [ :id, :account_id, :property_id, :format ]
-  end
-
 end
 
 class ReferencesController < ApplicationController
@@ -127,6 +118,8 @@ class CamerasController < ApplicationController
     attributes :id, :make, filterable: true
     attribute :photo_id, filterable: [:eq, :in]
     association :photo, filterable: true
+
+    attributes :make, :hidden, :retired, :photo_id, writable: true
 
     private
 

@@ -27,21 +27,13 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "a nested ACL is renamed under the model's prefix and included into the base controller" do
     assert_includes ApplicationController.ancestors, DocumentsController::ACL
-    assert_equal [:document_attributes], DocumentsController::ACL.instance_methods(false).sort
-    assert_equal DocumentsController::ACL, PropertiesController.instance_method(:document_attributes).owner
+    assert_equal [:nested_document_attributes], DocumentsController::ACL.instance_methods(false).sort
+    assert_equal DocumentsController::ACL, PropertiesController.instance_method(:nested_document_attributes).owner
   end
 
   test "a nested ACL does not override the controller's includes and orders" do
     assert_equal StandardAPI::Controller, DocumentsController.instance_method(:orders).owner
     assert_equal StandardAPI::Controller, DocumentsController.instance_method(:includes).owner
-  end
-
-  test "a nested ACL keeps its record argument" do
-    movie = create(:document, type: 'movie')
-    controller = PropertiesController.new
-
-    assert_equal [:file, :type], controller.model_attributes(Document)
-    assert_equal [:file, :type, :rating], controller.model_attributes(Document, movie)
   end
 
   test "GET index orders by what the Policy makes orderable" do
@@ -93,32 +85,32 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "two nested ACLs of one model defining the same method raise" do
     acl_controller(Attachment) do
-      def attributes(record = nil)
-        [ :id ]
+      def nested
+        [ :document ]
       end
     end
     acl_controller(Attachment) do
-      def attributes(record = nil)
-        [ :id, :created_at ]
+      def nested
+        [ :record ]
       end
     end
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/both define attachment_attributes/, error.message)
+    assert_match(/both define nested_attachment_attributes/, error.message)
   end
 
   test "load! can be repeated" do
     acl_controller(Attachment) do
-      def attributes(record = nil)
-        [ :id ]
+      def nested
+        [ :document ]
       end
     end
     StandardAPI::AccessControlList.load!
     StandardAPI::AccessControlList.load!
 
-    assert_equal [:attachment_attributes], @acl_controller::ACL.instance_methods(false)
+    assert_equal [:nested_attachment_attributes], @acl_controller::ACL.instance_methods(false)
     assert_equal 1, @acl_base.ancestors.count(@acl_controller::ACL)
-    assert_equal [:id], @acl_base.new.attachment_attributes
+    assert_equal [:document], @acl_base.new.nested_attachment_attributes
   end
 
 end

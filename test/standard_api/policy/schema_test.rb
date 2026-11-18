@@ -43,9 +43,9 @@ class PolicySchemaTest < ActionDispatch::IntegrationTest
 
   test 'schema.json and schema/write.json follow a declared read_only' do
     policy = empty_policy_class do
-      attribute :photo_id, read_only: true
+      attribute :photo_id, read_only: true, writable: true
       attribute :id, read_only: false
-      attributes :make
+      attributes :make, writable: true
     end
 
     with_policy(policy) do
@@ -53,7 +53,7 @@ class PolicySchemaTest < ActionDispatch::IntegrationTest
       assert_equal true, attributes.dig('photo_id', 'readonly')
       assert_equal false, attributes.dig('id', 'readonly')
 
-      # CameraACL permits photo_id and make, but not id
+      # photo_id and make are writable, but not id
       properties = camera_json('schema/write').dig('properties', 'camera', 'properties')
       assert_equal true, properties.dig('photo_id', 'readOnly')
       assert_nil properties.dig('make', 'readOnly')
