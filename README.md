@@ -394,6 +394,23 @@ creates a record without an `id` and updates the one with it; only their
 Policy makes writable, or its ACL `filter`. `on:` works as for an attribute;
 `permit:` doesn't, as what an associated record takes is up to its Policy.
 
+`writable: { policy: }` writes the associated records with another Policy
+class in their own's place, ie. to narrow what can be set of them through
+this association:
+
+    class PropertyPolicy < StandardAPI::Policy
+      association :photos, policy: PhotoSummaryPolicy, writable: { policy: PhotoCaptionPolicy }
+      association :landlord, policy: LandlordNamePolicy, writable: { policy: LandlordPolicy }
+    end
+
+The `policy:` an association renders with doesn't decide what's written of
+it, so an association declared with both `policy:` and `writable:` has to say
+which Policy writes it, even when it's its own model's, or it raises
+`ArgumentError`: when it's declared, or when it's first written if the two are
+declared apart. As the associated records are written before they're loaded,
+it's a class, not a Symbol or Proc. An associated model with an ACL `filter`
+can only be written with its own Policy, as the filter permits with it.
+
 A writable attribute's definition isn't `read_only`, unless it's only writable
 on create or the model makes it `attr_readonly`, and it's `required` when its
 column is NOT NULL and not auto populated, unless it's only writable on update.

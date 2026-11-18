@@ -86,6 +86,13 @@ module StandardAPI
         policy ? policy.permitted_associations(record, on: on) : []
       end
 
+      # The Policy class the records written through the association +name+
+      # are written with in place of their own model's
+      # (Policy#writable_policy), or nil
+      def writable_policy(name)
+        policy&.writable_policy(record, name)
+      end
+
       # What every request is ordered by after its own orders
       # (Policy#permitted_required_orders), decided for the model whatever the
       # record. Without a Policy, nothing.

@@ -62,21 +62,27 @@ module StandardAPI
       end
     end
 
-    # The params of +resource+ its Policy makes writable
-    # (Policy::Record#writable), and of the associations it makes writable
-    # (Policy::Record#writable_associations): the nested records' own, their
-    # ids, or the foreign key
-    def filter_model_params(resource, model_params, id: nil, allow_id: nil)
+    # The params of +resource+ its Policy, or +policy+ in its place, makes
+    # writable (Policy::Record#writable), and of the associations it makes
+    # writable (Policy::Record#writable_associations): the nested records'
+    # own, their ids, or the foreign key
+    def filter_model_params(resource, model_params, id: nil, allow_id: nil, policy: nil)
       return ActionController::Parameters.new if !model_params
 
-      policy = record_policy(resource)
-      permitted_params = allow_id ? model_params.permit(policy.writable, :id) : model_params.permit(policy.writable)
+      write_policy = record_policy(resource, policy)
+      permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
 
-      policy.writable_associations.each do |relation|
+      write_policy.writable_associations.each do |relation|
         association = resource.association(relation.to_sym)
         attributes_key = association.reflection.name.to_s
+        nested_policy = write_policy.writable_policy(relation)
         if model_params.has_key?(attributes_key)
           filter_method = "filter_#{association.klass.base_class.model_name.singular}_params"
+          # A filter permits with the model's own Policy
+          if self.respond_to?(filter_method, true) && nested_policy && nested_policy != model_policy(association.klass)&.class
+            raise StandardAPI::InvalidConfiguration, "#{resource.class.name}##{relation} is written with #{nested_policy.name}, but #{association.klass.name} has an ACL filter, which permits with its own Policy"
+          end
+
           if model_params[attributes_key].nil?
             permitted_params[attributes_key] = nil
           elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
@@ -109,13 +115,13 @@ module StandardAPI
               models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
               model_params[attributes_key].map { |i|
                 nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association.klass.new
-                i_params = filter_model_params(nested_record, i, allow_id: true)
+                i_params = filter_model_params(nested_record, i, allow_id: true, policy: nested_policy)
                 nested_record.assign_attributes(i_params)
                 nested_record
               }
             else
               nested_record = model_params[attributes_key]['id'] ? association.klass.find(model_params[attributes_key]['id']) : association.klass.new
-              i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true)
+              i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true, policy: nested_policy)
               nested_record.assign_attributes(i_params)
               nested_record
             end
