@@ -186,17 +186,7 @@ module StandardAPI
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
       subresource = association.klass.new
-      subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
-        self.send("filter_#{model_name(association.klass)}_params", subresource, params[model_name(association.klass)], id: params[:id])
-      elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
-        params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
-      elsif self.respond_to?("filter_model_params", true)
-        filter_model_params(subresource, params[model_name(association.klass)])
-      else
-        ActionController::Parameters.new
-      end
-
-      subresource.assign_attributes(subresource_params)
+      subresource.assign_attributes(filter_model_params(subresource, params[model_name(association.klass)]))
 
       result = case association
       when ::ActiveRecord::Associations::CollectionAssociation
@@ -227,8 +217,8 @@ module StandardAPI
       # end
     end
 
-    # The prefix +model+'s ACL methods are renamed under, and its Policy is
-    # registered under
+    # The key +model+'s params are sent under, and its Policy is registered
+    # under
     def model_name(model)
       if model.model_name.singular.starts_with?('habtm_')
         model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
@@ -277,11 +267,63 @@ module StandardAPI
     end
 
     def model_params
-      if self.respond_to?("#{model.model_name.singular}_params", true)
-        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
-      else
-        ActionController::Parameters.new
+      return @model_params if instance_variable_defined?(:@model_params)
+      @model_params = filter_model_params(resource, params[model_name(model)])
+    end
+
+    # The params of +resource+ its Policy, or +policy+ in its place, makes
+    # writable (Policy::Record#writable), and of the associations it makes
+    # writable (Policy::Record#writable_associations): the nested records'
+    # own, their ids, or the foreign key. What it assigns
+    # (Policy::Record#assigned_attributes) overrides the params, and then its
+    # filters run on them (Policy::Record#filter_params).
+    def filter_model_params(resource, model_params, id: nil, allow_id: nil, policy: nil)
+      write_policy = record_policy(resource, policy)
+      if !model_params
+        params = write_policy.filter_params(ActionController::Parameters.new(write_policy.assigned_attributes))
+        # The server set all of it, so it's permitted
+        return params.empty? ? params : params.permit!
       end
+
+      permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
+
+      write_policy.writable_associations.each do |relation|
+        association = resource.association(relation.to_sym)
+        attributes_key = association.reflection.name.to_s
+        nested_policy = write_policy.writable_policy(relation)
+        if model_params.has_key?(attributes_key)
+          if model_params[attributes_key].nil?
+            permitted_params[attributes_key] = nil
+          elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
+            permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
+          else
+            permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
+              models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+              model_params[attributes_key].map { |i|
+                nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association.klass.new
+                i_params = filter_model_params(nested_record, i, allow_id: true, policy: nested_policy)
+                nested_record.assign_attributes(i_params)
+                nested_record
+              }
+            else
+              nested_record = model_params[attributes_key]['id'] ? association.klass.find(model_params[attributes_key]['id']) : association.klass.new
+              i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true, policy: nested_policy)
+              nested_record.assign_attributes(i_params)
+              nested_record
+            end
+          end
+        elsif association.collection? && model_params.has_key?("#{association.reflection.name.to_s.singularize}_ids")
+          permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params["#{association.reflection.name.to_s.singularize}_ids"]
+        elsif model_params.has_key?(association.reflection.foreign_key)
+          permitted_params[association.reflection.foreign_key] = model_params[association.reflection.foreign_key]
+          permitted_params[association.reflection.foreign_type] = model_params[association.reflection.foreign_type] if association.reflection.polymorphic?
+        end
+
+        permitted_params.permit!
+      end
+
+      write_policy.assigned_attributes.each { |name, value| permitted_params[name] = value }
+      write_policy.filter_params(permitted_params)
     end
 
     # True when what +klass+ renders could differ by requester: its Policy

@@ -1,6 +1,5 @@
 class ApplicationController < ActionController::Base
   include StandardAPI::Controller
-  include StandardAPI::AccessControlList
   prepend_view_path File.join(File.dirname(__FILE__), 'views')
   
   helper_method :serialize_attribute
@@ -37,15 +36,6 @@ class AccountsController < ApplicationController
 end
 
 class DocumentsController < ApplicationController
-
-  module ACL
-
-    def document_acl_loaded?
-      true
-    end
-
-  end
-
 end
 
 class PhotosController < ApplicationController

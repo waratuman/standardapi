@@ -11,7 +11,8 @@ module StandardAPI
     end
   end
 
-  # Raised when an ACL or controller uses a form StandardAPI no longer supports
+  # Raised when a Policy or controller is configured in a form
+  # StandardAPI doesn't support
   class InvalidConfiguration < StandardAPIError
   end
 

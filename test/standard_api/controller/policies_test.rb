@@ -2,12 +2,14 @@ require 'standard_api/test_helper'
 
 class ControllerPoliciesTest < ActionDispatch::IntegrationTest
 
-  # Build a throwaway controller with a nested Policy, as
-  # ControllerACLTest#acl_controller does with an ACL.
+  # Build a throwaway controller with a nested Policy. It gets its own base
+  # controller so it never shows up in ApplicationController.descendants (and
+  # so in #models or schema.json). Subclasses are tracked weakly, so the
+  # controllers are kept in @policy_controllers to stop them being collected
+  # before load! finds them.
   def policy_controller(model, policy = Class.new(StandardAPI::Policy))
     @policy_base ||= Class.new(ActionController::Base) do
       include StandardAPI::Controller
-      include StandardAPI::AccessControlList
     end
 
     controller = Class.new(@policy_base)
@@ -33,6 +35,27 @@ class ControllerPoliciesTest < ActionDispatch::IntegrationTest
   test "a nested Policy is registered under the model's prefix on the base controller" do
     assert_equal CamerasController::Policy, ApplicationController.standard_api_policies['camera']
     assert_equal CamerasController::Policy, PropertiesController.standard_api_policies['camera']
+  end
+
+  test "GET index orders by what the Policy makes orderable" do
+    documents = [create(:document), create(:document)]
+
+    get documents_path, params: { limit: 10, order: { id: :desc } }, as: :json
+    assert_response :ok
+    assert_equal documents.map(&:id).sort.reverse, JSON.parse(response.body).map { |d| d['id'] }
+
+    get documents_path, params: { limit: 10, order: :file }, as: :json
+    assert_response :bad_request
+  end
+
+  test "a nested ACL is neither included nor raises" do
+    controller = policy_controller(Attachment)
+    controller.const_set(:ACL, Module.new { def acl_loaded? = true })
+
+    assert_nothing_raised { StandardAPI::Policies.load! }
+    assert_not @policy_base.method_defined?(:acl_loaded?)
+  ensure
+    controller.send(:remove_const, :ACL)
   end
 
   test "a Policy's helpers stay out of the controller" do

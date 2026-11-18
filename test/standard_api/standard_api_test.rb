@@ -67,12 +67,11 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'include StandardAPI includes Controller, AccessControlList and Policies' do
+  test 'include StandardAPI includes Controller and Policies' do
     klass = Class.new(ActionController::Base) do
       include StandardAPI
     end
     assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
-    assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
     assert klass.ancestors.include?(StandardAPI::Policies), "Expected StandardAPI::Policies to be included"
   end
 
@@ -588,7 +587,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
   end
 
-  test 'include with where key rejects wheres the included ACL does not permit' do
+  test 'include with where key rejects wheres the included Policy does not permit' do
     property = create(:property, photos: [create(:photo)])
 
     # PhotoPolicy doesn't make format filterable
@@ -754,7 +753,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
   end
 
-  test 'order through an association uses the associated ACL' do
+  test 'order through an association uses the associated Policy' do
     b = create(:account, property: create(:property, name: 'b'))
     a = create(:account, property: create(:property, name: 'a'))
 
@@ -805,7 +804,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'include through an association uses the associated ACL' do
+  test 'include through an association uses the associated Policy' do
     property = create(:property)
     account = create(:account, property: property)
     photo = create(:photo, account: account)
@@ -816,7 +815,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [photo.id], JSON(response.body)['landlord']['photos'].map { |x| x['id'] }
   end
 
-  test 'include through an association rejects includes the associated ACL does not permit' do
+  test 'include through an association rejects includes the associated Policy does not permit' do
     property = create(:property, photos: [create(:photo)])
 
     get property_path(property, include: { photos: :camera }, format: 'json')
@@ -824,7 +823,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "camera"', response.body
   end
 
-  test 'include through two associations uses each associated ACL' do
+  test 'include through two associations uses each associated Policy' do
     account = create(:account)
     camera = create(:camera, photo: create(:photo, account: account))
 

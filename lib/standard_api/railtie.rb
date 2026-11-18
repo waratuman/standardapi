@@ -2,13 +2,10 @@ module StandardAPI
   class Railtie < ::Rails::Railtie
 
     initializer 'standardapi', before: :set_autoload_paths do |app|
-      if app.root.join('app', 'controllers', 'acl').exist?
-        ActiveSupport::Inflector.inflections(:en) do |inflect|
-          inflect.acronym 'ACL'
-        end
-
-        app.config.autoload_paths << app.root.join('app', 'controllers', 'acl').to_s
-      end
+      # Left over from AccessControlList, whose files aren't named for
+      # Zeitwerk, so eager loading the controllers would raise
+      acl_dir = app.root.join('app', 'controllers', 'acl')
+      Rails.autoloaders.main.ignore(acl_dir.to_s) if acl_dir.exist?
 
       ActiveSupport.on_load(:before_configuration) do
         ::ActionDispatch::Routing::Mapper.include StandardAPI::RouteHelpers
@@ -25,17 +22,15 @@ module StandardAPI
       end
     end
 
-    # A controller's nested ACL and Policy modules are only found once the
-    # controller is loaded, so load them all before including them. This runs
-    # after boot (ahead of config.eager_load) and again after every reload,
-    # rather than when the base controller includes AccessControlList or
-    # Policies: loading subclasses while its class body is still being
-    # evaluated would leave them without any callbacks declared after the
-    # include.
+    # A controller's nested Policy is only found once the controller is
+    # loaded, so load them all before registering them. This runs after boot
+    # (ahead of config.eager_load) and again after every reload, rather than
+    # when the base controller includes Policies: loading subclasses while
+    # its class body is still being evaluated would leave them without any
+    # callbacks declared after the include.
     config.to_prepare do
       controllers = Rails.application.root.join('app', 'controllers')
       Rails.autoloaders.main.eager_load_dir(controllers.to_s) if controllers.exist?
-      StandardAPI::AccessControlList.load!
       StandardAPI::Policies.load!
     end
 

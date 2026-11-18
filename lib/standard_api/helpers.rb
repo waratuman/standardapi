@@ -3,9 +3,9 @@ module StandardAPI
     include StandardAPI::Helpers::JSONSchema
 
     # Yield the base controller (the topmost class including +owner+), the
-    # +const+ module nested in it (ie. PhotosController::ACL) and the model's
-    # prefix for each controller with one, so AccessControlList and Policies
-    # can make it available to every controller.
+    # +const+ nested in it (ie. PhotosController::Policy) and the model's
+    # prefix for each controller with one, so Policies can make it available
+    # to every controller.
     def self.each_nested(owner, const)
       ActionController::Metal.descendants.each do |controller|
         next if !controller.const_defined?(const, false)

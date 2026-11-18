@@ -5,6 +5,19 @@
 ### Breaking changes
 
 - Require Ruby 3.3 or later and activerecord-sort 8.1 or later, below 9.
+- Remove `StandardAPI::AccessControlList`. Each model's Policy declares what
+  a create or update may write (`writable`, `association ..., writable:`)
+  and sets or checks per record (`assign`, `filter`). `include StandardAPI`
+  includes `StandardAPI::Controller` alone, and an
+  `include StandardAPI::AccessControlList` raises `NameError`: delete it.
+  Files in `app/controllers/acl` and `ACL` modules nested in controllers are
+  no longer loaded or included, so their methods, ie. a `filter`, aren't
+  used. `filter_model_params` is a private method of `StandardAPI::Controller`,
+  and `create_resource` writes the new record with it.
+- Remove the `<model>_params` fallback, ie. a controller's `photo_params`
+  listing what `#create` and `#update` permit. It isn't used: what can be
+  written is what the model's Policy makes `writable`. A controller can still
+  override `model_params`.
 - Remove `Controller#excludes_for(klass)`, `Controller#excludes` and ACL
   `excludes`. What's rendered is up to the model's Policy, which can hide an
   attribute or association per record and pick the Policy included records
@@ -20,8 +33,6 @@
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
   checked against the Policies of the models the association's `types:` name.
-  An ACL `includes` method is no longer renamed, so it overrides
-  `Controller#includes`: delete it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
@@ -30,9 +41,7 @@
   declares `orderable`, ie. `attributes :id, :name, orderable: true`; ordering
   by anything else is rejected with a 400. An association declared
   `orderable` can be ordered by what its model's own Policy makes orderable.
-  A controller's `<model>_orders` method, ie. `photo_orders`, isn't used. An
-  ACL `orders` method is no longer renamed, so it overrides
-  `Controller#orders`: delete it.
+  A controller's `<model>_orders` method, ie. `photo_orders`, isn't used.
 - Ordering through a polymorphic association is rejected with a 400; there is
   no single Policy to check it against.
 - Orders ActiveRecord::Sort can't order by, ie. through more than one
@@ -46,15 +55,13 @@
 - Remove ACL `attributes`. What a create or update may set is what the
   model's Policy declares `writable`, ie. `attributes :name, writable: true`,
   decided for the record being created or updated. A json column takes an
-  object or `null`, and an array column an array, without saying so. An ACL
-  `attributes` method is no longer renamed, so it isn't used: delete it.
+  object or `null`, and an array column an array, without saying so.
   `Controller#model_attributes` is removed, and a `<model>_attributes`
   controller method isn't used.
 - Remove ACL `nested`. What a create or update may write through nested
   attributes is the associations the model's Policy declares `writable`, ie.
   `association :photos, writable: true`, or `writable :photos` without
-  rendering them. An ACL `nested` method is no longer renamed, so it isn't
-  used: delete it. What's written of the associated records is up to their
+  rendering them. What's written of the associated records is up to their
   own model's Policy, or the one `writable: { policy: }` gives. An
   association that renders with `policy:` has to say which Policy writes it
   with `writable: { policy: }`, or raises `ArgumentError`.
@@ -146,8 +153,7 @@ out of each model's Policy, which renders only what it declares:
 
 ACL `includes` has been replaced by the associations each model's Policy
 declares, which decide both what can be included and what renders. Delete ACL
-`includes` methods and move what they permitted into the Policy: one left in
-place overrides `Controller#includes`, so the `include` param is ignored. For anything it permitted under a polymorphic
+`includes` methods and move what they permitted into the Policy. For anything it permitted under a polymorphic
 association or a method, list the models it can be in that association's
 `types`, and declare what can be included of them in their Policies:
 
@@ -164,9 +170,7 @@ association or a method, list the models it can be in that association's
 
 ACL `orders`, and a controller's `<model>_orders` methods, have been replaced
 by what each model's Policy declares `orderable`. Delete them, and declare
-what they permitted `orderable` in the Policy instead: an ACL `orders` left in
-place overrides `Controller#orders`, so every index sorts by its list and
-ignores the `order` param. An association they permitted by name is declared
+what they permitted `orderable` in the Policy instead. An association they permitted by name is declared
 `orderable` too, and its columns made orderable in its own model's Policy:
 
     # Before, in PhotoACL
@@ -278,9 +282,31 @@ checking `record.persisted?`:
       filter(on: :update) { |params| params.delete(:roles) if !admin? }
     end
 
-Delete the ACL `filter` once it's moved. An ACL `filter` that calls
-`filter_model_params` runs the Policy's filters too, so a check left in both
-runs twice.
+`StandardAPI::AccessControlList` has been removed, so once every ACL method
+has moved into the Policy, delete `include StandardAPI::AccessControlList`,
+`app/controllers/acl` and the controllers' nested `ACL` modules. Nothing loads
+or includes them anymore, so a `filter` left in one isn't run, and any other
+helper method an ACL module defined is no longer on the controller: move it
+out of `app/controllers/acl`, which StandardAPI has the autoloader ignore, and
+include it into the controller yourself, ie. as a concern:
+
+    # Before, in app/controllers/acl/photo_acl.rb
+    module PhotoACL
+      def photo_owner?(photo) = photo.account_id == current_account.id
+    end
+
+    # After, in app/controllers/concerns/photo_owner.rb
+    module PhotoOwner
+      def photo_owner?(photo) = photo.account_id == current_account.id
+    end
+
+    class ApplicationController < ActionController::Base
+      include StandardAPI::Controller
+      include PhotoOwner
+    end
+
+A controller's `<model>_params` method, ie. `photo_params`, isn't used either;
+make what it permitted `writable` in the model's Policy.
 
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
@@ -298,15 +324,9 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   `assigned_attributes`, `assigned_attribute_names`, `filter_params`, `value`, `hidden?` and
   `errors`.
   `application/_record` and custom partials are built on it.
-- An ACL can be nested in its controller as an `ACL` module
-  (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
-  Controllers are loaded at boot and after each reload to find them. Two ACLs
-  that would define the same method, ie. nested in two controllers of one
-  model, raise `StandardAPI::InvalidConfiguration`.
 - A controller can nest a subclass of `StandardAPI::Policy`
-  (`PhotosController::Policy`), found by `StandardAPI::Policies`, the sibling
-  of `StandardAPI::AccessControlList` (`include StandardAPI` includes both),
-  to declare its model's attribute definitions. Like strong parameters only
+  (`PhotosController::Policy`), found by `StandardAPI::Policies`
+  (`StandardAPI::Controller` includes it), to declare its model's attribute definitions. Like strong parameters only
   declared attributes are used. `attributes` declares them, `attribute` can
   also change or add one, `remove` drops one, and
   `attributes_for`
@@ -355,8 +375,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   one it adds is read from the record. Each definition has one `type`, the
   attribute's ActiveModel type, and a `comment`, which the JSON Schemas
   render as `description`.
-- Each resource serves three JSON Schemas (2020-12), built from its ACL and
-  Policy, each drawn only with the actions it describes:
+- Each resource serves three JSON Schemas (2020-12), built from its Policy,
+  each drawn only with the actions it describes:
   - `schema/read.json`: a record as `#show` and `#index` render it, with the
     `include` param checked against the Policies. A column that
     allows NULL, and a singular association unless its presence is
@@ -370,7 +390,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   - `schema/query.json`: the `where`, `order` and `include` the Policies
     declare, following
     associations through `$defs`, plus `limit`, `offset`, `distinct` and `group_by`, and the
-    params no ACL checks yet, marked as such.
+    params no Policy checks yet, marked as such.
 
   Validations are valid JSON Schema: a `format` Regexp is its source, left out
   when JavaScript wouldn't read it the same way, and a numeric `inclusion`

@@ -43,11 +43,11 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     assert_equal false, schema.dig('properties', 'camera', 'additionalProperties')
   end
 
-  test 'Controller#write_schema.json only lists attributes the ACL permits' do
+  test 'Controller#write_schema.json only lists attributes the Policy makes writable' do
     assert_equal ['make', 'hidden', 'retired', 'photo_id'], camera_schema['properties'].keys
   end
 
-  test 'Controller#write_schema.json without ACL attributes lists none' do
+  test 'Controller#write_schema.json without writable attributes lists none' do
     schema = write_schema(write_schema_references_path(format: 'json'))
 
     assert_equal({}, schema.dig('properties', 'reference', 'properties'))
