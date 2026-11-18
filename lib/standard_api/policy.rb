@@ -394,19 +394,13 @@ module StandardAPI
       # record from +record+, which is nil for a model. So does +value+, which
       # is only run for a record.
       def attribute(name, type = nil, **options)
-        value = options[:value]
-        if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
-          raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
-        end
-        Builder.attribute_writable_options(name, options[:writable])
-
-        # A value can read the requester as a condition can
-        varies = options.key?(:if) || options.key?(:unless) || !value.nil?
-        add_step(varies: varies) { attribute(name, type, **options) }
+        validate_attribute(name, options)
+        add_step(varies: attribute_varies(options)) { attribute(name, type, **options) }
       end
 
       def attributes(*names, **options)
-        add_step { attributes(*names, **options) }
+        names.each { |name| validate_attribute(name, options) }
+        add_step(varies: attribute_varies(options)) { attributes(*names, **options) }
       end
 
       # See Builder#association. +policy+ is a Policy class, or a Symbol or
@@ -414,31 +408,13 @@ module StandardAPI
       # one, or nil to render the included records with their own Policy. To
       # keep what their own Policy hides, it inherits from it.
       def association(name, **options)
-        policy = options[:policy]
-        if policy && !policy.is_a?(Proc) && !policy.is_a?(Symbol) && !(policy.is_a?(Class) && policy < StandardAPI::Policy)
-          raise ArgumentError, "the policy of association #{name} must be a subclass of StandardAPI::Policy, a Symbol or a Proc"
-        end
-
-        if !Array(options[:types]).all? { |type| type.is_a?(String) || type.is_a?(Class) }
-          raise ArgumentError, "the types of association #{name} must be models or their names"
-        end
-
-        if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
-          raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
-        end
-        writable = Builder.association_writable_options(name, options[:writable])
-        if writable && options[:policy] && !writable.key?(:policy)
-          raise ArgumentError, Policy.writable_policy_message(name)
-        end
-
-        varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
-        # The Policy it gives can vary too, and may not be fully declared yet
-        varies ||= -> { policy.varies_by_requester? } if policy.is_a?(Class)
-        add_step(varies: varies) { association(name, **options) }
+        validate_association(name, options)
+        add_step(varies: association_varies(options)) { association(name, **options) }
       end
 
       def associations(*names, **options)
-        add_step { associations(*names, **options) }
+        names.each { |name| validate_association(name, options) }
+        add_step(varies: association_varies(options)) { associations(*names, **options) }
       end
 
       # See Builder#filterable. It doesn't change what renders, so it can't
@@ -508,6 +484,51 @@ module StandardAPI
       end
 
       private
+
+      # Raises ArgumentError if +options+ aren't ones +attribute+ takes
+      def validate_attribute(name, options)
+        value = options[:value]
+        if value && !value.is_a?(Proc) && !value.is_a?(Symbol)
+          raise ArgumentError, "the value of attribute #{name} must be a Symbol or a Proc"
+        end
+        Builder.attribute_writable_options(name, options[:writable])
+      end
+
+      # Whether an attribute declared with +options+ could differ by
+      # requester. A value can read the requester as a condition can.
+      def attribute_varies(options)
+        options.key?(:if) || options.key?(:unless) || !options[:value].nil?
+      end
+
+      # Raises ArgumentError if +options+ aren't ones +association+ takes
+      def validate_association(name, options)
+        policy = options[:policy]
+        if policy && !policy.is_a?(Proc) && !policy.is_a?(Symbol) && !(policy.is_a?(Class) && policy < StandardAPI::Policy)
+          raise ArgumentError, "the policy of association #{name} must be a subclass of StandardAPI::Policy, a Symbol or a Proc"
+        end
+
+        if !Array(options[:types]).all? { |type| type.is_a?(String) || type.is_a?(Class) }
+          raise ArgumentError, "the types of association #{name} must be models or their names"
+        end
+
+        if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
+          raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
+        end
+        writable = Builder.association_writable_options(name, options[:writable])
+        if writable && policy && !writable.key?(:policy)
+          raise ArgumentError, Policy.writable_policy_message(name)
+        end
+      end
+
+      # Whether an association declared with +options+ could differ by
+      # requester, or a Proc that says, when it's up to the Policy it gives
+      def association_varies(options)
+        policy = options[:policy]
+        varies = options.key?(:if) || options.key?(:unless) || policy.is_a?(Proc) || policy.is_a?(Symbol)
+        # The Policy it gives can vary too, and may not be fully declared yet
+        varies ||= -> { policy.varies_by_requester? } if policy.is_a?(Class)
+        varies
+      end
 
       def add_step(key: nil, varies: false, &block)
         self.policy_steps += [{ key: key, varies: varies, block: block }.freeze]

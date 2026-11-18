@@ -14,6 +14,36 @@ class PolicyCachingTest < ActionDispatch::IntegrationTest
     assert Class.new(policy_class { attribute :make, if: -> { true } }).varies_by_requester?
   end
 
+  test 'varies_by_requester? is true for conditions, values and policies given to the plural forms' do
+    assert_not empty_policy_class { attributes :make, :model, orderable: true }.varies_by_requester?
+    assert_not empty_policy_class { associations :photos, :account, orderable: true }.varies_by_requester?
+
+    assert empty_policy_class { attributes :make, :model, if: -> { true } }.varies_by_requester?
+    assert empty_policy_class { attributes :make, :model, unless: -> { true } }.varies_by_requester?
+    assert empty_policy_class { attributes :make, :model, value: -> { 'x' } }.varies_by_requester?
+
+    assert empty_policy_class { associations :photos, :account, if: -> { true } }.varies_by_requester?
+    assert empty_policy_class { associations :photos, :account, unless: -> { true } }.varies_by_requester?
+    assert empty_policy_class { associations :photos, :account, policy: -> { nil } }.varies_by_requester?
+    assert empty_policy_class { associations :photos, :account, policy: :photo_policy }.varies_by_requester?
+
+    varying = empty_policy_class { attribute :name, if: -> { true } }
+    assert empty_policy_class { associations :photos, :account, policy: varying }.varies_by_requester?
+    unvarying = empty_policy_class { attribute :name }
+    assert_not empty_policy_class { associations :photos, :account, policy: unvarying }.varies_by_requester?
+  end
+
+  test 'the plural forms check their options when declared, like the singular ones' do
+    other = empty_policy_class
+    assert_raises(ArgumentError) { empty_policy_class { attributes :make, :model, value: 'x' } }
+    assert_raises(ArgumentError) { empty_policy_class { attributes :make, :model, writable: { policy: other } } }
+    assert_raises(ArgumentError) { empty_policy_class { associations :photos, :account, policy: Object } }
+    assert_raises(ArgumentError) { empty_policy_class { associations :photos, :account, types: [1] } }
+    assert_raises(ArgumentError) { empty_policy_class { associations :photos, :account, filterable: [:eq] } }
+    assert_raises(ArgumentError) { empty_policy_class { associations :photos, :account, writable: [:id] } }
+    assert_raises(ArgumentError) { empty_policy_class { associations :photos, :account, policy: other, writable: true } }
+  end
+
   test 'policy_varies? is whether the model\'s Policy could vary by requester' do
     ApplicationController.stubs(:standard_api_policies).returns('property' => policy_class(Property) { attribute :name, comment: 'Its name' })
     assert_not AccountsController.new.send(:policy_varies?, Property)
@@ -64,6 +94,23 @@ class PolicyCachingTest < ActionDispatch::IntegrationTest
     get account_path(account, include: :property, format: :json)
     assert_equal 'The Shard', JSON(response.body)['property']['name'],
       'permitted attribute was hidden by a fragment cached for a restricted requester'
+  end
+
+  test 'attributes hidden with the plural form are not served from a fragment cached for another requester' do
+    policy = empty_policy_class do
+      attributes :id
+      attributes :name, :description, unless: -> { request.headers['X-Hide-Name'] == '1' }
+    end
+    ApplicationController.stubs(:standard_api_policies).returns('property' => policy)
+    property = create(:property, name: 'The Shard')
+    account = create(:account, property: property, property_cached_at: 1.day.ago)
+
+    get account_path(account, include: :property, format: :json)
+    assert_equal 'The Shard', JSON(response.body)['property']['name']
+
+    get account_path(account, include: :property, format: :json), headers: { 'X-Hide-Name' => '1' }
+    assert_not JSON(response.body)['property'].key?('name'),
+      'hidden attribute leaked from a fragment cached for a different requester'
   end
 
   test 'unconditional declarations keep fragment caching' do
