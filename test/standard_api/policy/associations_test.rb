@@ -74,6 +74,68 @@ class PolicyAssociationsTest < ActionDispatch::IntegrationTest
     assert_not property_policy { association :landlord, policy: Class.new(StandardAPI::Policy) }.varies_by_requester?
   end
 
+  # Policies for Property and Account that each render the other's with the other
+  def cyclic_policies
+    property = Class.new(StandardAPI::Policy) { attributes :id, :name }
+    account = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      association :property, policy: property
+    end
+    property.association :accounts, policy: account
+    { 'property' => property, 'account' => account }
+  end
+
+  test 'Policies that give each other to an association render and are cached' do
+    property = create(:property, name: 'The Shard')
+    create(:account, name: 'Lord', email: 'lord@example.com', property: property, property_cached_at: 1.day.ago)
+
+    with_policies(cyclic_policies) do
+      assert_not PropertiesController.new.send(:policy_varies?, Property, { 'accounts' => { 'property' => {} } })
+
+      2.times do
+        get "/properties/#{property.id}", params: { include: { accounts: { property: { accounts: true } } } }, as: :json
+        assert_response :ok
+        json = JSON(response.body)
+        assert_equal %w(accounts id name), json.keys.sort
+        assert_equal %w(id name property), json['accounts'][0].keys.sort
+        assert_equal %w(accounts id name), json['accounts'][0]['property'].keys.sort
+        assert_equal %w(id name), json['accounts'][0]['property']['accounts'][0].keys.sort
+      end
+    end
+  end
+
+  test 'Policies that give each other to an association have schemas' do
+    with_policies(cyclic_policies) do
+      get read_schema_properties_path(format: 'json'), params: { include: { accounts: { property: { accounts: true } } } }
+      assert_response :ok
+      schema = JSON(response.body)
+      assert JSONSchemer.valid_schema?(schema), JSONSchemer.validate_schema(schema).map { |e| e['error'] }.join("\n")
+      # Neither Policy varies, so what they render is required
+      assert_equal %w(accounts id name), schema['required'].sort
+      assert_equal %w(id name property), schema.dig('properties', 'accounts', 'items', 'required').sort
+
+      get write_schema_properties_path(format: 'json')
+      assert_response :ok
+      get schema_properties_path(format: 'json')
+      assert_response :ok
+      get schema_path(format: 'json')
+      assert_response :ok
+
+      get query_schema_properties_path(format: 'json')
+      assert_response :ok
+      schema = JSON(response.body)
+      assert JSONSchemer.valid_schema?(schema), JSONSchemer.validate_schema(schema).map { |e| e['error'] }.join("\n")
+      schemer = JSONSchemer.schema(schema)
+      assert schemer.valid?({ 'limit' => 1, 'include' => { 'accounts' => { 'property' => { 'accounts' => { 'property' => true } } } } })
+      assert schemer.valid?({ 'limit' => 1, 'include' => { 'accounts' => { 'property' => { 'accounts' => { 'property' => { 'accounts' => { 'limit' => 1 } } } } } } })
+      # What their own Policies declare isn't what these do
+      assert_not schemer.valid?({ 'limit' => 1, 'include' => { 'photos' => true } })
+      assert_not schemer.valid?({ 'limit' => 1, 'include' => { 'accounts' => { 'photos' => true } } })
+      assert_not schemer.valid?({ 'limit' => 1, 'include' => { 'accounts' => { 'property' => { 'photos' => true } } } })
+      assert_not schemer.valid?({ 'limit' => 1, 'include' => { 'accounts' => { 'property' => { 'accounts' => { 'photos' => true } } } } })
+    end
+  end
+
   test 'policy renders the included records with what it declares' do
     property = create(:property, landlord: create(:account, name: 'Lord', email: 'lord@example.com'))
 

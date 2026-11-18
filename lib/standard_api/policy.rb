@@ -479,8 +479,20 @@ module StandardAPI
       # caching has to know as its keys can't tell requesters apart. Assumed of
       # conditions, values, attributes_for and an association's +policy+ given
       # as a Symbol or Proc, or one that varies; override to say otherwise.
+      #
+      # Policies can give each other, or themselves, to an association. One
+      # asked again while it's being asked answers false, leaving it to the
+      # rest of what the first ask reaches, so they vary if any of them does.
       def varies_by_requester?
-        policy_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
+        asking = (Thread.current[:standard_api_policy_varies] ||= {}.compare_by_identity)
+        return false if asking.key?(self)
+
+        begin
+          asking[self] = true
+          policy_steps.any? { |step| step[:varies].is_a?(Proc) ? step[:varies].call : step[:varies] }
+        ensure
+          asking.delete(self)
+        end
       end
 
       private
