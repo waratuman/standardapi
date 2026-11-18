@@ -85,6 +85,14 @@ module StandardAPI
         policy ? policy.assigned_attributes(record) : {}
       end
 
+      # Run its Policy's filters on +params+, the permitted params of a create
+      # or update of the record, the model being a create
+      # (Policy#filter_params). Returns +params+; without a Policy, as they
+      # are.
+      def filter_params(params)
+        policy ? policy.filter_params(record, params) : params
+      end
+
       # The names #assigned_attributes sets, without working out their values
       def assigned_attribute_names
         policy ? policy.assigned_attribute_names(record) : []

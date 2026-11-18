@@ -253,6 +253,35 @@ An ACL `filter` that only sets attributes on the server can be replaced with
       assign :author_id, on: :create, with: -> { current_user.id }
     end
 
+Any other ACL `filter` can move into the Policy as a `filter`. It's given the
+params already permitted and assigned, and changes them in place rather than
+returning them; `record` is the record being written and `on:` replaces
+checking `record.persisted?`:
+
+    # Before, in ChartACL
+    def filter(chart, chart_params, id: nil, allow_id: nil)
+      filter_model_params(chart, chart_params, id: id, allow_id: allow_id).tap do |whitelist|
+        if (chart.global? || whitelist[:global]) && !admin?
+          raise StandardAPI::UnpermittedParameters.new([{ chart: ['global'] }])
+        end
+        whitelist.delete(:roles) if chart.persisted? && !admin?
+      end
+    end
+
+    # After
+    class ChartPolicy < StandardAPI::Policy
+      filter do |params|
+        if (record&.global? || params[:global]) && !admin?
+          raise StandardAPI::UnpermittedParameters.new([{ chart: ['global'] }])
+        end
+      end
+      filter(on: :update) { |params| params.delete(:roles) if !admin? }
+    end
+
+Delete the ACL `filter` once it's moved: while a model has one, it's used in
+place of the Policy's permits, filters included, and nested records of that
+model are written through it.
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
@@ -266,7 +295,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_policy`, `orderable`, `required_orders`, `filterable`,
   `writable`, `writable_associations`, `writable_policy`,
-  `assigned_attributes`, `assigned_attribute_names`, `value`, `hidden?` and
+  `assigned_attributes`, `assigned_attribute_names`, `filter_params`, `value`, `hidden?` and
   `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
@@ -308,6 +337,12 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   Policy for the record being written. It applies to nested records too, and
   `schema/write.json` leaves it out. A name the model can't set, or an
   `attr_readonly` one not `on: :create`, raises `ArgumentError`.
+  `filter { |params| ... }`, or `filter :method`, adjusts or rejects the
+  permitted params of a create or update, or only one with `on:`, after the
+  assigns, in place of an ACL `filter`. Filters run on the Policy for the
+  record being written, in declaration order, inherited ones first, and for
+  nested records with their own Policy or `writable: { policy: }`'s;
+  `record_policy(record).filter_params(params)` runs them.
   `attributes` and `associations` take the same options as `attribute` and
   `association`.
   `attribute ..., value:` renders a computed value in place of the record's;
