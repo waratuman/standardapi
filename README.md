@@ -90,14 +90,16 @@ following files:
 `app/controllers/acl/photo_acl.rb`:
 
     module PhotoACL
-      # Allowed saving / creating nested attributes
-      def nested
-        [ :camera ]
+      # Adjust what the Policy permits, ie. to set the author
+      def filter(photo, photo_params, id: nil, allow_id: nil)
+        filter_model_params(photo, photo_params, id: id, allow_id: allow_id).tap do |permitted|
+          permitted[:author_id] = current_user.id if photo.new_record?
+        end
       end
     end
 
 These methods are optional and will be included in ApplicationController for
-StandardAPI to determine allowed nested attributes. What can be written,
+StandardAPI to use in place of the Policy's permits. What can be written,
 included, ordered by and filtered on is declared in each model's Policy (see
 [Writes](#writes), [Associations](#associations), [Orders](#orders) and
 [Filters](#filters)).
@@ -106,23 +108,17 @@ An ACL can instead be nested in the model's controller as an `ACL` module:
 
     class PhotosController < ApplicationController
       module ACL
-        def nested
-          [ :camera ]
+        def filter(photo, photo_params, **options)
+          filter_model_params(photo, photo_params, **options)
         end
       end
     end
 
 It is included in ApplicationController the same way as an
-`app/controllers/acl` file, under the model's name (`nested_photo_attributes`,
-`filter_photo_params`), so it is never included in its own controller.
-Controllers are loaded at boot (and after each reload) so their ACLs are found
-before the first request.
+`app/controllers/acl` file, under the model's name (`filter_photo_params`),
+so it is never included in its own controller. Controllers are loaded at boot
+(and after each reload) so their ACLs are found before the first request.
 
-The `nested` function tells StandardAPI what relations on `Photo` are allowed to
-be set with the API and will determine what attributes are allowed by looking
-for a `camera_acl` file.
-
-An ACL decides which associations can be written through nested attributes.
 What's shown, what can be written, included, ordered by and filtered on is up
 to the model's Policy (see [Policies](#policies)).
 
@@ -383,6 +379,38 @@ writable, so a hidden attribute can still be written; one declared in an
 rendered: a password, or an `attr_accessor`. It takes `on:`, and `permit:` for
 a strong parameters permit.
 
+An association is written through nested attributes:
+
+    class PropertyPolicy < StandardAPI::Policy
+      association :photos, writable: true            # photos: [{ id: 1, caption: 'Lobby' }, { caption: 'Roof' }]
+      association :landlord, writable: { on: :create }
+      writable :accounts                             # without rendering them
+    end
+
+A create or update may then send the associated records' attributes, which
+creates a record without an `id` and updates the one with it; only their
+`id`s, as `[{ id: 1 }]` or `photo_ids`; or the foreign key, ie.
+`landlord_id`. What can be set of an associated record is what its own model's
+Policy makes writable, or its ACL `filter`. `on:` works as for an attribute;
+`permit:` doesn't, as what an associated record takes is up to its Policy.
+
+`writable: { policy: }` writes the associated records with another Policy
+class in their own's place, ie. to narrow what can be set of them through
+this association:
+
+    class PropertyPolicy < StandardAPI::Policy
+      association :photos, policy: PhotoSummaryPolicy, writable: { policy: PhotoCaptionPolicy }
+      association :landlord, policy: LandlordNamePolicy, writable: { policy: LandlordPolicy }
+    end
+
+The `policy:` an association renders with doesn't decide what's written of
+it, so an association declared with both `policy:` and `writable:` has to say
+which Policy writes it, even when it's its own model's, or it raises
+`ArgumentError`: when it's declared, or when it's first written if the two are
+declared apart. As the associated records are written before they're loaded,
+it's a class, not a Symbol or Proc. An associated model with an ACL `filter`
+can only be written with its own Policy, as the filter permits with it.
+
 A writable attribute's definition isn't `read_only`, unless it's only writable
 on create or the model makes it `attr_readonly`, and it's `required` when its
 column is NOT NULL and not auto populated, unless it's only writable on update.
@@ -401,7 +429,7 @@ gives in its place, at every level below it:
 
 An association only renders when the `include` param asks for it. On
 `#create` and `#update`, so do the associations written through nested
-attributes (the ACL's `nested`), where the Policy declares them.
+attributes (see [Writes](#writes)), where the Policy declares them.
 
 Declarations are checked for the model, with a `nil` record: `if` and `unless`
 don't stop an association from being asked for, only from rendering, and one
@@ -621,7 +649,7 @@ conditions see being `nil`.
   described as any object.
 - **`schema/write.json`** describes `{ "record": { ... } }` with only the
   attributes the Policy makes `writable` for a create, with their
-  validations, and the associations the ACL's `nested` permits (by
+  validations, and the associations it makes `writable` (by
   attributes, `_ids` and foreign key). One that's writable but not declared,
   ie. with `writable :password`, is `{}`.
   `required` lists the definitions' `required`, for a create; an update may

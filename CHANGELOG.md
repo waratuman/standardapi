@@ -50,6 +50,14 @@
   `attributes` method is no longer renamed, so it isn't used: delete it.
   `Controller#model_attributes` is removed, and a `<model>_attributes`
   controller method isn't used.
+- Remove ACL `nested`. What a create or update may write through nested
+  attributes is the associations the model's Policy declares `writable`, ie.
+  `association :photos, writable: true`, or `writable :photos` without
+  rendering them. An ACL `nested` method is no longer renamed, so it isn't
+  used: delete it. What's written of the associated records is up to their
+  own model's Policy, or the one `writable: { policy: }` gives. An
+  association that renders with `policy:` has to say which Policy writes it
+  with `writable: { policy: }`, or raises `ArgumentError`.
 - `read_only` is true for an attribute the Policy doesn't make `writable`.
   Before, a model without ACL `attributes` had every attribute not
   `attr_readonly` described as writable, though none could be written.
@@ -210,6 +218,26 @@ of a shape the column's type doesn't give, and `on:` replaces checking
 What else an ACL `attributes` decided per record is declared in an
 `attributes_for` block, keyed on what it read of the record.
 
+ACL `nested` has been replaced by the associations each model's Policy
+declares `writable`. Delete it, and make what it listed `writable` in the
+Policy instead: with `writable:` on an association it declares, or with
+`writable` on its own for one it doesn't render:
+
+    # Before, in PropertyACL
+    def nested
+      [ :photos, :landlord ]
+    end
+
+    # After
+    class PropertyPolicy < StandardAPI::Policy
+      association :photos, writable: true
+      writable :landlord
+    end
+
+An association that renders with a `policy:` also says which Policy writes
+it, ie. `association :landlord, policy: LandlordNamePolicy, writable: { policy:
+LandlordPolicy }` for its own model's.
+
 `json_schema.json` has been replaced by `schema/read.json`, `schema/write.json`
 and `schema/query.json` (see Schema Discovery in the README). For the shape
 of a record, with includes, use `schema/read.json`; for what a create or update
@@ -222,7 +250,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_policy`, `orderable`, `required_orders`, `filterable`,
-  `writable`, `value`, `hidden?` and `errors`.
+  `writable`, `writable_associations`, `writable_policy`, `value`, `hidden?`
+  and `errors`.
   `application/_record` and custom partials are built on it.
 - An ACL can be nested in its controller as an `ACL` module
   (`PhotosController::ACL`), as an alternative to `app/controllers/acl`.
@@ -277,8 +306,8 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
     validated, allow `null`; decimals are strings, binary is hex, and an
     enum lists its names.
   - `schema/write.json`: the params `#create` and `#update` accept, with only
-    the attributes the Policy makes `writable`, their validations, and the
-    associations the ACL's `nested` permits. `required` is for a create. A
+    the attributes and associations the Policy makes `writable`, and their
+    validations. `required` is for a create. A
     `read_only` definition is `readOnly`; an auto populated column isn't, and
     isn't `required`.
   - `schema/query.json`: the `where`, `order` and `include` the Policies

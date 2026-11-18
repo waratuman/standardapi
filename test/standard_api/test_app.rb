@@ -72,9 +72,11 @@ require 'standard_api/test_app/models'
   Photo => -> {
     attributes :id, :created_at, :account_id, orderable: true
     attributes :id, :account_id, filterable: true
-    associations :account
+    association :account, writable: true
     filterable :properties
     attributes :account_id, :property_id, :format, writable: true
+    # Written through, though it isn't rendered
+    writable :camera
   },
   Property => -> {
     attributes :id, :name, :aliases, :description, :constructed, :size, :created_at, :active,
@@ -82,6 +84,7 @@ require 'standard_api/test_app/models'
     attribute :id, filterable: true
     associations :photos, :landlord, :english_name, :document, :accounts
     associations :landlord, :accounts, filterable: true
+    associations :photos, :accounts, writable: true
     attributes :name, :aliases, :description, :constructed, :size, :active, :numericality, writable: true
   },
   Reference => -> { association :subject, types: ['Property'] },

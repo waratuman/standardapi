@@ -25,10 +25,9 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     @acl_controllers&.each { |c| c.send(:remove_const, :ACL) }
   end
 
-  test "a nested ACL is renamed under the model's prefix and included into the base controller" do
+  test "a nested ACL is included into the base controller" do
     assert_includes ApplicationController.ancestors, DocumentsController::ACL
-    assert_equal [:nested_document_attributes], DocumentsController::ACL.instance_methods(false).sort
-    assert_equal DocumentsController::ACL, PropertiesController.instance_method(:nested_document_attributes).owner
+    assert_equal DocumentsController::ACL, PropertiesController.instance_method(:document_acl_loaded?).owner
   end
 
   test "a nested ACL does not override the controller's includes and orders" do
@@ -47,19 +46,14 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "nested and filter are renamed to their own names" do
+  test "filter is renamed under the model's prefix" do
     acl_controller(Attachment) do
-      def nested
-        [ :record ]
-      end
-
       def filter(record, params, **)
         params
       end
     end
     StandardAPI::AccessControlList.load!
 
-    assert @acl_base.method_defined?(:nested_attachment_attributes)
     assert @acl_base.method_defined?(:filter_attachment_params)
   end
 
@@ -85,32 +79,26 @@ class ControllerACLTest < ActionDispatch::IntegrationTest
 
   test "two nested ACLs of one model defining the same method raise" do
     acl_controller(Attachment) do
-      def nested
-        [ :document ]
-      end
+      def filter(record, params, **) = params
     end
     acl_controller(Attachment) do
-      def nested
-        [ :record ]
-      end
+      def filter(record, params, **) = params
     end
 
     error = assert_raises(StandardAPI::InvalidConfiguration) { StandardAPI::AccessControlList.load! }
-    assert_match(/both define nested_attachment_attributes/, error.message)
+    assert_match(/both define filter_attachment_params/, error.message)
   end
 
   test "load! can be repeated" do
     acl_controller(Attachment) do
-      def nested
-        [ :document ]
-      end
+      def filter(record, params, **) = params
     end
     StandardAPI::AccessControlList.load!
     StandardAPI::AccessControlList.load!
 
-    assert_equal [:nested_attachment_attributes], @acl_controller::ACL.instance_methods(false)
+    assert_equal [:filter_attachment_params], @acl_controller::ACL.instance_methods(false)
     assert_equal 1, @acl_base.ancestors.count(@acl_controller::ACL)
-    assert_equal [:document], @acl_base.new.nested_attachment_attributes
+    assert_equal :params, @acl_base.new.send(:filter_attachment_params, nil, :params)
   end
 
 end
