@@ -175,22 +175,29 @@ module StandardAPI
     end
 
     # Identifies the Policies a fragment of +klass+ with +includes+ renders
-    # with, and what they declare (Policy.cache_digest), for its cache key:
-    # the Policy of +klass+, or +through+, the Policy class the association
-    # that included it gives, in its place, and that of every model
-    # +includes+ reach through it, each with the Policy the association
-    # including it gives, if it gives one. Without it a fragment cached before
-    # a Policy hid an attribute would still be served with it, and base
-    # controllers with different Policies for a model would share fragments.
+    # with, and what they render, for its cache key: the Policy of +klass+, or
+    # +through+, the Policy class the association that included it gives, in
+    # its place, and that of every model +includes+ reach through it, each
+    # with the Policy the association including it gives, if it gives one.
+    # Without it a fragment cached before a Policy hid an attribute would
+    # still be served with it, and base controllers with different Policies
+    # for a model would share fragments.
+    #
+    # What a Policy renders is the name and type of each attribute it
+    # renders for a model (a nil record). Only a Policy that doesn't vary by
+    # requester is cached (Controller#policy_varies?), and with no
+    # conditions, values or attributes_for that's what it renders for every
+    # record. A Policy that overrides varies_by_requester? to say it doesn't
+    # vary when it has them is responsible for what it renders per record.
     #
     # A record loaded as a model can be of one of its STI subclasses, which
     # renders with its own Policy, so theirs count as well
     # (Controller#rendered_models). What a polymorphic association or a method
     # includes isn't known without a record, and isn't cached
-    # (Controller#policy_varies?), so isn't covered.
+    # (Controller#policy_varies?), so isn't covered. An association a Policy
+    # stops declaring drops out of the parts, so changes the key too.
     #
-    # Each Policy's digest is computed once for its class; this is built from
-    # them once a request for +klass+, +includes+ and +through+.
+    # Built once a request for +klass+, +includes+ and +through+.
     def policy_cache_key(klass, includes = {}, through = nil)
       (@policy_cache_keys ||= {})[[klass, includes, through]] ||=
         ActiveSupport::Digest.hexdigest(policy_cache_parts(klass, includes, through).join("\n"))
@@ -200,8 +207,10 @@ module StandardAPI
       models = respond_to?(:rendered_models, true) ? rendered_models(klass) : [klass]
       models.flat_map do |model|
         policy = through ? policy_instance(through, model) : model_policy(model)
-        part = "#{model.name}:#{policy&.class&.name}:#{policy&.class&.cache_digest}"
-        next [part] if !policy
+        next ["#{model.name}:"] if !policy
+
+        rendered = StandardAPI::Policy::Record.new(self, model, nil, policy).attributes
+        part = "#{model.name}:#{policy.class.name}:#{rendered.map { |definition| [definition[:name], definition[:type]] }.to_json}"
 
         declared = policy.declared_includes
         nested = includes.flat_map do |name, sub_include|

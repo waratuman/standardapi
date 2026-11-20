@@ -231,43 +231,28 @@ class PolicyCachingTest < ActionDispatch::IntegrationTest
       key.({ 'account' => account_without_id }, { 'account' => { 'property' => {} } })
   end
 
-  test 'cache_digest is that of what a Policy declares, inherited or not' do
-    declarations = proc do
+  test 'policy_cache_key changes with what a Policy renders, not with how it declares it' do
+    key = ->(policy) do
+      ApplicationController.stubs(:standard_api_policies).returns('property' => policy)
+      AccountsController.new.send(:policy_cache_key, Property)
+    ensure
+      ApplicationController.unstub(:standard_api_policies)
+    end
+    policy = empty_policy_class do
       attributes :id, :name, orderable: true
       attribute :description, comment: 'About it'
-      association :accounts
     end
-    policy = empty_policy_class(&declarations)
 
-    assert_match(/\A\h+\z/, policy.cache_digest)
-    assert_equal policy.cache_digest, empty_policy_class(&declarations).cache_digest
-    assert_equal policy.cache_digest, Class.new(policy).cache_digest
+    assert_match(/\A\h+\z/, key.(policy))
+    assert_equal key.(policy), key.(Class.new(policy))
+    assert_equal key.(policy), key.(empty_policy_class { attributes :id, :name, :description })
+    # What doesn't change what renders doesn't change the key
+    assert_equal key.(policy), key.(Class.new(policy) { attribute :description, comment: 'Changed' })
+    assert_equal key.(policy), key.(Class.new(policy) { attribute :name, filterable: true })
 
-    assert_not_equal policy.cache_digest, Class.new(policy) { remove :name }.cache_digest
-    assert_not_equal policy.cache_digest, Class.new(policy) { attribute :aliases }.cache_digest
-    assert_not_equal policy.cache_digest, Class.new(policy) { attribute :description, comment: 'Changed' }.cache_digest
-    assert_not_equal policy.cache_digest, Class.new(policy) { association :accounts, policy: AccountPolicy }.cache_digest
-  end
-
-  test 'cache_digest is computed once, until the Policy declares more' do
-    policy = empty_policy_class { attributes :id, :name }
-    digest = policy.cache_digest
-    ActiveSupport::Digest.expects(:hexdigest).never
-    assert_equal digest, policy.cache_digest
-    ActiveSupport::Digest.unstub(:hexdigest)
-
-    policy.remove :name
-    assert_not_equal digest, policy.cache_digest
-  end
-
-  test 'cache_digest identifies a Proc by where it is defined, not by the object' do
-    build = -> { empty_policy_class { attribute :name, if: -> { true }; attributes_for(:account_id) { attribute :rank, :integer } } }
-    assert_equal build.().cache_digest, build.().cache_digest
-
-    moved = empty_policy_class do
-      attribute :name, if: -> { true }; attributes_for(:account_id) { attribute :rank, :integer }
-    end
-    assert_not_equal build.().cache_digest, moved.cache_digest
+    assert_not_equal key.(policy), key.(Class.new(policy) { remove :name })
+    assert_not_equal key.(policy), key.(Class.new(policy) { attribute :aliases })
+    assert_not_equal key.(policy), key.(Class.new(policy) { attribute :name, :integer })
   end
 
 end
