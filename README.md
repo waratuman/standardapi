@@ -108,7 +108,8 @@ the `policy` local.
 - `writable` is what a create or update of the record may set, as strong
   parameters permit it (see [Writes](#writes)); a model is a create.
 - `value(name)` is the value to render for an attribute (see `value:`).
-- `hidden?(name)` tells if it hides an attribute or association of the model.
+- `hidden?(name)` tells if it hides an attribute or association of the model,
+  or an attribute the Policy adds.
 - `errors` are the record's validation errors, less those on what it hides.
 
 `application/_record` is built on it, and

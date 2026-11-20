@@ -138,17 +138,16 @@ module StandardAPI
         policy ? policy.value(record, name) : record.send(name)
       end
 
-      # Whether it hides +name+, an attribute or association of the model.
-      # Unlike #attributes, a model with no Policy doesn't raise: it hides
-      # nothing.
+      # Whether it hides +name+: an attribute or association of the model, or
+      # an attribute its Policy adds, whose +if+ or +unless+ hides it. Any
+      # other name, ie. +base+, isn't hidden. Unlike #attributes, a model with
+      # no Policy doesn't raise: it hides nothing.
       def hidden?(name)
         name = name.to_s
-        if model.attribute_names.include?(name)
-          !!policy&.hidden_attributes(record)&.include?(name)
-        elsif model.reflect_on_association(name)
+        if !model.attribute_names.include?(name) && model.reflect_on_association(name)
           !include?(name)
         else
-          false
+          !!policy&.hidden_attributes(record)&.include?(name)
         end
       end
 
