@@ -58,19 +58,80 @@ end
 # Test Application Models
 require 'standard_api/test_app/models'
 
+# Every model the tests render declares all of its attributes, by name, as
+# most tests aren't about Policies, and what can be included, ordered by,
+# filtered on and written of it. Before the controllers, whose Policies inherit from them.
+{
+  Account => -> {
+    attribute :id, orderable: true, filterable: true
+    association :photos
+    association :property, orderable: true
+    association :subject, types: ['Property']
+    attributes :property_id, :name, writable: true
+  },
+  Photo => -> {
+    attributes :id, :created_at, :account_id, orderable: true
+    attributes :id, :account_id, filterable: true
+    association :account, writable: true
+    filterable :properties
+    attributes :account_id, :property_id, :format, writable: true
+    # Written through, though it isn't rendered
+    writable :camera
+  },
+  Property => -> {
+    attributes :id, :name, :aliases, :description, :constructed, :size, :created_at, :active,
+      :numericality, :build_type, :phone_number, :agree_to_terms, orderable: true
+    attribute :id, filterable: true
+    associations :photos, :landlord, :english_name, :document, :accounts
+    associations :landlord, :accounts, filterable: true
+    associations :photos, :accounts, writable: true
+    attributes :name, :aliases, :description, :constructed, :size, :active, :numericality, writable: true
+  },
+  Reference => -> { association :subject, types: ['Property'] },
+  Document => -> {
+    attribute :id, orderable: true
+    attribute :type, writable: true
+    writable :file
+    # Only a movie's rating can be written
+    attributes_for(-> { record&.type }) { |type| attribute :rating, writable: type == 'movie' }
+  },
+  Attachment => -> {},
+  UuidModel => -> {}
+}.each do |model, includes|
+  names = model.attribute_names
+  Object.const_set("#{model.name}Policy", Class.new(StandardAPI::Policy) {
+    attributes(*names)
+    class_exec(&includes)
+  })
+end
+
+# Its attributes_for only decides what's writable, not what renders
+DocumentPolicy.define_singleton_method(:varies_by_requester?) { false }
+
+# Accessory has no controller, so its Policy is found by name, and so is the one
+# of its STI subclass, which renders `serial` to some requesters only. The
+# header stands in for the current user, as in CamerasController::Policy.
+class AccessoryPolicy < StandardAPI::Policy
+  attributes :id, :type, :camera_id, :name
+end
+
+class FlashPolicy < AccessoryPolicy
+  attribute :serial, if: -> { request.headers['X-Admin'] == '1' }
+end
+
 # Test Application Controllers
 require 'standard_api/test_app/controllers'
 
 # The controllers above are defined after boot, outside app/controllers, so the
-# Railtie never saw their nested ACL modules.
-StandardAPI::AccessControlList.load!
+# Railtie never saw their nested Policies.
+StandardAPI::Policies.load!
 
 # Test Application Routes
 Rails.application.routes.draw do
   get :tables, to: 'application#tables', as: :tables
   get :schema, to: 'application#schema', as: :schema
 
-  [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit, :cameras].each do |r|
+  [:properties, :photos, :documents, :references, :sessions, :unlimited, :default_limit, :cameras, :notes].each do |r|
     standard_resources r
   end
 

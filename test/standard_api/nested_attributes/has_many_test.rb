@@ -77,9 +77,24 @@ module NestedAttributes
 
       attributes = JSON.parse(response.body)
       assert_response :ok
-      puts response.body
       assert_equal account.id, attributes["accounts"][0]["id"]
       assert_equal "B Co.", attributes["accounts"][0]["name"]
+    end
+
+    test "update record doesn't render a nested record its Policy doesn't declare" do
+      account = create(:account, name: 'A Co.')
+      property = create(:property, name: 'Empire State Building', accounts: [account])
+      policy = Class.new(PropertyPolicy) { remove :accounts; writable :accounts }
+      policies = ApplicationController.standard_api_policies.merge('property' => policy)
+      ApplicationController.stubs(:standard_api_policies).returns(policies)
+
+      put property_path(property), params: { property: { accounts: [{id: account.id, name: "B Co."}]} }, as: :json
+
+      assert_response :ok
+      assert_not JSON.parse(response.body).key?('accounts')
+      assert_equal 'B Co.', account.reload.name
+    ensure
+      ApplicationController.unstub(:standard_api_policies)
     end
 
   end

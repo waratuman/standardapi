@@ -67,12 +67,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   # = Controller Tests
 
-  test 'include StandardAPI includes Controller and AccessControlList' do
+  test 'include StandardAPI includes Controller and Policies' do
     klass = Class.new(ActionController::Base) do
       include StandardAPI
     end
     assert klass.ancestors.include?(StandardAPI::Controller), "Expected StandardAPI::Controller to be included"
-    assert klass.ancestors.include?(StandardAPI::AccessControlList), "Expected StandardAPI::AccessControlList to be included"
+    assert klass.ancestors.include?(StandardAPI::Policies), "Expected StandardAPI::Policies to be included"
   end
 
   test 'StandardAPI-Version' do
@@ -90,72 +90,53 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test 'Orders#orders_for defaults to []' do
-    @controller = ReferencesController.new
-    assert_equal @controller.send(:orders_for, Reference), []
+  test 'Policy::Record#orderable is [] when the Policy makes nothing orderable' do
+    assert_equal [], ReferencesController.new.record_policy(Reference).orderable
   end
 
-  test 'Controller#model_orders overrides raise' do
-    AccountsController.class_eval do
-      private def model_orders
-        [ "id", "name" ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get accounts_path(order: { name: :asc }, limit: 10, format: 'json')
-    end
-    assert_equal 'AccountsController#model_orders is not supported, define account_orders in AccountACL instead', error.message
-  ensure
-    AccountsController.send(:remove_method, :model_orders)
+  test "Policy::Record#orderable falls back to the base class's Policy" do
+    assert_equal ['id'], DocumentsController.new.record_policy(Pdf).orderable
   end
 
-  test 'Orders#orders_for falls back to the orders of the base class' do
-    orders_for = Class.new do
-      include StandardAPI::Orders
-      private def document_orders = [:id]
-    end.new.method(:orders_for)
-
-    assert_equal [:id], orders_for.call(Pdf)
-  end
-
-  test 'TestCase#where_permitted? checks the ACL wheres' do
+  test "TestCase#where_permitted? checks what the Policy makes filterable" do
     assert where_permitted?({ id: 1 })
     assert_not where_permitted?({ name: 'a' })
   end
 
-  test 'Wheres#wheres_for falls back to the wheres of the base class' do
-    wheres_for = Class.new do
-      include StandardAPI::Wheres
-      private def document_wheres = [:id]
-    end.new.method(:wheres_for)
-
-    assert_equal [:id], wheres_for.call(Pdf)
+  test "Policy::Record#filterable falls back to the base class's Policy" do
+    with_model_policy(Document, Class.new(DocumentPolicy) { attribute :id, filterable: true }) do
+      assert_equal({ 'id' => :all }, DocumentsController.new.record_policy(Pdf).filterable)
+    end
   end
 
-  test 'Includes#includes_for falls back to the includes of the base class' do
-    includes_for = Class.new do
-      include StandardAPI::Includes
-      private def document_includes = [:id]
-    end.new.method(:includes_for)
-
-    assert_equal [:id], includes_for.call(Pdf)
+  test "Policy#declared_includes is what the Policy declares can be included" do
+    includes = AccountPolicy.new(AccountsController.new, Account).declared_includes
+    assert_equal %w[photos property subject], includes.keys.sort
+    assert_equal [Property], includes['subject'][:types]
+    assert_nil includes['photos'][:policy]
   end
 
-  test 'Includes#includes_for defaults to []' do
-    @controller = DocumentsController.new
-    assert_equal @controller.send(:includes_for, Document), []
+  test "Includes#sanitize_includes checks an STI subclass against its base class's Policy" do
+    sanitize = -> { DocumentsController.new.send(:sanitize_includes, :file, Pdf) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call }
+
+    # file is a method of Document
+    policies = ApplicationController.standard_api_policies.merge('document' => Class.new(DocumentPolicy) { association :file })
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
+    assert_equal({ 'file' => {} }, sanitize.call)
+  ensure
+    ApplicationController.unstub(:standard_api_policies)
+  end
+
+  test 'Includes#sanitize_includes permits nothing without a model or Policy' do
+    assert_raises(StandardAPI::UnpermittedParameters) do
+      DocumentsController.new.send(:sanitize_includes, :anything, nil)
+    end
+    assert_equal({ 'limit' => 1 }, DocumentsController.new.send(:sanitize_includes, { limit: 1 }, nil))
   end
 
   test 'Controller#model_params defaults to ActionController::Parameters' do
     @controller = DocumentsController.new
-    @controller.params = ActionController::Parameters.new
-    @controller.action_name = 'create'
-    assert_equal @controller.send(:model_params), ActionController::Parameters.new
-  end
-
-  test 'Controller#model_params defaults to ActionController::Parameters when no resource_attributes' do
-    @controller = ReferencesController.new
     @controller.params = ActionController::Parameters.new
     @controller.action_name = 'create'
     assert_equal @controller.send(:model_params), ActionController::Parameters.new
@@ -173,27 +154,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_params).to_h, {}
   end
 
-  # Regression for #97: an ACL `attributes(record)` with a *required* argument
-  # must not raise `ArgumentError` when resolved in a schema context (no record).
-  # `model_attributes` forwards the record when present and `nil` otherwise, so
-  # both the filter path and the schema path share one arity contract.
-  test 'Controller#model_attributes forwards the record to a record-aware ACL' do
-    @controller = DocumentsController.new
-    @controller.define_singleton_method(:document_attributes) do |record|
-      record&.type == 'movie' ? [:file, :type, :rating] : [:file, :type]
-    end
+  test 'Policy::Record#writable is decided for the record, a model being a create' do
+    controller = DocumentsController.new
 
-    # Schema context: no record, ACL is invoked with nil rather than zero args.
-    assert_equal [:file, :type], @controller.model_attributes(Document)
-
-    # Filter context: the record is forwarded so per-record decisions still work.
-    movie = create(:document, type: 'movie')
-    assert_equal [:file, :type, :rating], @controller.model_attributes(Document, movie)
+    assert_equal ['type', 'file'], controller.record_policy(Document).writable
+    assert_equal ['type', 'file', 'rating'], controller.record_policy(create(:document, type: 'movie')).writable
   end
 
-  test 'Controller#model_attributes returns nil without an ACL attributes method' do
-    @controller = ReferencesController.new
-    assert_nil @controller.model_attributes(Reference)
+  test 'Policy::Record#writable is empty when the Policy makes nothing writable' do
+    assert_equal [], ReferencesController.new.record_policy(Reference).writable
   end
 
   test 'Controller#mask' do
@@ -219,7 +188,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     controllers = ApplicationController.descendants
     controllers.select! { |c| c.ancestors.include?(StandardAPI::Controller) && c != StandardAPI::Controller }
 
-    @controller.send(:models).reject { |x| %w(Photo Document).include?(x.name)  }.each do |model|
+    @controller.send(:models).reject { |x| %w(Photo Document Note).include?(x.name)  }.each do |model|
       assert_equal true, schema['models'].has_key?(model.name)
 
       model_comment = model.connection.table_comment(model.table_name)
@@ -248,20 +217,22 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        if column.comment
-          assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
+        # CamerasController::Policy declares a comment of its own
+        comment = model == Camera && column.name == 'make' ? 'The manufacturer' : column.comment
+        if comment
+          assert_equal comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
         end
 
-        if column.respond_to?(:auto_populated?)
-          assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
-        end
+        assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
       end
     end
 
     assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
     assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
+    # ReferencePolicy makes nothing writable
+    assert_equal true, schema['models']['Reference']['attributes']['key']['readonly']
 
     assert_equal [
       {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}
@@ -390,7 +361,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "cameras", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "cameras", "documents", "notes", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do
@@ -540,23 +511,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'include with when key renders the include only for matching records' do
-    ApplicationController.class_eval do
-      private def property_wheres
-        [ :id, :name ]
-      end
-    end
-
     photo = create(:photo)
     matching = create(:property, name: 'a', photos: [photo])
     other = create(:property, name: 'b', photos: [create(:photo)])
 
-    get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    with_model_policy(Property, Class.new(PropertyPolicy) { attribute :name, filterable: true }) do
+      get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'a' } } } }
+    end
     assert_response :ok
     json = JSON(response.body).index_by { |x| x['id'] }
     assert_equal [photo.id], json[matching.id]['photos'].map { |x| x['id'] }
     assert_not json[other.id].has_key?('photos')
-  ensure
-    ApplicationController.send(:remove_method, :property_wheres)
   end
 
   test 'include with when key only reads attributes' do
@@ -571,7 +536,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { account: { when: { destroy: '1' } } } } }
     assert_response :bad_request
 
-    # An attribute PropertyACL#wheres doesn't permit
+    # An attribute PropertyPolicy doesn't make filterable
     get properties_path(format: 'json'), params: { limit: 10, include: { photos: { when: { name: 'x' } } } }
     assert_response :bad_request
   end
@@ -583,7 +548,8 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       def self.name = 'Property'
     end
     controller = PropertiesController.new
-    controller.define_singleton_method(:property_wheres) { [ :name, :title, :featured ] }
+    policy = Class.new(PropertyPolicy) { filterable :name, :title, :featured }
+    controller.stubs(:model_policy).returns(policy.new(controller, klass))
     check = controller.method(:check_include_when)
 
     assert_nothing_raised { check.call('photos', { 'name' => 'a', 'title' => 'a', 'featured' => true }, klass) }
@@ -614,10 +580,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       JSON(response.body)['photos'].map { |x| x['id'] }.sort
   end
 
-  test 'include with where key rejects wheres the included ACL does not permit' do
+  test 'include with where key rejects wheres the included Policy does not permit' do
     property = create(:property, photos: [create(:photo)])
 
-    # PhotoACL#wheres does not permit format
+    # PhotoPolicy doesn't make format filterable
     get property_path(property, include: { photos: { where: { format: 'jpg' } } }, format: :json)
     assert_response :bad_request
     assert_equal 'found unpermitted parameter: "format"', response.body
@@ -643,10 +609,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal photos.map(&:id).sort, JSON(response.body)['photos'].map { |x| x['id'] }
   end
 
-  test 'include with order key rejects orders the included ACL does not permit' do
+  test "include with order key rejects orders the included model's Policy doesn't make orderable" do
     property = create(:property, photos: [create(:photo)])
 
-    # PhotoACL#orders doesn't permit format
+    # PhotoPolicy doesn't make format orderable
     get property_path(property, include: { photos: { order: { format: :asc } } }, format: 'json')
     assert_response :bad_request
 
@@ -654,22 +620,16 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'include with order key through an association uses the associated ACL' do
-    ApplicationController.class_eval do
-      private def photo_orders
-        [ :id, :account ]
-      end
-    end
-
+  test "include with order key through an association uses the associated model's Policy" do
     b = create(:photo, account: create(:account, name: 'b'))
     a = create(:photo, account: create(:account, name: 'a'))
     property = create(:property, photos: [b, a])
 
-    get property_path(property, include: { photos: { order: { account: { id: :desc } } } }, format: 'json')
+    with_model_policy(Photo, Class.new(PhotoPolicy) { association :account, orderable: true }) do
+      get property_path(property, include: { photos: { order: { account: { id: :desc } } } }, format: 'json')
+    end
     assert_response :ok
     assert_equal [a.id, b.id], JSON(response.body)['photos'].map { |x| x['id'] }
-  ensure
-    ApplicationController.send(:remove_method, :photo_orders)
   end
 
   test 'include with order key under a polymorphic association is rejected' do
@@ -773,10 +733,10 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'unknown inlcude' do
-    property = create(:property, accounts: [ create(:account) ])
-    get property_path(property, include: [:accounts], format: 'json')
+    property = create(:property)
+    get property_path(property, include: [:document_attachments], format: 'json')
     assert_response :bad_request
-    assert_equal 'found unpermitted parameter: "accounts"', response.body
+    assert_equal 'found unpermitted parameter: "document_attachments"', response.body
   end
 
   test 'unknown order' do
@@ -786,7 +746,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "updated_at"', response.body
   end
 
-  test 'order through an association uses the associated ACL' do
+  test 'order through an association uses the associated Policy' do
     b = create(:account, property: create(:property, name: 'b'))
     a = create(:account, property: create(:property, name: 'a'))
 
@@ -804,23 +764,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test 'order through an association rejects orders ActiveRecord::Sort can not order by' do
-    ApplicationController.class_eval do
-      private def property_orders
-        [ "name", "landlord" ]
-      end
-    end
-
     create(:account, property: create(:property))
 
     # ActiveRecord::Sort only orders one association deep
-    get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    with_model_policy(Property, Class.new(PropertyPolicy) { association :landlord, orderable: true }) do
+      get accounts_path(order: { property: { landlord: { id: :asc } } }, limit: 10, format: 'json')
+    end
     assert_response :bad_request
     assert_equal 'Unknown column landlord', response.body
-  ensure
-    ApplicationController.send(:remove_method, :property_orders)
   end
 
-  test 'order through an association rejects orders the associated ACL does not permit' do
+  test "order through an association rejects orders the associated model's Policy doesn't make orderable" do
     create(:account, property: create(:property))
 
     get accounts_path(order: { property: { updated_at: :asc } }, limit: 10, format: 'json')
@@ -830,47 +784,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test 'orders permitting columns of an association raise' do
-    ApplicationController.class_eval do
-      private def account_orders
-        [ "id", { property: [:name] } ]
-      end
-    end
-
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get accounts_path(order: { property: { name: :asc } }, limit: 10, format: 'json')
-    end
-    assert_equal 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead', error.message
-  ensure
-    ApplicationController.send(:remove_method, :account_orders)
-  end
-
-  test 'Orders#orders_for raises on any Hash permit' do
-    orders_for = Class.new do
-      include StandardAPI::Orders
-      private def account_orders = @orders
-    end.new
-
-    {
-      { property: [:name] } => 'AccountACL#orders permitting property in a Hash is not supported, permit :property in AccountACL#orders and its columns in PropertyACL#orders instead',
-      { subject: [:id] } => 'AccountACL#orders permitting subject in a Hash is not supported, ordering through a polymorphic association is not supported',
-      { name: [:asc] } => 'AccountACL#orders permitting name in a Hash is not supported, permit :name instead'
-    }.each do |permit, message|
-      orders_for.instance_variable_set(:@orders, ["id", permit])
-      error = assert_raises(StandardAPI::InvalidConfiguration) { orders_for.send(:orders_for, Account) }
-      assert_equal message, error.message
-    end
+  # A stand-in Policy::Record that makes +permit+ orderable on +model+
+  def orderable_policy(model, permit)
+    Struct.new(:model, :orderable).new(model, permit)
   end
 
   test 'Orders#sanitize_orders rejects ordering through a polymorphic association' do
     sanitize = AccountsController.new.method(:sanitize_orders)
 
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ subject: { id: :asc } }, [:subject], Account)
+      sanitize.call({ subject: { id: :asc } }, orderable_policy(Account, [:subject]))
     end
   end
 
-  test 'include through an association uses the associated ACL' do
+  test 'include through an association uses the associated Policy' do
     property = create(:property)
     account = create(:account, property: property)
     photo = create(:photo, account: account)
@@ -881,7 +808,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal [photo.id], JSON(response.body)['landlord']['photos'].map { |x| x['id'] }
   end
 
-  test 'include through an association rejects includes the associated ACL does not permit' do
+  test 'include through an association rejects includes the associated Policy does not permit' do
     property = create(:property, photos: [create(:photo)])
 
     get property_path(property, include: { photos: :camera }, format: 'json')
@@ -889,7 +816,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 'found unpermitted parameter: "camera"', response.body
   end
 
-  test 'include through two associations uses each associated ACL' do
+  test 'include through two associations uses each associated Policy' do
     account = create(:account)
     camera = create(:camera, photo: create(:photo, account: account))
 
@@ -898,101 +825,128 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal account.id, JSON(response.body)['photo']['account']['id']
   end
 
-  test 'includes permitting includes of an association raise' do
-    ApplicationController.class_eval do
-      private def camera_includes
-        { photo: [ :account ] }
-      end
-    end
+  test "a polymorphic association's types permit what their Policies declare" do
+    sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
 
-    camera = create(:camera, photo: create(:photo))
+    # AccountPolicy declares subject with types: ['Property']
+    assert_equal({ 'subject' => { 'landlord' => { 'photos' => {} } } }, sanitize.call({ subject: { landlord: :photos } }))
+    assert_equal({ 'subject' => { 'limit' => 1 } }, sanitize.call({ subject: { limit: 1 } }))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :document_attachments }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { where: { id: 1 } } }) }
+  end
 
-    error = assert_raises(StandardAPI::InvalidConfiguration) do
-      get "/cameras/#{camera.id}", params: { include: { photo: :account } }, as: :json
-    end
-    assert_equal 'CameraACL#includes permitting includes of photo is not supported, permit :photo in CameraACL#includes and its includes in PhotoACL#includes instead', error.message
+  test "a polymorphic association's includes can each come from a different type" do
+    policies = ApplicationController.standard_api_policies.merge('account' => Class.new(AccountPolicy) { association :subject, types: [Property, Photo] })
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
+    sanitize = ->(includes) { AccountsController.new.send(:sanitize_includes, includes, Account) }
+
+    # landlord is PropertyPolicy's and account PhotoPolicy's
+    assert_equal({ 'subject' => { 'landlord' => {}, 'account' => {} } }, sanitize.call({ subject: [:landlord, :account] }))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :camera }) }
   ensure
-    ApplicationController.send(:remove_method, :camera_includes)
+    ApplicationController.unstub(:standard_api_policies)
   end
 
-  test 'Includes#includes_for raises on includes of an association, other than a polymorphic one or a method' do
-    includes_for = Class.new do
-      include StandardAPI::Includes
-      private def account_includes = @includes
-    end.new
-
-    # subject is polymorphic and specs is a method of Camera
-    includes_for.instance_variable_set(:@includes, { subject: [:landlord], photos: true })
-    assert_equal({ subject: [:landlord], photos: true }, includes_for.send(:includes_for, Account))
-    assert_equal({ specs: [:serial] }, Class.new { include StandardAPI::Includes; private def camera_includes = { specs: [:serial] } }.new.send(:includes_for, Camera))
-
-    includes_for.instance_variable_set(:@includes, { photos: [:camera] })
-    assert_raises(StandardAPI::InvalidConfiguration) { includes_for.send(:includes_for, Account) }
+  test 'types must be models or their names' do
+    assert_raises(ArgumentError) { Class.new(StandardAPI::Policy) { association :subject, types: [:property] } }
   end
 
-  test 'Controller#model_includes overrides raise' do
-    AccountsController.class_eval do
-      private def model_includes
-        [ :photos ]
-      end
-    end
+  test "Includes#sanitize_includes checks an association's includes against its model's Policy" do
+    sanitize = ->(includes) { PropertiesController.new.send(:sanitize_includes, includes, Property) }
 
-    account = create(:account)
-
-    # #show first calls #includes from the view, which wraps the error
-    error = assert_raises(ActionView::Template::Error) do
-      get account_path(account, include: :photos, format: 'json')
-    end
-    assert_instance_of StandardAPI::InvalidConfiguration, error.cause
-    assert_equal 'AccountsController#model_includes is not supported, define account_includes in AccountACL instead', error.cause.message
-  ensure
-    AccountsController.send(:remove_method, :model_includes)
+    # PropertyPolicy declares landlord, an Account, and AccountPolicy photos
+    assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }))
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: :agents }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ document_attachments: true }) }
   end
 
-  test 'Includes#sanitize_includes checks an association permitted by name against its ACL' do
-    sanitize = Class.new do
-      include StandardAPI::Includes
-      private def account_includes = [:photos]
-    end.new.method(:sanitize_includes)
+  test "Includes#sanitize_includes checks an association's includes against its policy" do
+    through = Class.new(StandardAPI::Policy) { associations :property }
+    policy = Class.new(PropertyPolicy) { association :landlord, policy: through }
+    controller = PropertiesController.new
+    controller.stubs(:model_policy).with(Property).returns(policy.new(controller, Property))
 
-    assert_equal({ 'landlord' => { 'photos' => {} } }, sanitize.call({ landlord: :photos }, [:landlord], Property))
+    assert_equal({ 'landlord' => { 'property' => {} } }, controller.send(:sanitize_includes, { landlord: :property }, Property))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: :property }, [:landlord], Property)
-    end
-
-    # An explicit nested permit, or a call without a model, is unchanged
-    assert_equal({ 'landlord' => { 'property' => {} } }, sanitize.call({ landlord: :property }, { landlord: [:property] }, Property))
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: :photos }, [:landlord], nil)
+      controller.send(:sanitize_includes, { landlord: :photos }, Property)
     end
   end
 
-  test 'Orders#sanitize_orders checks an association permitted by name against its ACL' do
-    sanitize = Class.new do
-      include StandardAPI::Orders
-      private def account_orders = [:name]
-    end.new.method(:sanitize_orders)
+  # The Policies of a Property whose landlord, an Account, is included with
+  # +landlord_policy+
+  def stub_landlord_policy(controller, landlord_policy)
+    policy = Class.new(PropertyPolicy) { association :landlord, policy: landlord_policy }
+    controller.stubs(:model_policy).with(Property).returns(policy.new(controller, Property))
+    controller.stubs(:model_policy).with(Account).returns(AccountPolicy.new(controller, Account))
+    controller.stubs(:model_policy).with(Photo).returns(PhotoPolicy.new(controller, Photo))
+  end
 
-    assert_equal({ landlord: { name: :asc } }, sanitize.call({ landlord: { name: :asc } }, [:landlord], Property))
-    assert_equal({ landlord: :name }, sanitize.call('landlord.name', [:landlord], Property))
+  test "Includes#sanitize_includes checks an include's where, order and when against its policy" do
+    # AccountPolicy makes id filterable and orderable, not name
+    through = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      attribute :name, filterable: true, orderable: true
+      association :photos
+    end
+    controller = PropertiesController.new
+    stub_landlord_policy(controller, through)
+    sanitize = ->(includes) { controller.send(:sanitize_includes, includes, Property) }
+
+    assert_nothing_raised { sanitize.call({ landlord: { where: { name: 'a' } } }) }
+    assert_nothing_raised { sanitize.call({ landlord: { order: { name: :asc } } }) }
+    assert_nothing_raised { sanitize.call({ landlord: { photos: { when: { name: 'a' } } } }) }
+
+    # What only the model's Policy permits isn't what the landlord renders with
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { order: { id: :asc } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { photos: { when: { id: 1 } } } }) }
+  end
+
+  test "Includes#sanitize_includes checks an include's where and order against what its policy gives for a model" do
+    through = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      attribute :name, filterable: true, orderable: true
+    end
+    sanitize = ->(landlord_policy, includes) do
+      controller = PropertiesController.new
+      stub_landlord_policy(controller, landlord_policy)
+      controller.send(:sanitize_includes, includes, Property)
+    end
+
+    # A Proc is called with a nil record, as none is loaded yet
+    assert_nothing_raised { sanitize.call(-> { through }, { landlord: { where: { name: 'a' } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { through }, { landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { through }, { landlord: { order: { id: :asc } } }) }
+
+    # When it gives none, the model's Policy
+    assert_nothing_raised { sanitize.call(-> { nil }, { landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { nil }, { landlord: { where: { name: 'a' } } }) }
+  end
+
+  test "Orders#sanitize_orders checks an association permitted by name against its model's Policy" do
+    # AccountPolicy makes id orderable, not name
+    sanitize = PropertiesController.new.method(:sanitize_orders)
+
+    assert_equal({ landlord: { id: :asc } }, sanitize.call({ landlord: { id: :asc } }, orderable_policy(Property, [:landlord])))
+    assert_equal({ landlord: :id }, sanitize.call('landlord.id', orderable_policy(Property, [:landlord])))
     assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: { id: :asc } }, [:landlord], Property)
+      sanitize.call({ landlord: { name: :asc } }, orderable_policy(Property, [:landlord]))
     end
 
     # A column is unchanged
-    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, [:name], Property))
+    assert_equal({ name: :desc }, sanitize.call({ name: :desc }, orderable_policy(Property, [:name])))
   end
 
-  test 'Orders#sanitize_orders rejects ordering through an association whose model has no orders' do
-    sanitize = Class.new do
-      include StandardAPI::Orders
-    end.new.method(:sanitize_orders)
+  test 'Orders#sanitize_orders rejects ordering through an association whose model has nothing orderable' do
+    sanitize = PropertiesController.new.method(:sanitize_orders)
 
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call({ landlord: { name: :asc } }, [:landlord], Property)
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      sanitize.call('landlord.name', [:landlord], Property)
+    with_model_policy(Account, Class.new(AccountPolicy) { attribute :id, orderable: false }) do
+      assert_raises(StandardAPI::UnpermittedParameters) do
+        sanitize.call({ landlord: { id: :asc } }, orderable_policy(Property, [:landlord]))
+      end
+      assert_raises(StandardAPI::UnpermittedParameters) do
+        sanitize.call('landlord.id', orderable_policy(Property, [:landlord]))
+      end
     end
   end
 
@@ -1021,36 +975,20 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   # sanitize_includes({:key => {:value => {}}}, {:key => {:value => true}}) # => {:key => {:value => {}}}
   # sanitize_includes({:key => {:value => {}}}, [:key]) => # Raises ParseError
   test 'Includes#sanitize_includes' do
-    # Checked against +permit+ alone, without a model
-    method = ->(includes, permit) { PropertiesController.new.send(:sanitize_includes, includes, permit, nil) }
-    assert_equal method.call(:x, [:x]), { 'x' => {} }
-    assert_equal method.call(:x, {:x => true}), { 'x' => {} }
+    method = ->(includes) { PropertiesController.new.send(:sanitize_includes, includes, Property) }
+    assert_equal({ 'photos' => {}, 'landlord' => {} }, method.call([:photos, :landlord]))
+    assert_equal({ 'photos' => { 'account' => {} } }, method.call({ photos: { account: true } }))
 
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call([:x, :y], [:x])
-    end
-
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call([:x, :y], {:x => true})
-    end
-
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({:x => true, :y => true}, [:x])
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({:x => true, :y => true}, {:x => true})
-    end
-    assert_raises(StandardAPI::UnpermittedParameters) do
-      method.call({ x: { y: true }}, { x: true })
-    end
-
-    assert_equal method.call({ x: { y: true }}, { x: { y: true } }), { 'x' => { 'y' => {} } }
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call(:x) }
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call([:photos, :x]) }
+    # PhotoPolicy declares account, not property
+    assert_raises(StandardAPI::UnpermittedParameters) { method.call({ photos: { property: true } }) }
   end
 
   # Order Test
 
   test 'Orders#sanitize_orders(:column, [:column])' do
-    method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, permit, Account) }
+    method = ->(orders, permit) { AccountsController.new.send(:sanitize_orders, orders, orderable_policy(Account, permit)) }
 
     assert_equal :name, method.call(:name, [:name])
     assert_equal :name, method.call(:name, [:name])
@@ -1069,7 +1007,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ name: { desc: :nulls_last } }, method.call([{ name: { desc: :nulls_last } }], [:name]))
     assert_equal({ name: { desc: :nulls_first }}, method.call([{ name: { desc: :nulls_first } }], [:name]))
 
-    # Through an association, checked against PropertyACL#orders
+    # Through an association, checked against PropertyPolicy
     assert_equal({ property: :id }, method.call(['property.id'], [:property]))
     assert_equal({ property: :id }, method.call([{ property: :id }], [:property]))
     assert_equal({ property: :id }, method.call([{ property: [:id] }], [:property]))

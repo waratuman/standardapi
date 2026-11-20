@@ -1,8 +1,18 @@
 module StandardAPI
   module Helpers
+    include StandardAPI::Helpers::JSONSchema
+
+    # The value of attribute +name+ to render for +record+, from the Policy it
+    # renders with (Policy#value), so a declared +value+ renders in place of
+    # the record's. An override of serialize_attribute should read the value
+    # with this.
+    def attribute_value(record, name)
+      policy = controller.send(:rendering_policy, record) if respond_to?(:controller) && controller.respond_to?(:rendering_policy, true)
+      policy ? policy.value(record, name) : record.send(name)
+    end
 
     def serialize_attribute(json, record, name, type)
-      value = record.send(name)
+      value = attribute_value(record, name)
 
       json.set! name, type == :binary ? value&.unpack1('H*') : value
     end
@@ -61,67 +71,58 @@ module StandardAPI
       end
     end
 
-    # The excludes that apply to +record+ inside a partial: the record's own
-    # ACL excludes deep-merged with whatever the parent partial passed down as
-    # the `excludes` local.
-    #
-    # Custom model partials MUST call this and honour the result. StandardAPI
-    # enforces excludes in application/_record only; it cannot filter
-    # attributes a hand-written partial serializes itself.
-    #
-    #   excluded = resolve_excludes(photo, local_assigns[:excludes])
-    #
-    #   json.set! :format, photo.format unless excluded[:format] == true
-    #
-    #   # forward the sub-tree when rendering a nested record
-    #   json.partial! 'application/record', record: photo.account,
-    #     includes: includes[:account], excludes: sub_excludes(excluded, :account)
-    def resolve_excludes(record, inherited = nil)
-      own = respond_to?(:excludes) ? excludes(record) : nil
-      StandardAPI::Excludes.deep_merge(own, inherited)
-    end
-
-    # The exclude sub-tree to forward for +key+, or nil when there is nothing
-    # to forward. Returns nil for a terminal `true` — that case means the key
-    # is dropped entirely and should never be rendered.
-    def sub_excludes(excluded, key)
-      value = excluded[key]
-      value.is_a?(Hash) ? value : nil
-    end
-
-    # Apply an exclude sub-tree to a plain JSON value.
-    #
-    # An include can resolve to something that isn't a record — a method
-    # returning a Hash or an Array of Hashes — in which case there is no
-    # partial to enforce the excludes and the value would otherwise be
-    # serialized whole.
-    def apply_excludes(value, excluded)
-      return value if excluded.blank?
-
+    # The records to render for +value+, what a method rendered as an include
+    # returned, when it's a relation or an Array of records, or nil when it's
+    # anything else. They render like the records of an association, each with
+    # its Policy, where `as_json` would render every column they have. A
+    # relation is filtered through the controller's mask for its table, as an
+    # included collection is.
+    def included_records(value)
       case value
+      when ::ActiveRecord::Relation
+        value = value.filter(mask[value.klass.table_name.to_sym]) if respond_to?(:mask)
+        value.to_a
       when Array
-        value.map { |v| apply_excludes(v, excluded) }
-      when Hash
-        value.each_with_object({}) do |(key, v), result|
-          sub = excluded[key]
-          next if sub == true
-
-          result[key] = sub.is_a?(Hash) ? apply_excludes(v, sub) : v
-        end
-      else
-        value
+        value if value.any? && value.all?(::ActiveRecord::Base)
       end
     end
 
-    # Drop validation errors belonging to an excluded attribute. An error key
-    # names the attribute it came from, and its message usually quotes the
-    # value, so serializing the errors untouched hands back exactly what the
-    # exclude was hiding. Nested keys like `photos.caption` are matched on
-    # their leading segment.
-    def reject_excluded_errors(errors, excluded)
-      return errors if excluded.blank?
+    # The JSON of +value+, what the method +name+ of +record+ rendered as an
+    # include returned, when it's neither a record nor records
+    # (#included_records): plain JSON data renders whole, a Duration as its
+    # seconds and a Set as an Array. Anything else, a model that isn't an
+    # ActiveRecord or any other object, has no Policy to render with, and
+    # `as_json` would render all of its instance variables, so it raises
+    # MissingPolicy. So does a record in a Hash, a Set, or an Array with
+    # anything but records, which renders with its Policy only on its own.
+    # +returned+ is what the method returned, for the message.
+    def included_value(record, name, value, returned = value)
+      case value
+      when nil, true, false, String, Symbol, Numeric, ::ActiveSupport::Duration
+        value.as_json
+      when Hash
+        value.to_h { |k, v| [included_value(record, name, k, returned).to_s, included_value(record, name, v, returned)] }
+      when Array, ::Set
+        value.map { |v| included_value(record, name, v, returned) }
+      else
+        return value.as_json if value.acts_like?(:date) || value.acts_like?(:time)
 
-      errors.reject { |attribute, _| excluded[attribute.to_s.split('.').first] == true }
+        description = returned.class.name
+        description += " containing #{value.class.name}" if !value.equal?(returned)
+        reason = if value.is_a?(::ActiveRecord::Base)
+          "a record renders with its Policy only when a method returns it, or a relation or an Array of only records"
+        else
+          "a model that isn't an ActiveRecord can't have a Policy, not even one the association's `policy` gives"
+        end
+        raise StandardAPI::MissingPolicy.new(value.class, <<~MSG.squish)
+          The include #{name} (#{record.class.name}##{name}) returned #{description},
+          which has no Policy to render with; #{reason}. A method include renders
+          an ActiveRecord record, or a relation or an Array of them, with its
+          Policy, and plain JSON data (nil, a String, Symbol, Numeric, true,
+          false, Date, Time or Duration, or a Hash, an Array or a Set of them)
+          whole.
+        MSG
+      end
     end
 
     def can_cache?(klass, includes)
@@ -141,14 +142,14 @@ module StandardAPI
       end
     end
 
-    # +excludes+ is the exclude sub-tree the parent partial is forwarding for
-    # this relation, if any. Its presence alone makes the fragment specific to
-    # this requester.
-    def can_cache_relation?(record, relation, subincludes, excludes = nil)
+    # +policy+ is the Policy class the records of this relation render with in
+    # place of their model's (Policy::Record#association_policy). A fragment it
+    # renders isn't cached, as its key doesn't include it.
+    def can_cache_relation?(record, relation, subincludes, policy = nil)
       return false if record.new_record?
       cache_columns = ["#{relation}_cached_at"] + cached_at_columns_for_includes(subincludes).map {|c| "#{relation}_#{c}"}
       return false if !(cache_columns - record.class.column_names).empty?
-      return false if excludes.present?
+      return false if policy
 
       association = record.class.reflect_on_association(relation)
       return true if association.nil?
@@ -164,7 +165,7 @@ module StandardAPI
     end
 
     # False when rendering +klass+ with +includes+ could vary by requester,
-    # through an ACL exclude rule or a row mask. Cache keys are built from
+    # through a Policy that varies or a row mask. Cache keys are built from
     # record timestamps and the include digest alone, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.
@@ -172,9 +173,9 @@ module StandardAPI
     # Returns true outside a StandardAPI controller, where neither mechanism
     # exists.
     def requester_independent?(klass, includes)
-      return true if !respond_to?(:excludes_affect?)
+      return true if !respond_to?(:policy_varies?)
 
-      !excludes_affect?(klass, includes) && !mask_affect?(klass, includes)
+      !policy_varies?(klass, includes) && !mask_affect?(klass, includes)
     end
 
     def association_cache_key(record, relation, subincludes)
@@ -241,25 +242,15 @@ module StandardAPI
       digest.hexdigest
     end
 
-    def column_default_value(column, model)
-      return nil if column.default.nil?
+    # The `type` schema.json reports for an attribute definition. A
+    # column keeps its SQL based type, unless a Policy declared another.
+    def schema_json_type(model, schema)
+      column = model.columns_hash[schema[:name]]
+      attribute_type = model.type_for_attribute(schema[:name])
+      built = attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? 'string' : attribute_type.type&.to_s
+      return schema[:type] if !column || schema[:type] != built
 
-      cast_type_for_column(column, model).deserialize(column.default)
-    end
-
-    # Resolves a column's database cast type across Rails versions. The public
-    # API for this has changed repeatedly:
-    #   * Rails 7.2 / 8.0 -> connection.lookup_cast_type_from_column(column)
-    #   * Rails 8.1       -> column.fetch_cast_type(connection)
-    #   * Rails main      -> column.cast_type (public reader again)
-    def cast_type_for_column(column, model)
-      if column.respond_to?(:fetch_cast_type)
-        column.fetch_cast_type(model.connection)
-      elsif column.respond_to?(:cast_type)
-        column.cast_type
-      else
-        model.connection.lookup_cast_type_from_column(column)
-      end
+      attribute_type.is_a?(::ActiveRecord::Enum::EnumType) ? built : json_column_type(column.sql_type)
     end
 
     def json_column_type(sql_type)
@@ -300,48 +291,6 @@ module StandardAPI
         'string'
       when /\Ageometry/
         'ewkb'
-      end
-    end
-    
-    # For JSON Schema
-    def json_column_schema(sql_type)
-      case sql_type.to_s.downcase
-      when 'binary', 'bytea', 'blob'
-        # TODO contentMediaType correct?
-        # contentEncoding?
-        # https://json-schema.org/understanding-json-schema/reference/non_json_data
-        {type: 'string', contentMediaType: 'application/octet-stream'}
-      when 'duration'
-        {type: 'string', format: 'duration'}
-      when 'text'
-        {type: 'string'}
-      when 'json', 'jsonb'
-        {type: 'object'}
-      when 'smallint', 'bigint', /\Ainteger(\(\d+\))?$/
-        {type: 'integer'}
-      when 'hstore'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'object'}
-      when 'datetime', 'time', 'time without time zone', /\Adatetime(\(\d+\))?$/, /\Atimestamp(\(\d+\))? without time zone/
-        {type: 'string', format: 'date-time'}
-      when 'date'
-        {type: 'string', format: 'date'}
-      when 'double precision', 'float', /\Adecimal(\(\d+(,\d+)?\))?\z/, /\Anumeric(\(\d+(,\d+)?\))?/
-        {type: 'number'}
-      when 'inet'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'ltree'
-        # TODO contentMediaType? or contentEncoding?
-        {type: 'string'}
-      when 'boolean'
-        {type: 'boolean'}
-      when 'uuid'
-        {type: 'string', format: 'uuid'}
-      when /\A(?:character varying|varchar)(\(\d+\))?$/
-        {type: 'string'}
-      when /\Ageometry/
-        {type: 'string', contentMediaType: 'application/octet-stream'}
       end
     end
 

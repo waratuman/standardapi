@@ -1,17 +1,17 @@
-excluded = resolve_excludes(photo, local_assigns[:excludes])
+policy = record_policy(photo, local_assigns[:policy])
 
-json.set! :id,          photo.id          unless excluded[:id] == true
-json.set! :account_id,  photo.account_id  unless excluded[:account_id] == true
-json.set! :property_id, photo.property_id unless excluded[:property_id] == true
-json.set! :format,      photo.format      unless excluded[:format] == true
-json.set! :created_at,  photo.created_at  unless excluded[:created_at] == true
+json.set! :id,          photo.id          unless policy.hidden?(:id)
+json.set! :account_id,  photo.account_id  unless policy.hidden?(:account_id)
+json.set! :property_id, photo.property_id unless policy.hidden?(:property_id)
+json.set! :format,      photo.format      unless policy.hidden?(:format)
+json.set! :created_at,  photo.created_at  unless policy.hidden?(:created_at)
 json.set! :template,    'photos/_photo'
 
-if includes[:account] && excluded[:account] != true
+if includes[:account] && policy.include?(:account)
   json.set! :account do
     if photo.account
       json.partial! 'application/record', record: photo.account,
-        includes: includes[:account], excludes: sub_excludes(excluded, :account)
+        includes: includes[:account], policy: policy.association_policy(:account)
     else
       json.null!
     end

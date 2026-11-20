@@ -59,18 +59,63 @@ module StandardAPI::TestCase
     count > 0
   end
 
-  def orders
-    controller_class.new.send(model.model_name.singular + "_orders")
+  # A controller to ask what the Policy permits the requests of the test. A
+  # Policy is free to read the request, ie. the session or current user, so a
+  # bare `controller_class.new`, which has none, won't do, and a made up
+  # request wouldn't be the one the test makes. So it's the controller of the
+  # last request the test made to +controller_class+ or, when that isn't the
+  # last request of its session (none was made yet, another controller
+  # answered, ie. to sign in, or the session was reset), of a GET it makes
+  # for it, the way the test makes its own, to the first of
+  # REQUEST_CONTROLLER_ACTIONS that's routed.
+  #
+  # Without one of those routes it's a controller with no request, as is
+  # only right for a Policy that doesn't read one.
+  def request_controller
+    return @controller if request_controller?(@controller)
+
+    REQUEST_CONTROLLER_ACTIONS.each do |action, params|
+      path = begin
+        resource_path(action, format: :json)
+      rescue ActionController::UrlGenerationError
+        next
+      end
+
+      get path, params: params
+      break
+    end
+
+    request_controller?(@controller) ? @controller : controller_class.new
   end
-  
+
+  REQUEST_CONTROLLER_ACTIONS = { index: { limit: 1 }, schema: {}, calculate: {} }.freeze
+
+  # Whether +controller+ answered the last request of the test, to
+  # +controller_class+
+  def request_controller?(controller)
+    return false if !controller.is_a?(controller_class) || !controller.request
+    # A controller test (ActionController::TestCase) has the one controller
+    return true if !respond_to?(:integration_session)
+
+    integration_session.controller.equal?(controller)
+  end
+
+  def orders
+    request_controller.record_policy(model).orderable
+  end
+
+  def required_orders
+    request_controller.record_policy(model).required_orders
+  end
+
   def default_orders
     controller_class.new.send(:default_orders)
   end
 
-  # Whether the ACL's wheres permit filtering on +where+
+  # Whether the model's Policy makes +where+ filterable
   def where_permitted?(where)
-    controller = controller_class.new
-    controller.send(:sanitize_wheres, where, controller.send(:wheres_for, model), model)
+    controller = request_controller
+    controller.send(:sanitize_wheres, where, controller.record_policy(model))
     true
   rescue StandardAPI::UnpermittedParameters
     false
@@ -149,20 +194,53 @@ module StandardAPI::TestCase
 
   def view_attributes(record)
     return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
+    policy = @controller.record_policy(record)
     record.attributes.select do |x|
-      excluded[x] != true
+      !policy.hidden?(x)
     end
   end
 
-  def update_attributes(record)
-    return [] if record.nil?
-    excluded = @controller.send(:excludes, record)
-    record.attributes.select do |x|
-      !record.class.readonly_attributes.include?(x.to_s) && excluded[x] != true
-    end
+  # The attributes of +record+ an update could have written from its params,
+  # so the ones to expect the params of the test in. +was+ is the record as it
+  # was before the update, which is what its Policy decided for; without it,
+  # the record as it is.
+  def update_attributes(record, was = record)
+    return {} if record.nil?
+    record.attributes.slice(*written_attribute_names(was))
   end
-  alias_method :create_attributes, :update_attributes
+
+  # The attributes of +record+ a create could have written from its params. A
+  # create is of a new record, so that's what its Policy is asked about,
+  # rather than +record+, which is saved by now: a new +model+, as
+  # Controller#create builds, whatever subclass of it was created.
+  def create_attributes(record)
+    return {} if record.nil?
+    new_record = record.is_a?(model) ? model.new : record.class.new
+    record.attributes.slice(*written_attribute_names(new_record))
+  end
+
+  # The names of the attributes the params of a create of +record+, when it's
+  # a new record, or else of an update of it, are written to: what its Policy
+  # makes writable on that action (Policy::Record#writable), and the foreign
+  # keys of the associations it makes writable, as
+  # Controller#filter_model_params permits them. Less what the Policy assigns
+  # on that action, which replaces what the params send, and what the model
+  # makes attr_readonly.
+  #
+  # Visibility doesn't come into it: an +if+ or +unless+ decides what
+  # renders, not what's writable.
+  def written_attribute_names(record)
+    policy = @controller.record_policy(record)
+
+    names = policy.writable.flat_map { |name| name.is_a?(Hash) ? name.keys : [name] }
+    policy.writable_associations.each do |name|
+      reflection = record.class.reflect_on_association(name)
+      names.concat(Array(reflection.foreign_key))
+      names << reflection.foreign_type if reflection.polymorphic?
+    end
+
+    names.map(&:to_s).uniq - policy.assigned_attribute_names.map(&:to_s) - record.class.readonly_attributes.map(&:to_s)
+  end
 
   module ClassMethods
 

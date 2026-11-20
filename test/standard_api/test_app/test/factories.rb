@@ -48,6 +48,15 @@ FactoryBot.define do
     end
   end
 
+  factory :note do
+    title           { Faker::Lorem.words(number: 3).join(' ') }
+    body            { Faker::Lorem.paragraph }
+    # Sent with every create and update, and set by the Policy instead
+    author_id       { 999 }
+
+    trait(:nested)  { }
+  end
+
   factory :camera do
     make    { ['Sony', 'Nokia', 'Canon', 'Leica'].sample }
     hidden  { false }

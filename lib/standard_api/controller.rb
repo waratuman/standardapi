@@ -8,10 +8,12 @@ module StandardAPI
     # scope the query rather than name a relation.
     RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
 
-    delegate :preloadables, :model_partial, to: :helpers
+    delegate :preloadables, :model_partial,
+      :read_schema_for, :write_schema_for, :query_schema_for, to: :helpers
 
     def self.included(klass)
-      klass.helper_method :includes, :excludes, :excludes?, :excludes_affect?,
+      klass.include StandardAPI::Policies
+      klass.helper_method :includes, :record_policy, :policy_varies?,
         :masked?, :mask_affect?, :orders, :model, :models, :resource_limit,
         :default_limit, :mask
       klass.before_action :set_standardapi_headers
@@ -40,9 +42,26 @@ module StandardAPI
       end
     end
 
-    def json_schema
-      Rails.application.eager_load! if !Rails.application.config.eager_load
-      @includes = normalize_includes(params[:include] || {})
+    # JSON Schema of the record #show renders, with the +include+ param. Not
+    # found for a controller without a model, which has nothing to describe.
+    def read_schema
+      return head :not_found if model.nil?
+
+      render json: read_schema_for(model, includes)
+    end
+
+    # JSON Schema of the params #create and #update accept
+    def write_schema
+      return head :not_found if model.nil?
+
+      render json: write_schema_for(model)
+    end
+
+    # JSON Schema of the params #index and #calculate accept
+    def query_schema
+      return head :not_found if model.nil?
+
+      render json: query_schema_for(model)
     end
 
     def index
@@ -167,17 +186,7 @@ module StandardAPI
       resource = resources.find(params[:id])
       association = resource.association(params[:relationship])
       subresource = association.klass.new
-      subresource_params = if self.respond_to?("filter_#{model_name(association.klass)}_params", true)
-        self.send("filter_#{model_name(association.klass)}_params", subresource, params[model_name(association.klass)], id: params[:id])
-      elsif self.respond_to?("#{association.klass.model_name.singular}_params", true)
-        params.require(association.klass.model_name.singular).permit(self.send("#{association.klass.model_name.singular}_params"))
-      elsif self.respond_to?("filter_model_params", true)
-        filter_model_params(subresource, params[model_name(association.klass)])
-      else
-        ActionController::Parameters.new
-      end
-
-      subresource.assign_attributes(subresource_params)
+      subresource.assign_attributes(filter_model_params(subresource, params[model_name(association.klass)]))
 
       result = case association
       when ::ActiveRecord::Associations::CollectionAssociation
@@ -206,6 +215,16 @@ module StandardAPI
       # case table_name
       # when 'accounts'
       # end
+    end
+
+    # The key +model+'s params are sent under, and its Policy is registered
+    # under
+    def model_name(model)
+      if model.model_name.singular.starts_with?('habtm_')
+        model.reflect_on_all_associations.map { |a| a.klass.base_class.model_name.singular }.sort.join('_')
+      else
+        model.model_name.singular
+      end
     end
 
     module ClassMethods
@@ -248,85 +267,115 @@ module StandardAPI
     end
 
     def model_params
-      if self.respond_to?("#{model.model_name.singular}_params", true)
-        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
-      else
-        ActionController::Parameters.new
+      return @model_params if instance_variable_defined?(:@model_params)
+      @model_params = filter_model_params(resource, params[model_name(model)])
+    end
+
+    # The params of +resource+ its Policy, or +policy+ in its place, makes
+    # writable (Policy::Record#writable), and of the associations it makes
+    # writable (Policy::Record#writable_associations): the nested records'
+    # own, their ids, or the foreign key. What it assigns
+    # (Policy::Record#assigned_attributes) overrides the params, and then its
+    # filters run on them (Policy::Record#filter_params).
+    def filter_model_params(resource, model_params, allow_id: nil, policy: nil)
+      write_policy = record_policy(resource, policy)
+      if !model_params
+        params = write_policy.filter_params(ActionController::Parameters.new(write_policy.assigned_attributes))
+        # The server set all of it, so it's permitted
+        return params.empty? ? params : params.permit!
       end
-    end
 
-    # Resolve the excludes that apply to +record+. An ACL +excludes+ method
-    # takes the record so it can decide per record; a zero-arity definition is
-    # still supported but deprecated, matching #model_attributes.
-    def excludes(record)
-      acl_method = "#{model_name(record.class)}_excludes"
-      raw = if self.respond_to?(acl_method, true)
-        if self.method(acl_method).arity == 0
-          logger.warn <<~NOTE.strip_heredoc
-            DEPRECATION WARNING: #{ record.class.name }ACL#excludes() has been deprecated, use #{ record.class.name }ACL#excludes(record) instead
-          NOTE
-          self.send(acl_method)
-        else
-          self.send(acl_method, record)
+      permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
+
+      write_policy.writable_associations.each do |relation|
+        association = resource.association(relation.to_sym)
+        attributes_key = association.reflection.name.to_s
+        nested_policy = write_policy.writable_policy(relation)
+        if model_params.has_key?(attributes_key)
+          if model_params[attributes_key].nil?
+            permitted_params[attributes_key] = nil
+          elsif model_params[attributes_key].is_a?(Array) && model_params[attributes_key].all? { |a| a.keys.map(&:to_sym) == [:id] }
+            permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params[attributes_key].map{|a| a['id']}
+          else
+            permitted_params[attributes_key] = if model_params[attributes_key].is_a?(Array)
+              models = association.klass.find(model_params[attributes_key].map { |i| i['id'] }.compact)
+              model_params[attributes_key].map { |i|
+                nested_record = i['id'] ? models.find { |r| r.id == i['id'] } : association.klass.new
+                i_params = filter_model_params(nested_record, i, allow_id: true, policy: nested_policy)
+                nested_record.assign_attributes(i_params)
+                nested_record
+              }
+            else
+              nested_record = model_params[attributes_key]['id'] ? association.klass.find(model_params[attributes_key]['id']) : association.klass.new
+              i_params = filter_model_params(nested_record, model_params[attributes_key], allow_id: true, policy: nested_policy)
+              nested_record.assign_attributes(i_params)
+              nested_record
+            end
+          end
+        elsif association.collection? && model_params.has_key?("#{association.reflection.name.to_s.singularize}_ids")
+          permitted_params["#{association.reflection.name.to_s.singularize}_ids"] = model_params["#{association.reflection.name.to_s.singularize}_ids"]
+        elsif model_params.has_key?(association.reflection.foreign_key)
+          permitted_params[association.reflection.foreign_key] = model_params[association.reflection.foreign_key]
+          permitted_params[association.reflection.foreign_type] = model_params[association.reflection.foreign_type] if association.reflection.polymorphic?
         end
-      else
-        application_helper_excludes[model_name(record.class)] || []
       end
-      StandardAPI::Excludes.normalize(raw)
+      # The nested records were filtered by their own Policy
+      permitted_params.permit!
+
+      write_policy.assigned_attributes.each { |name, value| permitted_params[name] = value }
+      write_policy.filter_params(permitted_params)
     end
 
-    # ApplicationHelper#excludes is keyed by model and takes no record, so it
-    # is the same for every record in a response. Build it once per request:
-    # #excludes runs per rendered record, and the anonymous class this needs
-    # is not free to make — each one invalidates Ruby's global method cache.
-    def application_helper_excludes
-      return @application_helper_excludes if defined?(@application_helper_excludes)
-
-      @application_helper_excludes =
-        if defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes)
-          Class.new.send(:include, ApplicationHelper).new.excludes.with_indifferent_access
-        else
-          ActiveSupport::HashWithIndifferentAccess.new
-        end
-    end
-
-    # True when an exclude rule could apply to +klass+, either from an ACL
-    # +excludes+ method or from ApplicationHelper#excludes.
+    # True when what +klass+ renders could differ by requester: its Policy
+    # could (Policy.varies_by_requester?), or that of any model +includes+
+    # reach through it. A record loaded as +klass+ can be of one of its STI
+    # subclasses, which renders with its own Policy, so theirs count as well
+    # (#rendered_models).
     #
     # This is deliberately a "could apply" test rather than "does apply": it
     # answers the question without a record in hand, which is what the view
-    # caching guards need.
-    def excludes?(klass)
-      @excludes_defined ||= {}
-      return @excludes_defined[klass] if @excludes_defined.key?(klass)
-
-      @excludes_defined[klass] = self.respond_to?("#{model_name(klass)}_excludes", true) ||
-        (defined?(ApplicationHelper) && ApplicationHelper.instance_methods.include?(:excludes))
-    end
-
-    # True when rendering +klass+ with +includes+ could be affected by an
-    # exclude rule, anywhere in the rendered tree.
-    #
-    # #excludes is resolved per record and may depend on the current user, but
-    # the fragment cache keys in the views are built from record timestamps
-    # only. Caching a fragment whose contents depend on the requester would let
-    # one requester's response be served to another, so the views use this to
-    # skip caching entirely whenever excludes are in play. Apps that define no
-    # excludes are unaffected and keep caching.
-    def excludes_affect?(klass, includes)
-      return true if excludes?(klass)
+    # caching guards need. Policies#record_policy is resolved per record and
+    # may depend on the current user, but the fragment cache keys in the views
+    # are built from record timestamps only. Caching a fragment whose contents
+    # depend on the requester would let one requester's response be served to
+    # another, so the views use this to skip caching whenever it could.
+    def policy_varies?(klass, includes = {})
+      @policy_varies ||= {}
+      varies = @policy_varies.fetch(klass) do
+        @policy_varies[klass] = rendered_models(klass).any? { |k| model_policy(k)&.class&.varies_by_requester? }
+      end
+      return true if varies
 
       includes.any? do |inc, subinc|
         next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
 
         association = klass.reflect_on_association(inc)
-        next false if association.nil?
+        # A method can return records of any model, which render with their
+        # Policy and, for a relation, through #mask, so assume it could vary.
+        next true if association.nil?
         # A polymorphic association's class isn't known until a record is
-        # loaded, so assume it could be excluded.
+        # loaded, so assume it could vary.
         next true if association.polymorphic?
 
-        excludes_affect?(association.klass, subinc.is_a?(Hash) ? subinc : {})
+        policy_varies?(association.klass, subinc.is_a?(Hash) ? subinc : {})
       end
+    end
+
+    # The models a record loaded as +klass+ could turn out to be: +klass+ and,
+    # with single table inheritance, its subclasses. Which one isn't known
+    # until the record is loaded, and a cached fragment never loads it.
+    #
+    # A subclass is only known once it's loaded, so without eager loading
+    # (ie. in development) the app is loaded first, as #models does.
+    # Otherwise a fragment rendered before the subclass was first referenced
+    # would be cached as though its Policy didn't exist.
+    def rendered_models(klass)
+      sti = klass.respond_to?(:inheritance_column) && klass.inheritance_column &&
+        klass.columns_hash.key?(klass.inheritance_column.to_s)
+      return [klass] if !sti
+
+      Rails.application.eager_load! if !Rails.application.config.eager_load
+      [klass, *klass.descendants]
     end
 
     # True when #mask hides rows of +klass+ for this request.
@@ -338,7 +387,7 @@ module StandardAPI
     #
     # _record filters every included collection through #mask, so which rows
     # appear inside a fragment varies by requester while the cache key does
-    # not. Same problem as #excludes_affect?, same fix: don't cache it. The
+    # not. Same problem as #policy_varies?, same fix: don't cache it. The
     # top level is masked in #resources rather than in the view, so a record
     # the mask hides is simply absent from the collection and needs no guard
     # here.
@@ -383,14 +432,22 @@ module StandardAPI
       end
     end
 
-    def nested_includes(model, attributes)
+    # The associations +attributes+ write through nested attributes, as
+    # includes, so #create and #update render what they wrote. +on+ is the
+    # action writing them, as the record itself isn't loaded yet, and
+    # +policy+ the Policy class they're written with, if not their own.
+    def nested_includes(model, attributes, on, policy = nil)
+      write_policy = record_policy(model, policy)
+      writable = write_policy.writable_associations(on: on)
       includes = {}
       attributes&.each do |key, value|
         association = model.reflect_on_association(key)
-        if association &&
-           self.respond_to?("nested_#{model_name(model)}_attributes", true) &&
-           self.send("nested_#{model_name(model)}_attributes").include?(association.name)
-          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
+        if association && writable.include?(association.name.to_s)
+          includes[key] = if value.is_a?(Hash)
+            nested_includes(association.klass, value, value['id'] ? :update : :create, write_policy.writable_policy(association.name))
+          else
+            {}
+          end
         end
       end
 
@@ -398,40 +455,32 @@ module StandardAPI
     end
 
     def includes
-      # #model_includes was removed; raise rather than ignore an override of it
-      # TODO: Remove this check in 10.0
-      if respond_to?(:model_includes, true)
-        raise StandardAPI::InvalidConfiguration, "#{ method(:model_includes).owner.name }#model_includes is not supported, define #{ model.model_name.singular }_includes in #{ model.name }ACL instead"
-      end
-
       @includes ||= if params[:include]
-        sanitize_includes(params[:include], includes_for(model), model)
+        sanitize_includes(params[:include], model)
       else
         {}
       end
 
+      # What a create or update wrote through nested attributes renders too,
+      # where the Policy declares it
       if (action_name == 'create' || action_name == 'update') && model && params.has_key?(model.model_name.singular)
-         @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h))
+        @includes.reverse_merge!(nested_includes(model, params[model.model_name.singular].to_unsafe_h, action_name.to_sym))
       end
 
       @includes
-    end
-
-    def required_orders
-      []
     end
 
     def default_orders
       nil
     end
 
-    # The +where+ param, checked against the ACL's wheres. It filters
+    # The +where+ param, checked against what the Policy makes filterable. It filters
     # #resources, ie. the controller's model even in the *_resource actions,
     # where #model is the association's model.
     def wheres
       return @wheres if defined?(@wheres)
 
-      @wheres = sanitize_wheres(params['where'], wheres_for(self.class.model), self.class.model)
+      @wheres = sanitize_wheres(params['where'], record_policy(self.class.model))
     end
 
     # The +group_by+ param as columns of the controller's model, which
@@ -449,38 +498,17 @@ module StandardAPI
       end
     end
 
+    # The +order+ param, or #default_orders without one, checked against what
+    # the Policy makes orderable, then what it declares +required_orders+ that
+    # isn't already ordered by
     def orders
-      exluded_required_orders = required_orders.map(&:to_s)
+      return @orders if defined?(@orders)
 
-      case params[:order]
-      when Hash, ActionController::Parameters
-        exluded_required_orders -= params[:order].keys.map(&:to_s)
-      when Array
-        params[:order].flatten.each do |v|
-          case v
-          when Hash, ActionController::Parameters
-            exluded_required_orders -= v.keys.map(&:to_s)
-          when String
-            exluded_required_orders.delete(v)
-          end
-        end
-      when String
-        exluded_required_orders.delete(params[:order])
-      end
-
-      if !exluded_required_orders.empty?
-        params[:order] = exluded_required_orders.unshift(params[:order])
-      end
-
-      @orders ||= begin
-        # #model_orders was removed; raise rather than ignore an override of it
-        # TODO: Remove this check in 10.0
-        if respond_to?(:model_orders, true)
-          raise StandardAPI::InvalidConfiguration, "#{ method(:model_orders).owner.name }#model_orders is not supported, define #{ model.model_name.singular }_orders in #{ model.name }ACL instead"
-        end
-
-        sanitize_orders(params[:order] || default_orders, orders_for(model) | required_orders, model)
-      end
+      policy = record_policy(model)
+      orders = sanitize_orders(params[:order] || default_orders, policy)
+      ordered = order_names(orders)
+      required = policy.required_orders.reject { |name| ordered.include?(name) }
+      @orders = required.empty? ? orders : Array.wrap(orders) + required
     end
 
     # The maximum number of results returned by #index

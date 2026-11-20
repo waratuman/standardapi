@@ -16,6 +16,9 @@ end
 class Document < ActiveRecord::Base
   attr_accessor :file
 
+  # An attribute without a column, rendered with the columns
+  attribute :page_count, :integer, default: 1
+
   enum :level, { public: 0, secret: 1 }, suffix: true
   enum :rating, { poor: 0, ok: 1, good: 2 }
 end
@@ -107,17 +110,97 @@ end
 
 class Camera < ActiveRecord::Base
   belongs_to :photo, optional: true
+  has_one :accessory
 
   validates :make, presence: true
+
+  # Not a column: a Policy adds it with a type
+  attr_accessor :serial_last4
+  validates :serial_last4, length: { maximum: 4 }
 
   # An include that resolves to a plain Hash rather than a record, so there is
   # no partial to apply excludes for it.
   def specs
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
+
+  # Includes that resolve to a record, and to records, without an association
+  def owner
+    photo&.account
+  end
+
+  def owners
+    [owner].compact
+  end
+
+  def owners_relation
+    Account.where(id: photo&.account_id)
+  end
+
+  # An include that resolves to a model that isn't an ActiveRecord
+  def lens
+    Lens.new(mount: 'M', serial: 'L-1')
+  end
+
+  # An include that resolves to an object that isn't a model
+  def strap
+    Strap.new('leather')
+  end
+
+  # Includes that resolve to plain JSON data
+  def shutter_count
+    42
+  end
+
+  def settings
+    {
+      'mode' => :manual,
+      'iso' => [100, 200.5, nil, true, false],
+      'calibrated_on' => Date.new(2020, 1, 2),
+      'serviced_at' => Time.utc(2021, 3, 4, 5, 6, 7),
+      'lenses' => [{ 'mount' => 'M' }],
+      'interval' => 5.minutes,
+      'tags' => Set['street', :travel]
+    }
+  end
+
+  # Includes that resolve to a record inside a Hash, and among other values in
+  # an Array
+  def owner_summary
+    { 'owner' => owner }
+  end
+
+  def owner_and_count
+    [owner, 1]
+  end
+
+  def owner_set
+    Set[owner]
+  end
+end
+
+class Lens
+  include ActiveModel::Model
+  attr_accessor :mount, :serial
+end
+
+Strap = Struct.new(:material)
+
+# Single table inheritance: an accessory is loaded as an Accessory or as a Flash,
+# each rendered with its own Policy (AccessoryPolicy and FlashPolicy).
+class Accessory < ActiveRecord::Base
+  belongs_to :camera, optional: true
+end
+
+class Flash < Accessory
 end
 
 class UuidModel < ActiveRecord::Base
+end
+
+# Written through NotesController, whose Policy StandardAPI::TestCase is run
+# against
+class Note < ActiveRecord::Base
 end
 
 # = Create/recreate database and migration
@@ -213,10 +296,24 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.datetime 'photo_cached_at'
     end
 
+    create_table "accessories", force: :cascade do |t|
+      t.string   'type'
+      t.integer  'camera_id'
+      t.string   'name'
+      t.string   'serial'
+    end
+
     create_table "attachments", force: :cascade do |t|
       t.string  'record_type'
       t.integer  'record_id'
       t.integer  'document_id'
+    end
+
+    create_table "notes", force: :cascade do |t|
+      t.string   'title'
+      t.text     'body'
+      t.integer  'author_id'
+      t.integer  'rank'
     end
 
     create_table "uuid_models", id: :uuid, force: :cascade do |t|

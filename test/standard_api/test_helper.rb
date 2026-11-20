@@ -17,9 +17,62 @@ ActiveSupport.test_order = :random
 
 include ActionDispatch::TestProcess
 
+# Builds Policies, and registers one for Camera, for test/standard_api/policy
+module PolicyTestHelper
+  # Register +policy+ for Camera in place of CamerasController::Policy
+  def with_policy(policy)
+    ApplicationController.stubs(:standard_api_policies).returns('camera' => policy)
+    yield
+  end
+
+  # A Policy declaring every attribute of +model+, then what +block+ does
+  def policy_class(model = Camera, &block)
+    names = model.attribute_names
+    Class.new(StandardAPI::Policy) do
+      attributes(*names)
+      class_eval(&block) if block
+    end
+  end
+
+  def empty_policy_class(&block)
+    Class.new(StandardAPI::Policy, &block)
+  end
+
+  def definitions(policy, record = Camera, controller: CamerasController.new)
+    with_policy(policy) { controller.record_policy(record).attributes }
+  end
+
+  def names(...) = definitions(...).map { |d| d[:name] }
+
+  def definition(policy, name, ...)
+    definitions(policy, ...).find { |d| d[:name] == name }
+  end
+end
+
 class ActiveSupport::TestCase
   include ActiveRecord::TestFixtures
   include FactoryBot::Syntax::Methods
+
+  # Render cameras with a subclass of CamerasController::Policy that also
+  # makes +declarations+, for the length of the block
+  def with_camera_policy(declarations)
+    policy = Class.new(CamerasController::Policy)
+    policy.class_exec(&declarations)
+    policies = CamerasController.standard_api_policies.merge('camera' => policy)
+    CamerasController.stubs(:standard_api_policies).returns(policies)
+    yield
+  ensure
+    CamerasController.unstub(:standard_api_policies)
+  end
+
+  # Describe and render +model+ with +policy+ for the length of the block
+  def with_model_policy(model, policy)
+    policies = ApplicationController.standard_api_policies.merge(model.model_name.singular => policy)
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
+    yield
+  ensure
+    ApplicationController.unstub(:standard_api_policies)
+  end
 
   def setup
     @routes ||= TestApplication.routes

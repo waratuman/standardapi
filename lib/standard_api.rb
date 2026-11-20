@@ -13,8 +13,8 @@ require 'standard_api/errors'
 require 'standard_api/orders'
 require 'standard_api/includes'
 require 'standard_api/wheres'
-require 'standard_api/excludes'
 require 'standard_api/controller'
+require 'standard_api/helpers/json_schema'
 require 'standard_api/helpers'
 require 'standard_api/route_helpers'
 require 'standard_api/active_record/connection_adapters/column'
@@ -22,12 +22,12 @@ require 'standard_api/active_record/connection_adapters/abstract/schema_statemen
 require 'standard_api/railtie'
 
 module StandardAPI
-  autoload :AccessControlList, 'standard_api/access_control_list'
+  autoload :Policy, 'standard_api/policy'
+  autoload :Policies, 'standard_api/policies'
   autoload :Middleware, 'standard_api/middleware'
 
   def self.included(base)
     base.include StandardAPI::Controller
-    base.include StandardAPI::AccessControlList
   end
 end
 
