@@ -156,6 +156,11 @@ end
 class UuidModel < ActiveRecord::Base
 end
 
+# Written through NotesController, whose Policy StandardAPI::TestCase is run
+# against
+class Note < ActiveRecord::Base
+end
+
 # = Create/recreate database and migration
 db_config = ActiveRecord::Base.connection_db_config
 ActiveRecord::Tasks::DatabaseTasks.drop(db_config)
@@ -260,6 +265,13 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.string  'record_type'
       t.integer  'record_id'
       t.integer  'document_id'
+    end
+
+    create_table "notes", force: :cascade do |t|
+      t.string   'title'
+      t.text     'body'
+      t.integer  'author_id'
+      t.integer  'rank'
     end
 
     create_table "uuid_models", id: :uuid, force: :cascade do |t|
