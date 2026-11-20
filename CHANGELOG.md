@@ -38,6 +38,11 @@
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
   checked against the Policies of the models the association's `types:` name.
+  A `policy:` given as a Proc or method name that gives a record another
+  Policy than it gives the model lists it in `policies:`, or raises
+  `ArgumentError`: what's included of the records is permitted if one of them
+  declares it, and a `where`, `order` or `when` on them only if all of them
+  permit it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
@@ -354,11 +359,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   and `associations`; one it doesn't declare isn't rendered or described.
   `if` and `unless` hide one per record, and the included records render
   with `policy:` in place of their own model's Policy; to keep what that
-  hides, it inherits from it. A `policy:` given as a method name or Proc is
-  chosen once a request, ie. by the requester, so includes are checked
-  against the Policy they render with; reading `record` in it raises
-  `ArgumentError`, so hide what differs per record with `if` and `unless` in
-  the Policy it gives.
+  hides, it inherits from it.
   `orderable: true` on an attribute or association, ie. `attributes :id,
   :name, orderable: true`, lets a request order by it, and `orderable: false`
   takes back an inherited one. `filterable: true`, or the operators it

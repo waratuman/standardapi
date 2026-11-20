@@ -108,8 +108,7 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
     photo = create(:photo, format: 'jpg')
     camera = create(:camera, make: "Leica", hidden: true, photo: photo)
 
-    get "/cameras/#{camera.id}", params: { include: [:photo] },
-      headers: { 'X-Hide-Photo' => '1' }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
@@ -172,10 +171,9 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
 
   test "a custom partial applies what narrows its record" do
     photo = create(:photo, format: 'jpg')
-    camera = create(:camera, make: "Leica", photo: photo)
+    camera = create(:camera, make: "Leica", hidden: true, photo: photo)
 
-    get "/cameras/#{camera.id}", params: { include: [:photo] },
-      headers: { 'X-Hide-Photo' => '1' }, as: :json
+    get "/cameras/#{camera.id}", params: { include: [:photo] }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok
@@ -187,10 +185,9 @@ class ControllerExcludeTest < ActionDispatch::IntegrationTest
   test "a custom partial forwards what narrows the records it nests" do
     account = create(:account, name: "Ansel", email: "ansel@example.com")
     photo = create(:photo, format: 'jpg', account: account)
-    camera = create(:camera, make: "Leica", photo: photo)
+    camera = create(:camera, make: "Leica", hidden: true, photo: photo)
 
-    get "/cameras/#{camera.id}", params: { include: { photo: [:account] } },
-      headers: { 'X-Hide-Photo' => '1' }, as: :json
+    get "/cameras/#{camera.id}", params: { include: { photo: [:account] } }, as: :json
     json = JSON.parse(response.body)
 
     assert_response :ok

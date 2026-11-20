@@ -449,17 +449,23 @@ association (or, for a polymorphic one, from each record's class), unless
 
     association :account, policy: NamePolicy
     association :subject, policy: NamePolicy                     # any model with an id and name
-    association :owner, policy: -> { NamePolicy if !admin? }
+    association :owner, policy: -> { NamePolicy if redacted?(record) }, policies: [NamePolicy]
 
 It decides everything about the included records, their associations and
 values too: `NamePolicy` declares no associations, so nothing can be included
-through `account`. Given a method name or Proc, it runs on the Policy, like a
-condition, and returns a Policy, or `nil` to render them with their own. It's
-run once a request, so what's checked of an include, what the JSON Schemas
-describe and what renders all use the same Policy: it can depend on the
-requester (the controller, session or request), but not on the record
-including them, and reading `record` in it raises `ArgumentError`. Hide what
-differs per record with `if` and `unless` in the Policy it gives.
+through `account`. Given a method name or Proc, it runs like a condition, on
+the record including them, and returns a Policy, or `nil` to render them with
+their own.
+
+What a request may include, filter and order of the included records is
+checked before any record is loaded, so against what `policy` gives for the
+model (a `nil` record), and every other Policy it can give a record, which
+`policies` lists. An include is permitted if one of them declares it, as each
+record then renders only what its own Policy declares. A `where`, `order` or
+`when` on the included records runs in SQL across all of them, so has to be
+permitted by every one: above, `include[owner][where]` is only permitted on what
+`NamePolicy` makes filterable too. A Policy it gives a record that's neither
+raises `ArgumentError`.
 
 The same goes for a method: a record it returns, or a relation or an Array of
 records, renders as the records of an association do, with their own Policy or
