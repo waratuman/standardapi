@@ -428,10 +428,15 @@ Under a polymorphic association or a method there's no single model to check
 what's included of it against. It's checked against the `policy` the
 association gives, if it gives a Policy class, or else the Policies of the
 models its `types` name: each include is permitted if one of them declares it,
-and checked below it against that model. A `where` or `order` under it is
+and is checked below it against every type that declares it (with the
+association's `policy`, if it gives one). The records it includes can then be
+of different models, preloaded together, so what's included of them has to be
+declared by each of their Policies, and a `where` or `order` on them permitted
+by each. A `where` or `order` directly under the polymorphic association is
 rejected, and a `when` isn't checked, as its records can be of any type:
 
     association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertyPolicy or AccountPolicy declares it
+                                                         # include[subject][owner][where][name] if every one declaring owner permits it
 
 Without `policy` or `types`, nothing can be included of it.
 

@@ -811,7 +811,7 @@ module StandardAPI
           elsif entry[:policy]
             json_schema_policy_include(entry[:policy], nil, defs, sub_name)
           elsif entry[:types].present?
-            # Mirrors Includes#sanitize_typed_includes: what any of the types
+            # Mirrors Includes#sanitize_candidate_includes: what any of the types
             # declare, with the options of an include without a model
             permits = entry[:types].map { |type| [type, json_schema_includes(type)] }
             permits.each { |type, permit| json_schema_include_def(permit, type, defs, name: sub_name, options: false) }
