@@ -449,17 +449,13 @@ association (or, for a polymorphic one, from each record's class), unless
 
     association :account, policy: NamePolicy
     association :subject, policy: NamePolicy                     # any model with an id and name
-    association :owner, policy: -> { NamePolicy if !admin? }
+    association :owner, policy: -> { NamePolicy if redacted?(record) }
 
 It decides everything about the included records, their associations and
 values too: `NamePolicy` declares no associations, so nothing can be included
-through `account`. Given a method name or Proc, it runs on the Policy, like a
-condition, and returns a Policy, or `nil` to render them with their own. It's
-run once a request, so what's checked of an include, what the JSON Schemas
-describe and what renders all use the same Policy: it can depend on the
-requester (the controller, session or request), but not on the record
-including them, and reading `record` in it raises `ArgumentError`. Hide what
-differs per record with `if` and `unless` in the Policy it gives.
+through `account`. Given a method name or Proc, it runs like a condition, on
+the record including them, and returns a Policy, or `nil` to render them with
+their own.
 
 The same goes for a method: a record it returns, or a relation or an Array of
 records, renders as the records of an association do, with their own Policy or

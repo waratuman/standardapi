@@ -112,8 +112,8 @@ class CamerasController < ApplicationController
     remove :format
   end
 
-  # A photo, for a requester it's hidden from: no format or created_at, nor
-  # the email of its account
+  # The photo of a hidden camera: no format or created_at, nor the email of
+  # its account
   class HiddenPhotoPolicy < PhotoPolicy
     remove :format, :created_at
     association :account, policy: AccountWithoutEmailPolicy
@@ -141,13 +141,12 @@ class CamerasController < ApplicationController
     # with it because that partial passes it to record_policy. The account goes one level
     # deeper, into application/_record.
     #
-    # The headers stand in for a Policy that varies by *requester* (current
-    # user, role, token); it's chosen once a request, so can't read record.
-    # That is the case fragment caching has to defend against, since the
-    # cache keys are built from record timestamps alone and cannot tell two
-    # requesters apart.
+    # The header stands in for a Policy that varies by *requester* (current
+    # user, role, token) rather than by record. That is the case fragment
+    # caching has to defend against, since the cache keys are built from
+    # record timestamps alone and cannot tell two requesters apart.
     def photo_policy
-      if request.headers['X-Hide-Photo'] == '1'
+      if record&.hidden?
         HiddenPhotoPolicy
       elsif request.headers['X-Hide-Photo-Format'] == '1'
         PhotoWithoutFormatPolicy
