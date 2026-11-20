@@ -33,6 +33,40 @@ class PolicyCachingTest < ActionDispatch::IntegrationTest
     assert_not empty_policy_class { associations :photos, :account, policy: unvarying }.varies_by_requester?
   end
 
+  test 'varies_by_requester? of a Policy that gives itself to an association' do
+    policy = empty_policy_class { attributes :id, :name }
+    policy.association :children, policy: policy
+    assert_not policy.varies_by_requester?
+    assert_not Class.new(policy).varies_by_requester?
+
+    policy.attribute :email, if: -> { true }
+    assert policy.varies_by_requester?
+    assert Class.new(policy).varies_by_requester?
+  end
+
+  test 'varies_by_requester? of Policies that give each other to an association' do
+    a = empty_policy_class { attributes :id, :name }
+    b = empty_policy_class { attributes :id, :name }
+    c = empty_policy_class { attributes :id, :name }
+    a.association :b, policy: b
+    b.association :c, policy: c
+    c.association :a, policy: a
+    c.association :b, policy: b
+    # Asked twice, as the first answer mustn't be left behind for the second
+    2.times { [a, b, c].each { |policy| assert_not policy.varies_by_requester? } }
+
+    c.attribute :email, if: -> { true }
+    2.times { [a, b, c].each { |policy| assert policy.varies_by_requester? } }
+  end
+
+  test 'varies_by_requester? that raises does not leave the Policy looking unvarying' do
+    policy = empty_policy_class { attribute :name, if: -> { true } }
+    policy.policy_steps = [{ varies: -> { raise 'failed' } }.freeze] + policy.policy_steps
+
+    assert_raises(RuntimeError) { policy.varies_by_requester? }
+    assert_raises(RuntimeError) { policy.varies_by_requester? }
+  end
+
   test 'the plural forms check their options when declared, like the singular ones' do
     other = empty_policy_class
     assert_raises(ArgumentError) { empty_policy_class { attributes :make, :model, value: 'x' } }

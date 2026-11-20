@@ -193,17 +193,19 @@ module StandardAPI
       end
 
       # The $defs of a query schema, with what building them needs to know:
-      # the +ref+ query_schema_for was given, the model it was given for, and
-      # the includes each name was built for. Each query_schema_for has its
-      # own, so one can be built while another is.
+      # the +ref+ query_schema_for was given, the model it was given for, the
+      # includes each name was built for, and the name of the include built
+      # for each Policy class an association gives. Each query_schema_for has
+      # its own, so one can be built while another is.
       class Defs < Hash
-        attr_reader :include_sources
+        attr_reader :include_sources, :policy_includes
 
         def initialize(root = nil, ref = nil)
           super()
           @root = root
           @ref = ref
           @include_sources = {}
+          @policy_includes = {}
         end
 
         # The schema +ref+ gives for the +kind+ of +model+, or nil to build
@@ -802,12 +804,12 @@ module StandardAPI
           sub_name = "#{prefix.to_s.delete_suffix('Include')}#{name.to_s.camelize}Include"
           sub = if association && !association.polymorphic?
             if entry[:policy]
-              json_schema_include(json_schema_includes(association.klass, entry[:policy]), association.klass, defs, name: sub_name)
+              json_schema_policy_include(entry[:policy], association.klass, defs, sub_name)
             else
               json_schema_include_ref(association.klass, defs)
             end
           elsif entry[:policy]
-            json_schema_include(json_schema_includes(nil, entry[:policy]), nil, defs, name: sub_name)
+            json_schema_policy_include(entry[:policy], nil, defs, sub_name)
           elsif entry[:types].present?
             # Mirrors Includes#sanitize_typed_includes: what any of the types
             # declare, with the options of an include without a model
@@ -849,6 +851,21 @@ module StandardAPI
         end
 
         { 'type' => 'object', 'properties' => properties, 'additionalProperties' => false }
+      end
+
+      # An include of +model+, nil under a polymorphic association or a
+      # method, as the Policy class +policy+ an association gives permits it.
+      # It's built into +defs+ as +name+ the first time, and is a $ref to that
+      # after: Policies can give each other, or themselves, to an association,
+      # so building one for each path to it wouldn't end.
+      def json_schema_policy_include(policy, model, defs, name)
+        permit = json_schema_includes(model, policy)
+        if (built = defs.policy_includes[[policy, model]])
+          json_schema_include_names(built, permit.keys)
+        else
+          defs.policy_includes[[policy, model]] = name
+          json_schema_include(permit, model, defs, name: name)
+        end
       end
 
       # A $ref to the +when+ of an include on +model+
