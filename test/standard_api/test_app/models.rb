@@ -158,7 +158,9 @@ class Camera < ActiveRecord::Base
       'iso' => [100, 200.5, nil, true, false],
       'calibrated_on' => Date.new(2020, 1, 2),
       'serviced_at' => Time.utc(2021, 3, 4, 5, 6, 7),
-      'lenses' => [{ 'mount' => 'M' }]
+      'lenses' => [{ 'mount' => 'M' }],
+      'interval' => 5.minutes,
+      'tags' => Set['street', :travel]
     }
   end
 
@@ -170,6 +172,10 @@ class Camera < ActiveRecord::Base
 
   def owner_and_count
     [owner, 1]
+  end
+
+  def owner_set
+    Set[owner]
   end
 end
 

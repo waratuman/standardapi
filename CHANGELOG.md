@@ -27,7 +27,8 @@
   custom partial asks `record_policy(record, local_assigns[:policy])` what it
   renders, and passes `policy:` rather than `excludes:` to nested records. An
   include that resolves to plain JSON data (nil, a String, Symbol, Numeric,
-  Boolean, Date or Time, or a Hash or an Array of them) is rendered whole; one
+  Boolean, Date, Time or `ActiveSupport::Duration`, or a Hash, an Array or a
+  Set of them) is rendered whole; one
   that resolves to any other object, such as a model that isn't an
   ActiveRecord, or a Hash containing a record, raises
   `StandardAPI::MissingPolicy` rather than rendering it with `as_json`.

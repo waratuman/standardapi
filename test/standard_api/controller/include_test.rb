@@ -254,18 +254,22 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
         'iso' => [100, 200.5, nil, true, false],
         'calibrated_on' => '2020-01-02',
         'serviced_at' => Time.utc(2021, 3, 4, 5, 6, 7).as_json,
-        'lenses' => [{ 'mount' => 'M' }]
+        'lenses' => [{ 'mount' => 'M' }],
+        # A Duration is its seconds, and a Set an Array
+        'interval' => 300,
+        'tags' => ['street', 'travel']
       }, json['settings'])
       assert_equal({ 'sensor' => 'CMOS', 'serial' => 'SN-123' }, json['specs'])
     end
   end
 
-  test "a method include that returns a record in a Hash, or among other values in an Array, raises" do
+  test "a method include that returns a record in a Hash or a Set, or among other values in an Array, raises" do
     camera, _account = camera_with_owner
 
-    with_method_includes(-> { associations :owner_summary, :owner_and_count, types: ['Account'] }) do
+    with_method_includes(-> { associations :owner_summary, :owner_and_count, :owner_set, types: ['Account'] }) do
       assert_method_include_raises(camera, :owner_summary, /returned Hash containing Account, which has no Policy to render with; a record renders with its Policy only when/)
       assert_method_include_raises(camera, :owner_and_count, /returned Array containing Account, which has no Policy/)
+      assert_method_include_raises(camera, :owner_set, /returned Set containing Account, which has no Policy/)
     end
   end
 

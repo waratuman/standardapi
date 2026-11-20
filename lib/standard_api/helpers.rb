@@ -110,15 +110,17 @@ module StandardAPI
         which has no Policy to render with; #{reason}. A method include renders
         an ActiveRecord record, or a relation or an Array of them, with its
         Policy, and plain JSON data (nil, a String, Symbol, Numeric, true,
-        false, Date or Time, or a Hash or an Array of them) whole.
+        false, Date, Time or Duration, or a Hash, an Array or a Set of them)
+        whole.
       MSG
     end
 
-    # The first object in +value+ that isn't plain JSON data, searching Hashes
-    # and Arrays, or nil if there is none
+    # The first object in +value+ that isn't plain JSON data, searching Hashes,
+    # Arrays and Sets, or nil if there is none. A Duration is its number of
+    # seconds, and a Set an Array, in JSON.
     def unrenderable_included_value(value)
       case value
-      when nil, true, false, String, Symbol, Numeric
+      when nil, true, false, String, Symbol, Numeric, ::ActiveSupport::Duration
         nil
       when Hash
         value.each do |k, v|
@@ -126,7 +128,7 @@ module StandardAPI
           return found if found
         end
         nil
-      when Array
+      when Array, ::Set
         value.each do |v|
           found = unrenderable_included_value(v)
           return found if found

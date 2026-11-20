@@ -460,7 +460,8 @@ their own.
 The same goes for a method: a record it returns, or a relation or an Array of
 records, renders as the records of an association do, with their own Policy or
 the `policy` given. Plain JSON data it returns, nil, a String, Symbol, Numeric,
-true, false, Date or Time, or a Hash or an Array of them, is rendered whole.
+true, false, Date, Time or `ActiveSupport::Duration` (as its seconds), or a
+Hash, an Array or a Set (as an Array) of them, is rendered whole.
 Anything else raises `StandardAPI::MissingPolicy` rather than rendering it with
 `as_json`, which would expose all of its instance variables: a model that
 isn't an ActiveRecord can't have a Policy, not even one `policy` gives, and a
