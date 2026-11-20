@@ -8,6 +8,7 @@ module StandardAPI
       return if base.respond_to?(:standard_api_policies)
 
       base.class_attribute :standard_api_policies, instance_accessor: false, default: {}.freeze
+      base.helper_method :policy_cache_key if base.respond_to?(:helper_method)
     end
 
     # Register the +Policy+ nested in each controller with its base controller
@@ -171,6 +172,51 @@ module StandardAPI
     # +model+ this request
     def policy_instance(policy, model)
       (@policy_instances ||= {})[[policy, model]] ||= policy.new(self, model)
+    end
+
+    # Identifies the Policies a fragment of +klass+ with +includes+ renders
+    # with, and what they declare (Policy.cache_digest), for its cache key:
+    # the Policy of +klass+, or +through+, the Policy class the association
+    # that included it gives, in its place, and that of every model
+    # +includes+ reach through it, each with the Policy the association
+    # including it gives, if it gives one. Without it a fragment cached before
+    # a Policy hid an attribute would still be served with it, and base
+    # controllers with different Policies for a model would share fragments.
+    #
+    # A record loaded as a model can be of one of its STI subclasses, which
+    # renders with its own Policy, so theirs count as well
+    # (Controller#rendered_models). What a polymorphic association or a method
+    # includes isn't known without a record, and isn't cached
+    # (Controller#policy_varies?), so isn't covered.
+    #
+    # Each Policy's digest is computed once for its class; this is built from
+    # them once a request for +klass+, +includes+ and +through+.
+    def policy_cache_key(klass, includes = {}, through = nil)
+      (@policy_cache_keys ||= {})[[klass, includes, through]] ||=
+        ActiveSupport::Digest.hexdigest(policy_cache_parts(klass, includes, through).join("\n"))
+    end
+
+    def policy_cache_parts(klass, includes, through)
+      models = respond_to?(:rendered_models, true) ? rendered_models(klass) : [klass]
+      models.flat_map do |model|
+        policy = through ? policy_instance(through, model) : model_policy(model)
+        part = "#{model.name}:#{policy&.class&.name}:#{policy&.class&.cache_digest}"
+        next [part] if !policy
+
+        declared = policy.declared_includes
+        nested = includes.flat_map do |name, sub_include|
+          next [] if StandardAPI::Controller::RESERVED_INCLUDE_KEYS.include?(name.to_s)
+          next [] if !declared.key?(name)
+
+          association = model.reflect_on_association(name)
+          next [] if association.nil? || association.polymorphic?
+
+          sub_include = {} if !sub_include.respond_to?(:flat_map)
+          policy_cache_parts(association.klass, sub_include, declared[name][:policy]).map { |sub| "#{name}>#{sub}" }
+        end
+
+        [part, *nested]
+      end
     end
 
     # The Policy instance for +model+ this request, falling back to the one for

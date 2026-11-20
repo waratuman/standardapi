@@ -831,3 +831,4 @@ module StandardAPI
 end
 
 require 'standard_api/policy/record'
+require 'standard_api/policy/digest'

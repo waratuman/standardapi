@@ -96,12 +96,24 @@ module StandardAPI
 
     def cache_key(record, includes)
       timestamp_keys = ['cached_at'] + record.class.column_names.select{|x| x.ends_with? "_cached_at"}
-      if includes.empty?
+      key = if includes.empty?
         record.cache_key(*timestamp_keys)
       else
         timestamp = timestamp_keys.map { |attr| record[attr]&.to_time }.compact.max
         "#{record.model_name.cache_key}/#{record.id}-#{digest_hash(sort_hash(includes))}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
       end
+
+      "#{key}#{policy_cache_suffix(record.class, includes)}"
+    end
+
+    # What a fragment cache key ends with to identify the Policies a fragment
+    # of +klass+ with +includes+ renders with and what they declare
+    # (Policies#policy_cache_key), so one cached before a Policy changed, or by
+    # a base controller with another Policy for the model, isn't served.
+    #
+    # Empty outside a StandardAPI controller, where there are no Policies.
+    def policy_cache_suffix(klass, includes)
+      respond_to?(:policy_cache_key) ? "/policy-#{policy_cache_key(klass, includes)}" : ''
     end
 
     # +policy+ is the Policy class the records of this relation render with in
@@ -128,7 +140,8 @@ module StandardAPI
 
     # False when rendering +klass+ with +includes+ could vary by requester,
     # through a Policy that varies or a row mask. Cache keys are built from
-    # record timestamps and the include digest alone, so a fragment this
+    # record timestamps, the include digest and what the Policies declare,
+    # none of which tell requesters apart, so a fragment this
     # returns false for must never be cached: it would be handed to the next
     # requester unchanged.
     #
@@ -147,14 +160,15 @@ module StandardAPI
 
       case association = record.class.reflect_on_association(relation)
       when ::ActiveRecord::Reflection::HasManyReflection, ::ActiveRecord::Reflection::HasAndBelongsToManyReflection, ::ActiveRecord::Reflection::HasOneReflection, ::ActiveRecord::Reflection::ThroughReflection
-        "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
+        "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}#{policy_cache_suffix(association.klass, subincludes)}"
       when ::ActiveRecord::Reflection::BelongsToReflection
         klass = association.options[:polymorphic] ? record.send(association.foreign_type).constantize : association.klass
-        if subincludes.empty?
+        key = if subincludes.empty?
           "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_fs(klass.cache_timestamp_format)}"
         else
           "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_fs(klass.cache_timestamp_format)}"
         end
+        "#{key}#{policy_cache_suffix(klass, subincludes)}"
       else
         raise ArgumentError, 'Unkown association type'
       end
