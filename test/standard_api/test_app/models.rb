@@ -5,6 +5,9 @@ class Account < ActiveRecord::Base
   has_many :photos, -> { order(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
+  # Named like Property#owner, an Account, to include both under a polymorphic
+  # association
+  belongs_to :owner, class_name: "Property", foreign_key: :property_id, optional: true
 end
 
 class Photo < ActiveRecord::Base
@@ -30,6 +33,8 @@ class Property < ActiveRecord::Base
   has_and_belongs_to_many :photos
   has_many :accounts
   has_one :landlord, class_name: 'Account'
+  # Named like Account#owner, a Property
+  has_one :owner, class_name: 'Account'
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
   

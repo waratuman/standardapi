@@ -128,9 +128,18 @@ module StandardAPI
 
     # Checks +includes+ under a polymorphic association or a method, whose
     # records can be any of +types+: each include is permitted if one of their
-    # Policies declares it, and checked below it against that model, so one
-    # request can include what different models declare. Like any include
-    # without a model, a +where+ or +order+ is rejected.
+    # Policies declares it, so one request can include what different models
+    # declare, as each record renders only what its own Policy does. It's
+    # applied to the records of every type that declares it, so it's checked
+    # below it against each of them, the way #sanitize_includes checks any
+    # include (with the association's +policy+, if it gives one), and is
+    # rejected if any of them rejects it. Like any include without a model, a
+    # +where+ or +order+ directly under it is rejected.
+    #
+    #   association :subject, types: [Account, Photo]
+    #   # include[subject][owner][where][name]: Account#owner and Photo#owner
+    #   # are both checked, so it's rejected unless both their Policies make
+    #   # name filterable
     def sanitize_typed_includes(includes, types)
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -147,14 +156,18 @@ module StandardAPI
           v = v.except('when')
         end
 
-        error = nil
-        sanitized = types.lazy.filter_map do |type|
-          sanitize_includes({ k => v }, type, normalized: true)[k]
-        rescue StandardAPI::UnpermittedParameters => e
-          error ||= e
-          nil
-        end.first
-        raise(error || StandardAPI::UnpermittedParameters.new([k])) if sanitized.nil?
+        declaring = types.select { |type| model_policy(type)&.declared_includes&.has_key?(k) }
+        raise StandardAPI::UnpermittedParameters.new([k]) if declaring.empty?
+
+        # Each raises if its type's Policy rejects what's below the include
+        sanitized = declaring.map { |type| sanitize_includes({ k => v }, type, normalized: true)[k] }.uniq
+        # The same input checked the same way sanitizes the same, but an order
+        # can normalize differently by model (ie. an attribute in one and an
+        # association in another); with no one form to apply to every type,
+        # it's rejected
+        raise StandardAPI::UnpermittedParameters.new([k]) if sanitized.size > 1
+
+        sanitized = sanitized.first
 
         sanitized['when'] = conditions if conditions
         permitted[k] = sanitized

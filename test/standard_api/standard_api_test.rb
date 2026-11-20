@@ -847,6 +847,86 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     ApplicationController.unstub(:standard_api_policies)
   end
 
+  # A Reference's subject can be an Account or a Property, which both declare
+  # owner: Account#owner is a Property, whose Policy makes name filterable and
+  # orderable and declares landlord, and Property#owner an Account, whose
+  # Policy doesn't. +owner_policy+ is the policy Property#owner gives, if any.
+  def with_owner_policies(owner_policy = nil)
+    policies = ApplicationController.standard_api_policies.merge(
+      'reference' => Class.new(ReferencePolicy) { association :subject, types: [Account, Property] },
+      'account' => Class.new(AccountPolicy) { association :owner },
+      'property' => Class.new(PropertyPolicy) do
+        filterable :name
+        association :owner, policy: owner_policy
+      end
+    )
+    ApplicationController.stubs(:standard_api_policies).returns(policies)
+    yield ->(includes) { ReferencesController.new.send(:sanitize_includes, includes, Reference) }
+  ensure
+    ApplicationController.unstub(:standard_api_policies)
+  end
+
+  test "a polymorphic association's include is checked against every type that declares it" do
+    with_owner_policies do |sanitize|
+      # Both make id filterable and orderable
+      assert_equal({ 'subject' => { 'owner' => { 'where' => { 'id' => 1 } } } }, sanitize.call({ subject: { owner: { where: { id: 1 } } } }))
+      assert_nothing_raised { sanitize.call({ subject: { owner: { order: { id: :asc } } } }) }
+
+      # PropertyPolicy permits them, but they'd also filter and order the
+      # Account owners of Property subjects
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: { where: { name: 'x' } } } }) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: { order: { name: :asc } } } }) }
+    end
+  end
+
+  test "a polymorphic association's include is rejected if what's below it is declared by only some of the types declaring it" do
+    with_owner_policies do |sanitize|
+      # PropertyPolicy and AccountPolicy declare photos, only PropertyPolicy landlord
+      assert_equal({ 'subject' => { 'owner' => { 'photos' => {} } } }, sanitize.call({ subject: { owner: :photos } }))
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: :landlord } }) }
+    end
+  end
+
+  test "a polymorphic association's includes declared by only one type are permitted" do
+    with_owner_policies do |sanitize|
+      # landlord is PropertyPolicy's and property AccountPolicy's
+      assert_equal({ 'subject' => { 'landlord' => { 'photos' => {} }, 'property' => {} } }, sanitize.call({ subject: { landlord: :photos, property: true } }))
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: :document_attachments }) }
+    end
+  end
+
+  test "a polymorphic association's include is checked against each type's association policy" do
+    through = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      attribute :name, filterable: true
+    end
+
+    with_owner_policies(through) do |sanitize|
+      assert_nothing_raised { sanitize.call({ subject: { owner: { where: { name: 'x' } } } }) }
+      # Property#owner's policy doesn't make id filterable
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: { where: { id: 1 } } } }) }
+    end
+  end
+
+  test "a polymorphic association's include every type declaring it permits is rendered" do
+    property = create(:property)
+    account = create(:account, property: property)
+    landlord = create(:account, property: create(:property))
+    account_reference = create(:reference, subject: account)
+    property_reference = create(:reference, subject: landlord.property)
+
+    with_owner_policies do
+      get references_path(include: { subject: { owner: :photos } }, limit: 20, format: 'json')
+    end
+    assert_response :ok
+
+    json = JSON(response.body)
+    assert_equal property.id, json.find { |x| x['id'] == account_reference.id }.dig('subject', 'owner', 'id')
+    assert_equal property.photos.map(&:id), json.find { |x| x['id'] == account_reference.id }.dig('subject', 'owner', 'photos').map { |x| x['id'] }
+    assert_equal landlord.id, json.find { |x| x['id'] == property_reference.id }.dig('subject', 'owner', 'id')
+    assert_equal [], json.find { |x| x['id'] == property_reference.id }.dig('subject', 'owner', 'photos')
+  end
+
   test 'types must be models or their names' do
     assert_raises(ArgumentError) { Class.new(StandardAPI::Policy) { association :subject, types: [:property] } }
   end

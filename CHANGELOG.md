@@ -32,7 +32,10 @@
   anything else is rejected with a 400, and what's included of an included
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
-  checked against the Policies of the models the association's `types:` name.
+  checked against the Policies of the models the association's `types:` name:
+  an include is permitted if one of them declares it, and what's below it
+  (its `where`, `order` and includes) must be permitted by every one that
+  declares it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
