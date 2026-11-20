@@ -211,7 +211,7 @@ class PolicyAssociationsTest < ActionDispatch::IntegrationTest
     whole = create(:property, name: 'Whole', landlord: create(:account, email: 'b@example.com'))
 
     narrow = Class.new(StandardAPI::Policy) { attributes :id, :name }
-    policy = property_policy { association :landlord, policy: -> { narrow if record&.name == 'Narrowed' } }
+    policy = property_policy { association :landlord, policy: -> { narrow if record&.name == 'Narrowed' }, policies: [narrow] }
     with_policies('property' => policy) do
       assert_not show_property(narrowed, [:landlord])['landlord'].key?('email')
       assert_equal 'b@example.com', show_property(whole, [:landlord])['landlord']['email']

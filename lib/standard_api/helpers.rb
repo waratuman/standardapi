@@ -87,6 +87,44 @@ module StandardAPI
       end
     end
 
+    # The JSON of +value+, what the method +name+ of +record+ rendered as an
+    # include returned, when it's neither a record nor records
+    # (#included_records): plain JSON data renders whole, a Duration as its
+    # seconds and a Set as an Array. Anything else, a model that isn't an
+    # ActiveRecord or any other object, has no Policy to render with, and
+    # `as_json` would render all of its instance variables, so it raises
+    # MissingPolicy. So does a record in a Hash, a Set, or an Array with
+    # anything but records, which renders with its Policy only on its own.
+    # +returned+ is what the method returned, for the message.
+    def included_value(record, name, value, returned = value)
+      case value
+      when nil, true, false, String, Symbol, Numeric, ::ActiveSupport::Duration
+        value.as_json
+      when Hash
+        value.to_h { |k, v| [included_value(record, name, k, returned).to_s, included_value(record, name, v, returned)] }
+      when Array, ::Set
+        value.map { |v| included_value(record, name, v, returned) }
+      else
+        return value.as_json if value.acts_like?(:date) || value.acts_like?(:time)
+
+        description = returned.class.name
+        description += " containing #{value.class.name}" if !value.equal?(returned)
+        reason = if value.is_a?(::ActiveRecord::Base)
+          "a record renders with its Policy only when a method returns it, or a relation or an Array of only records"
+        else
+          "a model that isn't an ActiveRecord can't have a Policy, not even one the association's `policy` gives"
+        end
+        raise StandardAPI::MissingPolicy.new(value.class, <<~MSG.squish)
+          The include #{name} (#{record.class.name}##{name}) returned #{description},
+          which has no Policy to render with; #{reason}. A method include renders
+          an ActiveRecord record, or a relation or an Array of them, with its
+          Policy, and plain JSON data (nil, a String, Symbol, Numeric, true,
+          false, Date, Time or Duration, or a Hash, an Array or a Set of them)
+          whole.
+        MSG
+      end
+    end
+
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?

@@ -26,16 +26,25 @@
   `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
   custom partial asks `record_policy(record, local_assigns[:policy])` what it
   renders, and passes `policy:` rather than `excludes:` to nested records. An
-  include that resolves to a plain value is rendered whole.
+  include that resolves to plain JSON data (nil, a String, Symbol, Numeric,
+  Boolean, Date, Time or `ActiveSupport::Duration`, or a Hash, an Array or a
+  Set of them) is rendered whole; one
+  that resolves to any other object, such as a model that isn't an
+  ActiveRecord, or a Hash containing a record, raises
+  `StandardAPI::MissingPolicy` rather than rendering it with `as_json`.
 - Remove ACL `includes`. What can be included is what the model's Policy
   declares with `association` and `associations`, an association or a method;
   anything else is rejected with a 400, and what's included of an included
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
-  checked against the Policies of the models the association's `types:` name:
-  an include is permitted if one of them declares it, and what's below it
-  (its `where`, `order` and includes) must be permitted by every one that
-  declares it.
+  checked against the Policies of the models the association's `types:` name.
+  A `policy:` given as a Proc or method name that gives a record another
+  Policy than it gives the model lists it in `policies:`, or raises
+  `ArgumentError`. Wherever the included records can render with more than
+  one Policy, theirs or their types', an include of them is permitted if one
+  of those Policies declares it, or every one where they can be of different
+  models (below a polymorphic association), and a `where`, `order` or `when`
+  on them only if every one permits it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;
@@ -105,6 +114,14 @@
 - `StandardAPI::TestCase`'s `#index.json params[:where]` and
   `#calculate.json params[:where]` tests skip for a model whose Policy
   doesn't make `id` filterable.
+- `StandardAPI::TestCase`'s create and update tests expect the params they
+  send only in what the model's Policy makes `writable` on that action and
+  doesn't `assign`. `create_attributes` and `update_attributes` are no longer
+  the same method: each gives what its action could have written, and
+  `update_attributes(record, was)` takes the record as it was before the
+  update. `orders`, `required_orders` and `where_permitted?` ask the
+  controller of a request the test made, making a GET for one if need be,
+  so a Policy that reads the session or request gets one.
 
 - Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
   `schema/query.json` (see Added). `schema/read.json` describes records as

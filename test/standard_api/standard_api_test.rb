@@ -188,7 +188,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     controllers = ApplicationController.descendants
     controllers.select! { |c| c.ancestors.include?(StandardAPI::Controller) && c != StandardAPI::Controller }
 
-    @controller.send(:models).reject { |x| %w(Photo Document).include?(x.name)  }.each do |model|
+    @controller.send(:models).reject { |x| %w(Photo Document Note).include?(x.name)  }.each do |model|
       assert_equal true, schema['models'].has_key?(model.name)
 
       model_comment = model.connection.table_comment(model.table_name)
@@ -361,7 +361,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "cameras", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "cameras", "documents", "notes", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do
@@ -881,9 +881,12 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test "a polymorphic association's include is rejected if what's below it is declared by only some of the types declaring it" do
     with_owner_policies do |sanitize|
-      # PropertyPolicy and AccountPolicy declare photos, only PropertyPolicy landlord
+      # PropertyPolicy and AccountPolicy declare photos, only PropertyPolicy
+      # landlord, and the owners, Properties and Accounts, are preloaded
+      # together
       assert_equal({ 'subject' => { 'owner' => { 'photos' => {} } } }, sanitize.call({ subject: { owner: :photos } }))
       assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: :landlord } }) }
+      assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ subject: { owner: :document_attachments } }) }
     end
   end
 
@@ -925,6 +928,19 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal property.photos.map(&:id), json.find { |x| x['id'] == account_reference.id }.dig('subject', 'owner', 'photos').map { |x| x['id'] }
     assert_equal landlord.id, json.find { |x| x['id'] == property_reference.id }.dig('subject', 'owner', 'id')
     assert_equal [], json.find { |x| x['id'] == property_reference.id }.dig('subject', 'owner', 'photos')
+  end
+
+  test "a polymorphic association's include only some types have below it is a 400, not a preload error" do
+    property = create(:property)
+    create(:reference, subject: create(:account, property: property))
+    create(:reference, subject: create(:account, property: create(:property)).property)
+
+    with_owner_policies do
+      # The owners, Properties and Accounts, would be preloaded together,
+      # and Account has no landlord
+      get references_path(include: { subject: { owner: :landlord } }, limit: 20, format: 'json')
+    end
+    assert_response :bad_request
   end
 
   test 'types must be models or their names' do

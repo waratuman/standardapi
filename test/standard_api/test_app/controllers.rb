@@ -45,8 +45,32 @@ class ReferencesController < ApplicationController
 end
 
 class SessionsController < ApplicationController
+  # Signs in as params[:user_id], for the Policies that read the session
   def create
+    session[:user_id] = params[:user_id].to_i if params[:user_id]
   end
+end
+
+# What StandardAPI::TestCase has to cope with (test_case_test.rb): an
+# attribute only writable on create, one the Policy assigns whatever the
+# params send, and what can be ordered by and filtered on depending on the
+# session, which a controller only has with a request.
+#
+# An app's Policy would call `session`, which it delegates to the
+# controller; test_helper.rb includes ActionDispatch::TestProcess into
+# Object, whose own `session` would answer here instead. It's found by name,
+# like the Policies in test_app.rb, so the tests that stub the nested ones
+# still find it.
+class NotePolicy < StandardAPI::Policy
+  attributes :id, :author_id
+  attribute :id, orderable: true, filterable: true
+  attribute :title, writable: { on: :create }
+  attribute :body, writable: true
+  assign :author_id, with: -> { controller.session[:user_id] }
+  attribute :rank, orderable: true, filterable: true, if: -> { controller.session[:user_id].present? }
+end
+
+class NotesController < ApplicationController
 end
 
 class UnlimitedController < ApplicationController
@@ -102,7 +126,7 @@ class CamerasController < ApplicationController
   class Policy < StandardAPI::Policy
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
-    association :photo, unless: -> { record&.retired? }, policy: :photo_policy
+    association :photo, unless: -> { record&.retired? }, policy: :photo_policy, policies: [HiddenPhotoPolicy]
     association :specs
 
     attributes :id, :make, filterable: true

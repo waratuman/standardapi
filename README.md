@@ -428,11 +428,12 @@ Under a polymorphic association or a method there's no single model to check
 what's included of it against. It's checked against the `policy` the
 association gives, if it gives a Policy class, or else the Policies of the
 models its `types` name: each include is permitted if one of them declares it,
-and as it's applied to the records of every type that declares it, it's
-checked below it against each of them (with the association's `policy`, if it
-gives one) and rejected if any of them rejects it. A `where` or `order`
-directly under it is rejected, and a `when` isn't checked, as its records can
-be of any type:
+and is checked below it against every type that declares it (with the
+association's `policy`, if it gives one). The records it includes can then be
+of different models, preloaded together, so what's included of them has to be
+declared by each of their Policies, and a `where` or `order` on them permitted
+by each. A `where` or `order` directly under the polymorphic association is
+rejected, and a `when` isn't checked, as its records can be of any type:
 
     association :subject, types: [Property, 'Account']   # include[subject][landlord] if PropertyPolicy or AccountPolicy declares it
                                                          # include[subject][owner][where][name] if every one declaring owner permits it
@@ -453,7 +454,7 @@ association (or, for a polymorphic one, from each record's class), unless
 
     association :account, policy: NamePolicy
     association :subject, policy: NamePolicy                     # any model with an id and name
-    association :owner, policy: -> { NamePolicy if redacted?(record) }
+    association :owner, policy: -> { NamePolicy if redacted?(record) }, policies: [NamePolicy]
 
 It decides everything about the included records, their associations and
 values too: `NamePolicy` declares no associations, so nothing can be included
@@ -461,11 +462,27 @@ through `account`. Given a method name or Proc, it runs like a condition, on
 the record including them, and returns a Policy, or `nil` to render them with
 their own.
 
+What a request may include, filter and order of the included records is
+checked before any record is loaded, so against what `policy` gives for the
+model (a `nil` record), and every other Policy it can give a record, which
+`policies` lists. An include is permitted if one of them declares it, as each
+record then renders only what its own Policy declares. A `where`, `order` or
+`when` on the included records runs in SQL across all of them, so has to be
+permitted by every one: above, `include[owner][where]` is only permitted on what
+`NamePolicy` makes filterable too. A Policy it gives a record that's neither
+raises `ArgumentError`.
+
 The same goes for a method: a record it returns, or a relation or an Array of
 records, renders as the records of an association do, with their own Policy or
-the `policy` given. Anything else it returns, a Hash or a model that isn't an
-ActiveRecord, has no Policy to render with, so is rendered whole, with
-`as_json`. A response that includes a method isn't cached.
+the `policy` given. Plain JSON data it returns, nil, a String, Symbol, Numeric,
+true, false, Date, Time or `ActiveSupport::Duration` (as its seconds), or a
+Hash, an Array or a Set (as an Array) of them, is rendered whole.
+Anything else raises `StandardAPI::MissingPolicy` rather than rendering it with
+`as_json`, which would expose all of its instance variables: a model that
+isn't an ActiveRecord can't have a Policy, not even one `policy` gives, and a
+record in a Hash, or in an Array with anything but records, isn't rendered with
+its Policy. Return a Hash of what to render instead. A response that includes a
+method isn't cached.
 
 **It replaces their own Policy, so nothing their own Policy hides is hidden
 unless it declares so too.** To start from what their own Policy renders, and
@@ -714,6 +731,26 @@ And example contoller and it's tests.
         end
 
     end
+
+A test named after the controller that includes `StandardAPI::TestCase` gets
+tests for each of its routed actions, which follow the model's Policy:
+
+    class PhotosControllerTest < ActionDispatch::IntegrationTest
+        include StandardAPI::TestCase
+    end
+
+- The create and update tests send every attribute of the model's factory,
+  and expect them only in what the Policy makes `writable` on that action
+  and doesn't `assign` (`create_attributes(record)` and
+  `update_attributes(record, was)`, `was` being the record before the
+  update). They don't check what isn't writable was left alone, as a
+  `filter` or a callback of the model may well set it.
+- `orders`, `required_orders` and `where_permitted?(where)` are what the
+  Policy permits the requests the test makes: they ask the controller of the
+  last request, if it was to this controller, and otherwise make a GET to
+  its index, schema or calculate action, whichever is routed first, for one.
+  So a Policy that reads the session, ie. `if: -> { session[:user_id] }`, is
+  asked as whoever the test's `setup` signed in.
 
 # Usage
 

@@ -22,7 +22,11 @@ module StandardAPI
           json = JSON.parse(response.body)
           assert json.is_a?(Hash)
 
-          create_attributes(m.reload).select { |x| attrs.keys.map(&:to_s).include?(x) }.each do |key, value|
+          # Only what the Policy makes writable on create, and doesn't assign,
+          # is written from the params, and only what it doesn't hide is
+          # rendered
+          rendered = view_attributes(m.reload)
+          create_attributes(m).select { |x| attrs.keys.map(&:to_s).include?(x) && rendered.key?(x) }.each do |key, value|
             message = "Model / Attribute: #{m.class.name}##{key}"
             if value.is_a?(BigDecimal)
               assert_equal_or_nil normalize_to_json(m, key, attrs[key.to_sym]).to_s.to_f, json[key.to_s].to_s.to_f, message
@@ -144,7 +148,7 @@ module StandardAPI
               next if !association
 
               if ['belongs_to', 'has_one'].include?(association.macro.to_s)
-                create_attributes(m.send(included)) do |key, value|
+                view_attributes(m.send(included)) do |key, value|
                   assert_equal json[included.to_s][key.to_s], normalize_to_json(m, key, value)
                 end
               else
@@ -158,7 +162,7 @@ module StandardAPI
                   nil
                 end
 
-                create_attributes(m2).each do |key, value|
+                view_attributes(m2).each do |key, value|
                   message = "Model / Attribute: #{m2.class.name}##{key}"
                   if m_json[key.to_s].nil?
                     assert_nil normalize_to_json(m2, key, value), message
