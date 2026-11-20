@@ -214,11 +214,62 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "a method include that returns a model that isn't an ActiveRecord renders its as_json" do
+  def assert_method_include_raises(camera, name, message)
+    error = assert_raises(ActionView::Template::Error) do
+      get "/cameras/#{camera.id}", params: { include: [name] }, as: :json
+    end
+    assert_instance_of StandardAPI::MissingPolicy, error.cause
+    assert_match message, error.cause.message
+  end
+
+  test "a method include that returns a model that isn't an ActiveRecord raises" do
     camera = create(:camera)
 
     with_method_includes(-> { association :lens }) do
-      assert_equal({ 'mount' => 'M', 'serial' => 'L-1' }, show_camera(camera, [:lens])['lens'])
+      assert_method_include_raises(camera, :lens, /The include lens \(Camera#lens\) returned Lens, which has no Policy.*a model that isn't an ActiveRecord can't have a Policy/)
+    end
+
+    # Nor can the association's policy render one
+    with_method_includes(-> { association :lens, policy: CamerasController::AccountWithoutEmailPolicy }) do
+      assert_method_include_raises(camera, :lens, /returned Lens, which has no Policy/)
+    end
+  end
+
+  test "a method include that returns an object that isn't plain JSON data raises" do
+    camera = create(:camera)
+
+    with_method_includes(-> { association :strap }) do
+      assert_method_include_raises(camera, :strap, /The include strap \(Camera#strap\) returned Strap, which has no Policy/)
+    end
+  end
+
+  test "a method include that returns plain JSON data renders it whole" do
+    camera = create(:camera)
+
+    with_method_includes(-> { associations :shutter_count, :settings, :specs }) do
+      json = show_camera(camera, [:shutter_count, :settings, :specs])
+      assert_equal 42, json['shutter_count']
+      assert_equal({
+        'mode' => 'manual',
+        'iso' => [100, 200.5, nil, true, false],
+        'calibrated_on' => '2020-01-02',
+        'serviced_at' => Time.utc(2021, 3, 4, 5, 6, 7).as_json,
+        'lenses' => [{ 'mount' => 'M' }],
+        # A Duration is its seconds, and a Set an Array
+        'interval' => 300,
+        'tags' => ['street', 'travel']
+      }, json['settings'])
+      assert_equal({ 'sensor' => 'CMOS', 'serial' => 'SN-123' }, json['specs'])
+    end
+  end
+
+  test "a method include that returns a record in a Hash or a Set, or among other values in an Array, raises" do
+    camera, _account = camera_with_owner
+
+    with_method_includes(-> { associations :owner_summary, :owner_and_count, :owner_set, types: ['Account'] }) do
+      assert_method_include_raises(camera, :owner_summary, /returned Hash containing Account, which has no Policy to render with; a record renders with its Policy only when/)
+      assert_method_include_raises(camera, :owner_and_count, /returned Array containing Account, which has no Policy/)
+      assert_method_include_raises(camera, :owner_set, /returned Set containing Account, which has no Policy/)
     end
   end
 
