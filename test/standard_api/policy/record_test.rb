@@ -84,6 +84,22 @@ class PolicyRecordTest < ActiveSupport::TestCase
     assert_not controller.record_policy(create(:account)).hidden?(:not_an_attribute)
   end
 
+  test 'hidden? is true for an attribute the Policy adds and hides' do
+    account = create(:account)
+    policy = Class.new(AccountPolicy) do
+      attribute :nickname, :string, if: -> { false }
+      attribute :initials, :string, value: -> { 'AB' }, unless: -> { record&.persisted? }
+      attribute :shown, :string, if: -> { true }
+    end
+
+    with_account_policy(policy) do
+      assert controller.record_policy(account).hidden?(:nickname)
+      assert controller.record_policy(account).hidden?(:initials)
+      assert_not controller.record_policy(Account).hidden?(:initials)
+      assert_not controller.record_policy(account).hidden?(:shown)
+    end
+  end
+
   test 'errors leave out those on what it hides' do
     account = build(:account)
     account.errors.add(:email, 'is taken by someone@example.com')

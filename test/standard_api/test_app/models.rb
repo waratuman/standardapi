@@ -114,6 +114,10 @@ class Camera < ActiveRecord::Base
 
   validates :make, presence: true
 
+  # Not a column: a Policy adds it with a type
+  attr_accessor :serial_last4
+  validates :serial_last4, length: { maximum: 4 }
+
   # An include that resolves to a plain Hash rather than a record, so there is
   # no partial to apply excludes for it.
   def specs

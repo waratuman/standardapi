@@ -126,4 +126,32 @@ class PolicyConditionsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a hidden attribute the Policy adds has its validation error withheld" do
+    typed = policy_class { attribute :serial_last4, :string, if: -> { false }; writable :serial_last4 }
+    valued = policy_class do
+      attribute :serial_last4, :string, value: -> { record.serial_last4 }, unless: -> { true }
+      writable :serial_last4
+    end
+
+    [typed, valued].each do |policy|
+      with_policy(policy) do
+        post "/cameras", params: { camera: { make: 'Canon', serial_last4: 'secret-123' } }, as: :json
+      end
+      assert_response :bad_request
+      json = JSON(response.body)
+      assert_not json.key?('serial_last4')
+      assert_not json.fetch('errors', {}).key?('serial_last4')
+    end
+  end
+
+  test "an attribute the Policy adds and shows has its validation error rendered" do
+    policy = policy_class { attribute :serial_last4, :string, if: -> { true }; writable :serial_last4 }
+
+    with_policy(policy) do
+      post "/cameras", params: { camera: { make: 'Canon', serial_last4: 'secret-123' } }, as: :json
+    end
+    assert_response :bad_request
+    assert JSON(response.body)['errors'].key?('serial_last4')
+  end
+
 end
