@@ -872,6 +872,57 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The Policies of a Property whose landlord, an Account, is included with
+  # +landlord_policy+
+  def stub_landlord_policy(controller, landlord_policy)
+    policy = Class.new(PropertyPolicy) { association :landlord, policy: landlord_policy }
+    controller.stubs(:model_policy).with(Property).returns(policy.new(controller, Property))
+    controller.stubs(:model_policy).with(Account).returns(AccountPolicy.new(controller, Account))
+    controller.stubs(:model_policy).with(Photo).returns(PhotoPolicy.new(controller, Photo))
+  end
+
+  test "Includes#sanitize_includes checks an include's where, order and when against its policy" do
+    # AccountPolicy makes id filterable and orderable, not name
+    through = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      attribute :name, filterable: true, orderable: true
+      association :photos
+    end
+    controller = PropertiesController.new
+    stub_landlord_policy(controller, through)
+    sanitize = ->(includes) { controller.send(:sanitize_includes, includes, Property) }
+
+    assert_nothing_raised { sanitize.call({ landlord: { where: { name: 'a' } } }) }
+    assert_nothing_raised { sanitize.call({ landlord: { order: { name: :asc } } }) }
+    assert_nothing_raised { sanitize.call({ landlord: { photos: { when: { name: 'a' } } } }) }
+
+    # What only the model's Policy permits isn't what the landlord renders with
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { order: { id: :asc } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call({ landlord: { photos: { when: { id: 1 } } } }) }
+  end
+
+  test "Includes#sanitize_includes checks an include's where and order against what its policy gives for a model" do
+    through = Class.new(StandardAPI::Policy) do
+      attributes :id, :name
+      attribute :name, filterable: true, orderable: true
+    end
+    sanitize = ->(landlord_policy, includes) do
+      controller = PropertiesController.new
+      stub_landlord_policy(controller, landlord_policy)
+      controller.send(:sanitize_includes, includes, Property)
+    end
+
+    # A Proc is called with a nil record, as none is loaded yet
+    assert_nothing_raised { sanitize.call(-> { through }, { landlord: { where: { name: 'a' } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { through }, { landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { through }, { landlord: { order: { id: :asc } } }) }
+
+    # When it gives none, the model's Policy
+    assert_nothing_raised { sanitize.call(-> { nil }, { landlord: { where: { id: 1 } } }) }
+    assert_raises(StandardAPI::UnpermittedParameters) { sanitize.call(-> { nil }, { landlord: { where: { name: 'a' } } }) }
+  end
+
   test "Orders#sanitize_orders checks an association permitted by name against its model's Policy" do
     # AccountPolicy makes id orderable, not name
     sanitize = PropertiesController.new.method(:sanitize_orders)

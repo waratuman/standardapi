@@ -89,7 +89,7 @@ module StandardAPI
 
       includes.each do |k, v|
         permitted[k] = if declared.has_key?(k)
-          check_include_when(k, v['when'], model) if v.is_a?(Hash) && v.has_key?('when')
+          check_include_when(k, v['when'], model, policy) if v.is_a?(Hash) && v.has_key?('when')
 
           entry = declared[k]
           association = model&.reflect_on_association(k)
@@ -102,18 +102,20 @@ module StandardAPI
           end
         elsif k.to_s == 'where'
           # Filters the included records, so is checked against the wheres
-          # permitted on their model (StandardAPI::Wheres). Without a model,
-          # ie. under a polymorphic association, it can't be checked.
+          # permitted by the Policy they render with: +policy+, or else their
+          # model's (StandardAPI::Wheres). Without a model, ie. under a
+          # polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_wheres(v, record_policy(model))
+          sanitize_wheres(v, record_policy(model, policy))
         elsif k.to_s == 'order'
           # Orders the included records, so is checked against the orders
-          # permitted on their model (StandardAPI::Orders). Without a model,
-          # ie. under a polymorphic association, it can't be checked.
+          # permitted by the Policy they render with: +policy+, or else their
+          # model's (StandardAPI::Orders). Without a model, ie. under a
+          # polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_orders(v, record_policy(model))
+          sanitize_orders(v, record_policy(model, policy))
         elsif ['limit', 'when', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
@@ -165,10 +167,11 @@ module StandardAPI
     # match its +when+, ie. include[photos][when][active]=true, read with
     # read_attribute, so its keys must be attributes of +model+, the model of
     # the records the include is on, and are checked like a where with +eq+
-    # against the wheres permitted on it. Under a polymorphic association
-    # there is no single model to check against; a +when+ there only stops
-    # preloading.
-    def check_include_when(key, conditions, model)
+    # against the wheres permitted by the Policy those records render with:
+    # +policy+, the Policy class the association that included them gives, or
+    # else their model's. Under a polymorphic association there is no single
+    # model to check against; a +when+ there only stops preloading.
+    def check_include_when(key, conditions, model, policy = nil)
       return if !model
       raise StandardAPI::UnpermittedParameters.new(["#{key}[when]"]) if !conditions.is_a?(Hash)
 
@@ -177,7 +180,7 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
         end
 
-        sanitize_wheres({ name.to_s => true }, record_policy(model))
+        sanitize_wheres({ name.to_s => true }, record_policy(model, policy))
       end
     end
 
