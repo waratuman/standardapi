@@ -126,7 +126,7 @@ class CamerasController < ApplicationController
   class Policy < StandardAPI::Policy
     attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
     attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
-    association :photo, unless: -> { record&.retired? }, policy: :photo_policy
+    association :photo, unless: -> { record&.retired? }, policy: :photo_policy, policies: [HiddenPhotoPolicy]
     association :specs
 
     attributes :id, :make, filterable: true

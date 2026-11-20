@@ -38,6 +38,11 @@
   record is checked against its own Policy, or the association's `policy:`.
   Under a polymorphic association or a method, what's included of it is
   checked against the Policies of the models the association's `types:` name.
+  A `policy:` given as a Proc or method name that gives a record another
+  Policy than it gives the model lists it in `policies:`, or raises
+  `ArgumentError`: what's included of the records is permitted if one of them
+  declares it, and a `where`, `order` or `when` on them only if all of them
+  permit it.
 - `#create` and `#update` render the associations written through nested
   attributes only where the model's Policy declares them.
 - Remove `ApplicationHelper#excludes`. It isn't used, so it hides nothing;

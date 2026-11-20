@@ -77,45 +77,55 @@ module StandardAPI
     #
     #   association :photos                     # include[photos][account]: PhotoPolicy declares account?
     #   association :subject, types: [Property] # include[subject][photos]: PropertyPolicy declares photos?
+    #
+    # +policy+ can also be an Array of the Policies the records can render
+    # with, nil being their model's, as an association whose +policy+ gives one
+    # per record lists them (Policy#declared_includes): an include is
+    # permitted if one of them declares it, as each record renders only what
+    # its own declares, while a +where+, +order+ or +when+, which runs in SQL
+    # across all of them, has to be permitted by every one.
     def sanitize_includes(includes, model, policy = nil, normalized: false)
       includes = normalize_includes(includes) if !normalized
-      declared = if (instance = policy ? policy_instance(policy, model) : (model_policy(model) if model))
-        instance.declared_includes
-      else
-        # Under a polymorphic association without a +policy+
-        {}
+      policies = policy.is_a?(Array) ? policy : [policy]
+      # name => what each Policy that declares it declares of it. None under a
+      # polymorphic association without a +policy+.
+      declared = Hash.new { |hash, key| hash[key] = [] }
+      policies.each do |candidate|
+        instance = candidate ? policy_instance(candidate, model) : (model_policy(model) if model)
+        instance&.declared_includes&.each { |name, entry| declared[name] << entry }
       end
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
       includes.each do |k, v|
-        permitted[k] = if declared.has_key?(k)
-          check_include_when(k, v['when'], model, policy) if v.is_a?(Hash) && v.has_key?('when')
+        permitted[k] = if declared.key?(k.to_s)
+          check_include_when(k, v['when'], model, policies) if v.is_a?(Hash) && v.has_key?('when')
 
-          entry = declared[k]
+          entries = declared[k.to_s]
+          sub_policies = entries.flat_map { |entry| entry[:policies] }.uniq
           association = model&.reflect_on_association(k)
           if association && !association.polymorphic?
-            sanitize_includes(v, association.klass, entry[:policy], normalized: true)
-          elsif entry[:policy]
-            sanitize_includes(v, nil, entry[:policy], normalized: true)
+            sanitize_includes(v, association.klass, sub_policies, normalized: true)
+          elsif entries.all? { |entry| entry[:policy] }
+            sanitize_includes(v, nil, sub_policies, normalized: true)
           else
-            sanitize_typed_includes(v, entry[:types])
+            sanitize_typed_includes(v, entries.flat_map { |entry| entry[:types] }.uniq)
           end
         elsif k.to_s == 'where'
           # Filters the included records, so is checked against the wheres
-          # permitted by the Policy they render with: +policy+, or else their
+          # permitted by the Policies they render with: +policy+, or else their
           # model's (StandardAPI::Wheres). Without a model, ie. under a
           # polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_wheres(v, record_policy(model, policy))
+          policies.map { |candidate| sanitize_wheres(v, record_policy(model, candidate)) }.first
         elsif k.to_s == 'order'
           # Orders the included records, so is checked against the orders
-          # permitted by the Policy they render with: +policy+, or else their
-          # model's (StandardAPI::Orders). Without a model, ie. under a
+          # permitted by the Policies they render with: +policy+, or else
+          # their model's (StandardAPI::Orders). Without a model, ie. under a
           # polymorphic association, it can't be checked.
           raise StandardAPI::UnpermittedParameters.new([k]) if !model
 
-          sanitize_orders(v, record_policy(model, policy))
+          policies.map { |candidate| sanitize_orders(v, record_policy(model, candidate)) }.first
         elsif ['limit', 'when', 'distinct', 'distinct_on'].include?(k.to_s)
           v
         else
@@ -169,7 +179,8 @@ module StandardAPI
     # the records the include is on, and are checked like a where with +eq+
     # against the wheres permitted by the Policy those records render with:
     # +policy+, the Policy class the association that included them gives, or
-    # else their model's. Under a polymorphic association there is no single
+    # else their model's, or by every one when it's an Array of them (see
+    # #sanitize_includes). Under a polymorphic association there is no single
     # model to check against; a +when+ there only stops preloading.
     def check_include_when(key, conditions, model, policy = nil)
       return if !model
@@ -180,7 +191,9 @@ module StandardAPI
           raise StandardAPI::UnpermittedParameters.new(["#{key}[when][#{name}]"])
         end
 
-        sanitize_wheres({ name.to_s => true }, record_policy(model, policy))
+        (policy.is_a?(Array) ? policy : [policy]).each do |candidate|
+          sanitize_wheres({ name.to_s => true }, record_policy(model, candidate))
+        end
       end
     end
 

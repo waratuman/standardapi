@@ -44,7 +44,7 @@ module StandardAPI
         read_only: true, required: false, validations: [].freeze
       }.freeze
       OPTIONS = (DEFAULTS.keys - [:name, :type]).freeze
-      ASSOCIATION_OPTIONS = [:policy, :types].freeze
+      ASSOCIATION_OPTIONS = [:policy, :policies, :types].freeze
       WRITABLE_OPTIONS = [:on, :permit, :policy].freeze
       ASSIGN_OPTIONS = [:on, :with].freeze
       FILTER_OPTIONS = [:on].freeze
@@ -72,6 +72,22 @@ module StandardAPI
         end
 
         options.freeze
+      end
+
+      # Raises ArgumentError unless the +policies+ of association +name+, in
+      # +options+ as it's declared, are Policy classes, and its +policy+ is a
+      # Proc or method name: they're the Policies it can give for a record
+      # other than the one it gives for a model
+      def self.association_policies_option(name, options)
+        return if !options.key?(:policies)
+
+        policies = options[:policies]
+        if !policies.is_a?(Array) || !policies.all? { |policy| policy.is_a?(Class) && policy < StandardAPI::Policy }
+          raise ArgumentError, "the policies of association #{name} must be an Array of subclasses of StandardAPI::Policy"
+        end
+        if !options[:policy].is_a?(Proc) && !options[:policy].is_a?(Symbol)
+          raise ArgumentError, "association #{name} lists policies:, the Policies its policy: gives per record, so its policy: must be a Proc or a method name"
+        end
       end
 
       # +options+, as +assign+ takes them: { on:, with: }. Raises
@@ -222,6 +238,7 @@ module StandardAPI
         end
         unknown = options.keys - ASSOCIATION_OPTIONS
         raise ArgumentError, "unknown options for association #{name}: #{unknown.join(', ')}" if !unknown.empty?
+        Builder.association_policies_option(name, (@association_options[name] || {}).merge(options))
 
         (@association_options[name] ||= {}).merge!(options)
         (@association_conditions[name] ||= []).concat(conditions.to_a) if !conditions.empty?
@@ -522,6 +539,7 @@ module StandardAPI
         if !Array(options[:types]).all? { |type| type.is_a?(String) || type.is_a?(Class) }
           raise ArgumentError, "the types of association #{name} must be models or their names"
         end
+        Builder.association_policies_option(name, options)
 
         if options.key?(:filterable) && options[:filterable] != true && options[:filterable] != false
           raise ArgumentError, "association #{name} can only be filterable: true; what can be filtered on it is up to the associated model's Policy"
@@ -589,14 +607,17 @@ module StandardAPI
       builder_for(record).association_options.key?(name) && !failed_association_conditions(record).include?(name)
     end
 
-    # What a request may include, as name => { policy:, types: }: each
-    # declared association or method, with the Policy class its +policy+
-    # gives for a model (a nil record), and the models its +types+ name. +if+
-    # and +unless+ don't apply, as they only hide it per record.
+    # What a request may include, as name => { policy:, policies:, types: }:
+    # each declared association or method, with the Policy class its
+    # +policy+ gives for a model (a nil record), every Policy its records can
+    # render with (that one, nil being their own, and those +policies+
+    # lists), and the models its +types+ name. +if+ and +unless+ don't apply,
+    # as they only hide it per record.
     def declared_includes
       @declared_includes ||= builder_for(nil).association_options.to_h do |name, options|
         types = Array(options[:types]).map { |type| type.is_a?(String) ? type.constantize : type }
-        [name, { policy: association_policy(nil, name), types: types }]
+        policy = association_policy(nil, name)
+        [name, { policy: policy, policies: [policy, *options[:policies]].uniq, types: types }]
       end.with_indifferent_access
     end
 
@@ -709,10 +730,20 @@ module StandardAPI
     end
 
     # The Policy class the records +record+ includes through the association
-    # +name+ render with in place of their own model's, or nil
+    # +name+ render with in place of their own model's, or nil. A Proc or
+    # method +policy+ gives it per record, and what's included of the records
+    # was checked against the Policies it can give (#declared_includes), so
+    # it raises ArgumentError for one it gives that isn't among them.
     def association_policy(record, name)
       policy = builder_for(record).association_options.dig(name.to_s, :policy)
-      policy.is_a?(Proc) || policy.is_a?(Symbol) ? resolve(policy, record) : policy
+      return policy if !policy.is_a?(Proc) && !policy.is_a?(Symbol)
+
+      given = resolve(policy, record)
+      if record && (declared = declared_includes[name]) && !declared[:policies].include?(given)
+        raise ArgumentError, "the policy: of association #{name} of #{model.name} gave #{given&.name || 'nil'} for a record, " \
+          "but for a model #{declared[:policy]&.name || 'nil'}; list the others it gives with policies:"
+      end
+      given
     end
 
     private
