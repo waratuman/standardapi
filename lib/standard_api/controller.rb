@@ -350,7 +350,9 @@ module StandardAPI
         next false if RESERVED_INCLUDE_KEYS.include?(inc.to_s)
 
         association = klass.reflect_on_association(inc)
-        next false if association.nil?
+        # A method can return records of any model, which render with their
+        # Policy and, for a relation, through #mask, so assume it could vary.
+        next true if association.nil?
         # A polymorphic association's class isn't known until a record is
         # loaded, so assume it could vary.
         next true if association.polymorphic?

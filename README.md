@@ -456,6 +456,12 @@ through `account`. Given a method name or Proc, it runs like a condition, on
 the record including them, and returns a Policy, or `nil` to render them with
 their own.
 
+The same goes for a method: a record it returns, or a relation or an Array of
+records, renders as the records of an association do, with their own Policy or
+the `policy` given. Anything else it returns, a Hash or a model that isn't an
+ActiveRecord, has no Policy to render with, so is rendered whole, with
+`as_json`. A response that includes a method isn't cached.
+
 **It replaces their own Policy, so nothing their own Policy hides is hidden
 unless it declares so too.** To start from what their own Policy renders, and
 hide more, inherit from it:

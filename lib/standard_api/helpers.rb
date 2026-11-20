@@ -71,6 +71,22 @@ module StandardAPI
       end
     end
 
+    # The records to render for +value+, what a method rendered as an include
+    # returned, when it's a relation or an Array of records, or nil when it's
+    # anything else. They render like the records of an association, each with
+    # its Policy, where `as_json` would render every column they have. A
+    # relation is filtered through the controller's mask for its table, as an
+    # included collection is.
+    def included_records(value)
+      case value
+      when ::ActiveRecord::Relation
+        value = value.filter(mask[value.klass.table_name.to_sym]) if respond_to?(:mask)
+        value.to_a
+      when Array
+        value if value.any? && value.all?(::ActiveRecord::Base)
+      end
+    end
+
     def can_cache?(klass, includes)
       cache_columns = ['cached_at'] + cached_at_columns_for_includes(includes)
       return false if !(cache_columns - klass.column_names).empty?

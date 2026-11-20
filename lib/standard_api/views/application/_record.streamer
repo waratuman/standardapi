@@ -55,12 +55,22 @@ json.object! do
         value = record.send(name)
         if value.nil?
           json.set! name, nil
-        elsif value.is_a?(ActiveModel::Model)
+        elsif value.is_a?(::ActiveRecord::Base)
+          # A record renders with its Policy, as one from an association does
           json.set! name do
             partial = model_partial(value)
             json.partial! partial, partial.split("/").last.to_sym => value, includes: sub_include, policy: sub_policy
           end
+        elsif sub_records = included_records(value)
+          json.set! name do
+            json.array! sub_records do |sub_record|
+              partial = model_partial(sub_record)
+              json.partial! partial, partial.split("/").last.to_sym => sub_record, includes: sub_include, policy: sub_policy
+            end
+          end
         else
+          # Anything else, a model that isn't an ActiveRecord too, has no Policy
+          # to render with
           json.set! name, value.as_json
         end
       end
