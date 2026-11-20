@@ -715,6 +715,26 @@ And example contoller and it's tests.
 
     end
 
+A test named after the controller that includes `StandardAPI::TestCase` gets
+tests for each of its routed actions, which follow the model's Policy:
+
+    class PhotosControllerTest < ActionDispatch::IntegrationTest
+        include StandardAPI::TestCase
+    end
+
+- The create and update tests send every attribute of the model's factory,
+  and expect them only in what the Policy makes `writable` on that action
+  and doesn't `assign` (`create_attributes(record)` and
+  `update_attributes(record, was)`, `was` being the record before the
+  update). They don't check what isn't writable was left alone, as a
+  `filter` or a callback of the model may well set it.
+- `orders`, `required_orders` and `where_permitted?(where)` are what the
+  Policy permits the requests the test makes: they ask the controller of the
+  last request, if it was to this controller, and otherwise make a GET to
+  its index, schema or calculate action, whichever is routed first, for one.
+  So a Policy that reads the session, ie. `if: -> { session[:user_id] }`, is
+  asked as whoever the test's `setup` signed in.
+
 # Usage
 
 StandardAPI Resource Interface

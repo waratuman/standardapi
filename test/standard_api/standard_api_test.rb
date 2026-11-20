@@ -188,7 +188,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     controllers = ApplicationController.descendants
     controllers.select! { |c| c.ancestors.include?(StandardAPI::Controller) && c != StandardAPI::Controller }
 
-    @controller.send(:models).reject { |x| %w(Photo Document).include?(x.name)  }.each do |model|
+    @controller.send(:models).reject { |x| %w(Photo Document Note).include?(x.name)  }.each do |model|
       assert_equal true, schema['models'].has_key?(model.name)
 
       model_comment = model.connection.table_comment(model.table_name)
@@ -361,7 +361,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "cameras", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "cameras", "documents", "notes", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do

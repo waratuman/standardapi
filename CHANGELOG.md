@@ -102,6 +102,14 @@
 - `StandardAPI::TestCase`'s `#index.json params[:where]` and
   `#calculate.json params[:where]` tests skip for a model whose Policy
   doesn't make `id` filterable.
+- `StandardAPI::TestCase`'s create and update tests expect the params they
+  send only in what the model's Policy makes `writable` on that action and
+  doesn't `assign`. `create_attributes` and `update_attributes` are no longer
+  the same method: each gives what its action could have written, and
+  `update_attributes(record, was)` takes the record as it was before the
+  update. `orders`, `required_orders` and `where_permitted?` ask the
+  controller of a request the test made, making a GET for one if need be,
+  so a Policy that reads the session or request gets one.
 
 - Replace `json_schema.json` with `schema/read.json`, `schema/write.json` and
   `schema/query.json` (see Added). `schema/read.json` describes records as
