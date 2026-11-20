@@ -459,9 +459,14 @@ their own.
 
 The same goes for a method: a record it returns, or a relation or an Array of
 records, renders as the records of an association do, with their own Policy or
-the `policy` given. Anything else it returns, a Hash or a model that isn't an
-ActiveRecord, has no Policy to render with, so is rendered whole, with
-`as_json`. A response that includes a method isn't cached.
+the `policy` given. Plain JSON data it returns, nil, a String, Symbol, Numeric,
+true, false, Date or Time, or a Hash or an Array of them, is rendered whole.
+Anything else raises `StandardAPI::MissingPolicy` rather than rendering it with
+`as_json`, which would expose all of its instance variables: a model that
+isn't an ActiveRecord can't have a Policy, not even one `policy` gives, and a
+record in a Hash, or in an Array with anything but records, isn't rendered with
+its Policy. Return a Hash of what to render instead. A response that includes a
+method isn't cached.
 
 **It replaces their own Policy, so nothing their own Policy hides is hidden
 unless it declares so too.** To start from what their own Policy renders, and

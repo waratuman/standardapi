@@ -78,9 +78,9 @@ policy.includes(includes).each do |name, sub_include, sub_policy|
           end
         end
       else
-        # Anything else, a model that isn't an ActiveRecord too, has no Policy
-        # to render with
-        json.set! name, value.as_json
+        # Plain JSON data renders whole; anything else, a model that isn't an
+        # ActiveRecord too, has no Policy to render with, so raises
+        json.set! name, included_value(record, name, value)
       end
     end
   end

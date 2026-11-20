@@ -141,12 +141,44 @@ class Camera < ActiveRecord::Base
   def lens
     Lens.new(mount: 'M', serial: 'L-1')
   end
+
+  # An include that resolves to an object that isn't a model
+  def strap
+    Strap.new('leather')
+  end
+
+  # Includes that resolve to plain JSON data
+  def shutter_count
+    42
+  end
+
+  def settings
+    {
+      'mode' => :manual,
+      'iso' => [100, 200.5, nil, true, false],
+      'calibrated_on' => Date.new(2020, 1, 2),
+      'serviced_at' => Time.utc(2021, 3, 4, 5, 6, 7),
+      'lenses' => [{ 'mount' => 'M' }]
+    }
+  end
+
+  # Includes that resolve to a record inside a Hash, and among other values in
+  # an Array
+  def owner_summary
+    { 'owner' => owner }
+  end
+
+  def owner_and_count
+    [owner, 1]
+  end
 end
 
 class Lens
   include ActiveModel::Model
   attr_accessor :mount, :serial
 end
+
+Strap = Struct.new(:material)
 
 # Single table inheritance: an accessory is loaded as an Accessory or as a Flash,
 # each rendered with its own Policy (AccessoryPolicy and FlashPolicy).

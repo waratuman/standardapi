@@ -26,7 +26,11 @@
   `sub_excludes`, `apply_excludes` and `reject_excluded_errors` are removed: a
   custom partial asks `record_policy(record, local_assigns[:policy])` what it
   renders, and passes `policy:` rather than `excludes:` to nested records. An
-  include that resolves to a plain value is rendered whole.
+  include that resolves to plain JSON data (nil, a String, Symbol, Numeric,
+  Boolean, Date or Time, or a Hash or an Array of them) is rendered whole; one
+  that resolves to any other object, such as a model that isn't an
+  ActiveRecord, or a Hash containing a record, raises
+  `StandardAPI::MissingPolicy` rather than rendering it with `as_json`.
 - Remove ACL `includes`. What can be included is what the model's Policy
   declares with `association` and `associations`, an association or a method;
   anything else is rejected with a 400, and what's included of an included
