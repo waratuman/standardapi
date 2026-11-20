@@ -404,9 +404,12 @@ module StandardAPI
       end
 
       # See Builder#association. +policy+ is a Policy class, or a Symbol or
-      # Proc run like a condition, on the record including them, that returns
-      # one, or nil to render the included records with their own Policy. To
-      # keep what their own Policy hides, it inherits from it.
+      # Proc that returns one, or nil to render the included records with
+      # their own Policy. To keep what their own Policy hides, it inherits
+      # from it. A Symbol or Proc runs on the Policy instance once a request,
+      # so what's checked of an include, described and rendered agree: it can
+      # read the requester but not +record+, which raises. Hide what differs
+      # per record with +if+ and +unless+ in the Policy it gives.
       def association(name, **options)
         validate_association(name, options)
         add_step(varies: association_varies(options)) { association(name, **options) }
@@ -591,7 +594,7 @@ module StandardAPI
 
     # What a request may include, as name => { policy:, types: }: each
     # declared association or method, with the Policy class its +policy+
-    # gives for a model (a nil record), and the models its +types+ name. +if+
+    # gives (#association_policy), and the models its +types+ name. +if+
     # and +unless+ don't apply, as they only hide it per record.
     def declared_includes
       @declared_includes ||= builder_for(nil).association_options.to_h do |name, options|
@@ -709,10 +712,22 @@ module StandardAPI
     end
 
     # The Policy class the records +record+ includes through the association
-    # +name+ render with in place of their own model's, or nil
+    # +name+ render with in place of their own model's, or nil. A Symbol or
+    # Proc +policy+ is run once a request, without +record+, so the includes
+    # checked against it (#declared_includes) are those that render.
     def association_policy(record, name)
       policy = builder_for(record).association_options.dig(name.to_s, :policy)
-      policy.is_a?(Proc) || policy.is_a?(Symbol) ? resolve(policy, record) : policy
+      return policy if !policy.is_a?(Proc) && !policy.is_a?(Symbol)
+
+      @association_policies ||= {}.compare_by_identity
+      return @association_policies[policy] if @association_policies.key?(policy)
+
+      begin
+        previous, @choosing_policy = @choosing_policy, name.to_s
+        @association_policies[policy] = resolve(policy, nil)
+      ensure
+        @choosing_policy = previous
+      end
     end
 
     private
@@ -721,6 +736,9 @@ module StandardAPI
     # a model
     def record
       raise ArgumentError, 'record is shared between records in an attributes_for block; use the key it is given' if @declarations
+      if @choosing_policy
+        raise ArgumentError, "the policy: of association #{@choosing_policy} is chosen once a request, so it can't read record; hide what differs per record with if: and unless: in the Policy it gives"
+      end
 
       @record
     end

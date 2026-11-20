@@ -341,7 +341,11 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
   and `associations`; one it doesn't declare isn't rendered or described.
   `if` and `unless` hide one per record, and the included records render
   with `policy:` in place of their own model's Policy; to keep what that
-  hides, it inherits from it.
+  hides, it inherits from it. A `policy:` given as a method name or Proc is
+  chosen once a request, ie. by the requester, so includes are checked
+  against the Policy they render with; reading `record` in it raises
+  `ArgumentError`, so hide what differs per record with `if` and `unless` in
+  the Policy it gives.
   `orderable: true` on an attribute or association, ie. `attributes :id,
   :name, orderable: true`, lets a request order by it, and `orderable: false`
   takes back an inherited one. `filterable: true`, or the operators it

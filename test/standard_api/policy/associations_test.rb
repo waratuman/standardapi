@@ -206,18 +206,6 @@ class PolicyAssociationsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test 'policy given as a Proc is chosen per including record' do
-    narrowed = create(:property, name: 'Narrowed', landlord: create(:account, email: 'a@example.com'))
-    whole = create(:property, name: 'Whole', landlord: create(:account, email: 'b@example.com'))
-
-    narrow = Class.new(StandardAPI::Policy) { attributes :id, :name }
-    policy = property_policy { association :landlord, policy: -> { narrow if record&.name == 'Narrowed' } }
-    with_policies('property' => policy) do
-      assert_not show_property(narrowed, [:landlord])['landlord'].key?('email')
-      assert_equal 'b@example.com', show_property(whole, [:landlord])['landlord']['email']
-    end
-  end
-
   test 'policy renders a polymorphic association whatever model it is' do
     property = create(:property, name: 'Subject')
     account = create(:account, subject: property)
