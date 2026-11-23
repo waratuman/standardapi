@@ -105,6 +105,31 @@ class WriteSchemaTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test 'Controller#write_schema.json a json column is an object or null, as #create and #update take' do
+    with_camera_policy(proc { attribute :metadata, writable: true }) do
+      metadata = camera_schema.dig('properties', 'metadata')
+      assert_equal({ 'type' => ['object', 'null'] }, metadata)
+
+      schemer = JSONSchemer.schema(metadata)
+      [{ 'a' => 1 }, nil].each { |value| assert schemer.valid?(value), value.inspect }
+      [[1, 2], [{ 'a' => 1 }], 'a', 1].each { |value| assert_not schemer.valid?(value), value.inspect }
+    end
+
+    # Rendered, it's any JSON value
+    with_camera_policy(proc { attribute :metadata, writable: true }) do
+      assert_equal({}, write_schema(read_schema_cameras_path(format: 'json')).dig('properties', 'metadata'))
+    end
+  end
+
+  test 'Controller#write_schema.json a json column writable with permit: is what it permits' do
+    with_camera_policy(proc { attribute :metadata, writable: { permit: [] } }) do
+      assert_equal({ 'type' => 'array' }, camera_schema.dig('properties', 'metadata'))
+    end
+    with_camera_policy(proc { attribute :metadata, writable: { permit: {} } }) do
+      assert_equal({ 'type' => ['object', 'null'] }, camera_schema.dig('properties', 'metadata'))
+    end
+  end
+
   test "Controller#write_schema.json describes what's writable but not declared as anything" do
     with_camera_policy(proc { writable :created_at }) do
       assert_equal({}, camera_schema.dig('properties', 'created_at'))

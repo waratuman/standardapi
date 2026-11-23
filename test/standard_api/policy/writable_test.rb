@@ -19,8 +19,55 @@ class PolicyWritableTest < ActionDispatch::IntegrationTest
 
   test 'writable takes what the column does' do
     Camera.stubs(:type_for_attribute).returns(ActiveRecord::Type::Json.new)
-    # A json column takes an object, or null
-    assert_equal ['make', { 'make' => {} }], writable(empty_policy_class { attribute :make, writable: true })
+    # A json column takes an object, or null (which the controller keeps)
+    assert_equal [{ 'make' => {} }], writable(empty_policy_class { attribute :make, writable: true })
+  end
+
+  test 'POST create and PATCH update set a json column to an object or null' do
+    with_camera_policy(proc { attribute :metadata, writable: true }) do
+      post cameras_path(format: 'json'), params: { camera: { make: 'Leica', metadata: { 'iso' => 100, 'lens' => ['35mm'] } } }, as: :json
+      assert_response :created
+      camera = Camera.last
+      assert_equal({ 'iso' => 100, 'lens' => ['35mm'] }, camera.metadata)
+
+      patch camera_path(camera, format: 'json'), params: { camera: { metadata: nil } }, as: :json
+      assert_response :ok
+      assert_nil camera.reload.metadata
+
+      post cameras_path(format: 'json'), params: { camera: { make: 'Canon', metadata: nil } }, as: :json
+      assert_response :created
+      assert_nil Camera.last.metadata
+    end
+  end
+
+  test "POST create and PATCH update drop a json column's scalar or array, as strong parameters drop what isn't permitted" do
+    with_camera_policy(proc { attribute :metadata, writable: true }) do
+      camera = create(:camera, metadata: { 'iso' => 100 })
+
+      [1, 'auto', true, [1, 2], [{ 'iso' => 200 }]].each do |value|
+        patch camera_path(camera, format: 'json'), params: { camera: { make: 'Canon', metadata: value } }, as: :json
+        assert_response :ok
+        assert_equal({ 'iso' => 100 }, camera.reload.metadata, "#{value.inspect} was saved")
+      end
+
+      post cameras_path(format: 'json'), params: { camera: { make: 'Leica', metadata: [1, 2] } }, as: :json
+      assert_response :created
+      assert_nil Camera.last.metadata
+    end
+  end
+
+  test 'a json column takes an array with permit:' do
+    with_camera_policy(proc { attribute :metadata, writable: { permit: [] } }) do
+      post cameras_path(format: 'json'), params: { camera: { make: 'Leica', metadata: [1, 'a'] } }, as: :json
+      assert_response :created
+      assert_equal [1, 'a'], Camera.last.metadata
+    end
+
+    with_camera_policy(proc { attribute :metadata, writable: { permit: [:iso] } }) do
+      post cameras_path(format: 'json'), params: { camera: { make: 'Leica', metadata: [{ iso: 100 }, { iso: 200 }] } }, as: :json
+      assert_response :created
+      assert_equal [{ 'iso' => 100 }, { 'iso' => 200 }], Camera.last.metadata
+    end
   end
 
   test 'writable takes an array for an array column' do

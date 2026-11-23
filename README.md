@@ -306,9 +306,17 @@ Anything else in the params is dropped, as strong parameters drop it:
 
 `writable: true` permits what the column's type takes: an array for an array
 column, an object or `null` for a `json` or `jsonb` one, or else a single
-value. A strong parameters permit, as an Array, takes its place. `on: :create`
-or `on: :update` permits it only on one; a model, ie. for the schema, is a
-create.
+value. `schema/write.json` describes a `json` or `jsonb` column as
+`{ "type": ["object", "null"] }`, and an array or a single value sent for one
+is dropped, as strong parameters drop anything else they don't permit. A
+strong parameters permit, as an Array, takes its place, ie. for a `json`
+column that holds an array:
+
+    attribute :tags, writable: []           # an array of scalars
+    attribute :lenses, writable: [:mount]   # an array of objects, or an object
+
+`on: :create` or `on: :update` permits it only on one; a model, ie. for the
+schema, is a create.
 
 What's writable is decided for the record being created or updated, before
 the params are assigned. An `if` or `unless` decides what renders, not what's

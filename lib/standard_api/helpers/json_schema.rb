@@ -437,12 +437,11 @@ module StandardAPI
         write_policy.writable.each do |entry|
           name, permit = entry.is_a?(Hash) ? entry.first : [entry, nil]
           name = name.to_s
-          # A json column is permitted as a value and as an object
           next if properties.key?(name) || assigned.include?(name)
 
           # A permitted shape without a definition only says what it is
           properties[name] = if permit.nil? || definitions.key?(name)
-            json_schema_attribute_write(model, name, policy: policy)
+            json_schema_attribute_write(model, name, permit: permit, policy: policy)
           else
             permit == [] ? { 'type' => 'array' } : { 'type' => 'object' }
           end
@@ -464,15 +463,28 @@ module StandardAPI
       # when the definition is read only: an attr_readonly attribute, which
       # can be set on create but not changed, or one the Policy says is.
       # +permitted+ is for a foreign key a writable association permits,
-      # which the definition may have as read only.
-      def json_schema_attribute_write(model, name, permitted: false, policy: nil)
+      # which the definition may have as read only. +permit+ is the strong
+      # parameters permit of a json column (Policy#permitted_attributes):
+      # <tt>{}</tt> takes an object or null, <tt>[]</tt> an array, and
+      # another <tt>writable permit:</tt> what it permits.
+      def json_schema_attribute_write(model, name, permitted: false, permit: nil, policy: nil)
         definition = json_schema_definitions(model, policy)[name.to_s]
         return {} if !definition
 
-        schema = json_schema_value(model, definition, validations: true)
+        json = %w(json jsonb).include?(definition[:type]) && !definition[:array] && !permit.nil?
+        schema = if !json
+          json_schema_value(model, definition, validations: true)
+        elsif permit == {}
+          { 'type' => 'object' }
+        elsif permit == []
+          { 'type' => 'array' }
+        else
+          {}
+        end
         schema = { 'type' => 'array', 'items' => schema } if definition[:array]
-        # Only a NOT NULL column can't be null
-        schema = json_schema_nullable(schema) if definition[:null] != false
+        # Only a NOT NULL column can't be null, and strong parameters drop a
+        # null sent for a json column's array
+        schema = json_schema_nullable(schema) if definition[:null] != false && !(json && permit == [])
 
         # For an array these describe the array, not its items
         schema['readOnly'] = true if definition[:read_only] && !permitted

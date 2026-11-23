@@ -278,10 +278,13 @@ module StandardAPI
       # Let a create or update set +names+ without declaring them, so they
       # aren't rendered, ie. a password or an attr_accessor. What each takes
       # is what its column's type does: a scalar, an array for an array
-      # column, or a hash or null for a json one. +permit+ gives it as strong
-      # parameters do instead, ie. <tt>[:name, { filter: {} }]</tt> for an
-      # array of objects. +on+ is +:create+ or +:update+ to permit it only on
-      # one; a model, ie. for the schema, is a create. An association is
+      # column, or a hash or null for a json one, whose array or scalar is
+      # dropped as strong parameters drop what they don't permit. +permit+
+      # gives it as strong parameters do instead, ie. <tt>[]</tt> for a json
+      # column that holds an array of scalars, or
+      # <tt>[:name, { filter: {} }]</tt> for an array of objects. +on+ is
+      # +:create+ or +:update+ to permit it only on one; a model, ie. for the
+      # schema, is a create. An association is
       # written through nested attributes, as with
       # <tt>association name, writable: true</tt>, so takes +policy+ in place
       # of +permit+.
@@ -663,8 +666,10 @@ module StandardAPI
           [{ name => options[:permit] }]
         elsif model.columns_hash[name]&.array
           [{ name => [] }]
-        elsif [:json, :jsonb].include?(model.type_for_attribute(name).type)
-          [name, { name => {} }]
+        elsif Policy.json_attribute?(model, name)
+          # An object; strong parameters drop a null sent for it, which
+          # Controller#filter_model_params keeps
+          [{ name => {} }]
         else
           [name]
         end
@@ -721,6 +726,12 @@ module StandardAPI
     # <tt>writable: { policy: }</tt> gives it, or nil
     def writable_policy(record, name)
       builder_for(record).writable_attributes.dig(name.to_s, :policy)
+    end
+
+    # Whether attribute +name+ of +model+ is a json or jsonb one, which a
+    # create or update writes an object or null to
+    def self.json_attribute?(model, name)
+      [:json, :jsonb].include?(model.type_for_attribute(name.to_s).type)
     end
 
     # Why an association that renders with +policy+ needs a writable +policy+

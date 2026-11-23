@@ -287,6 +287,16 @@ module StandardAPI
 
       permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
 
+      # A json column is permitted as an object, which strong parameters
+      # don't let be null, so a null sent for it is kept here
+      write_policy.writable.each do |entry|
+        next if !entry.is_a?(Hash)
+        entry.each do |name, permit|
+          next if permit != {} || !model_params.key?(name) || !model_params[name].nil?
+          permitted_params[name] = nil if Policy.json_attribute?(write_policy.model, name)
+        end
+      end
+
       write_policy.writable_associations.each do |relation|
         association = resource.association(relation.to_sym)
         attributes_key = association.reflection.name.to_s

@@ -124,7 +124,7 @@ class CamerasController < ApplicationController
   # exercise in isolation from Property/Account, which are exercised by the
   # much larger StandardAPI::TestCase generic suite.
   class Policy < StandardAPI::Policy
-    attributes :id, :photo_id, :hidden, :retired, :photo_cached_at
+    attributes :id, :photo_id, :hidden, :retired, :photo_cached_at, :metadata
     attribute :make, comment: 'The manufacturer', unless: -> { record&.hidden? }
     association :photo, unless: -> { record&.retired? }, policy: :photo_policy, policies: [HiddenPhotoPolicy]
     association :specs
