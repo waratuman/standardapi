@@ -100,9 +100,12 @@ module StandardAPI
       if record.method(name).arity == 0
         record.send(name)
       else
-        # ActionController::Parameters are passed as they are; a Hash, whose
-        # keys the sanitized includes stringified, gets Symbol keys back
-        params = params.to_h.deep_symbolize_keys if params.is_a?(Hash)
+        # Permitted params, or a Hash whose keys the sanitized includes
+        # stringified, are passed as a Hash with Symbol keys; params not
+        # permitted are passed as the ActionController::Parameters sent
+        if params.is_a?(Hash) || (params.is_a?(ActionController::Parameters) && params.permitted?)
+          params = params.to_h.deep_symbolize_keys
+        end
         record.send(name, params)
       end
     end

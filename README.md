@@ -93,23 +93,26 @@ inherited controllers an exposed API.
         [:author]
       end
 
-      # An include can also be a method of the model. Permitting it with an
-      # empty Hash passes the params nested in its include to the method,
-      # ie. `include[data][status]=inactive` calls `data(params)` on a model
-      # defining `def data(filter = {})`, with the `ActionController::Parameters`
-      # sent. Permitting it by name, ie. `:data`, passes nothing.
+      # An include can also be a method of the model that takes an argument.
+      # Permitting it with an Array lists the params nested in its include that
+      # are passed to it, ie. `include[data][status]=inactive` calls
+      # `data(status: 'inactive')` on a model defining `def data(filter = {})`.
+      # Params not listed are rejected with a 400. They are listed like the
+      # arguments of `ActionController::Parameters#permit`.
+      #
+      # Permitting it with an empty Hash, ie. `{ data: {} }`, passes any params
+      # as the `ActionController::Parameters` sent, for the method to permit.
+      # Permitting it by name, ie. `:data`, passes nothing.
       def chart_includes
-        { data: {} }
+        { data: [:status, { range: [:gt, :lt] }] }
       end
 
-      # The params are untrusted, so permit them here, in the controller.
-      # What this returns is passed to the method, ie. `data(status: 'inactive')`
-      # for a Hash. Raise StandardAPI::UnpermittedParameters to respond 400.
-      # In an ACL this is `include_params`.
+      # Optionally, the controller receives the params once permitted and
+      # returns what is passed to the method, ie. to cast them, or raises
+      # StandardAPI::UnpermittedParameters to respond 400. In an ACL this is
+      # `include_params`.
       def chart_include_params(name, params)
-        case name.to_s
-        when 'data' then params.permit(:status).to_h
-        end
+        params
       end
     end
 

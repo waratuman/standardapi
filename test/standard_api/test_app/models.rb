@@ -116,14 +116,17 @@ class Camera < ActiveRecord::Base
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
 
-  # An include that takes the params nested in it as its argument.
+  # Includes that take the params nested in them as their argument
   def readings(filter = {})
     { 'filter' => filter.to_h, 'class' => filter.class.name }
   end
 
-  # The same, but its ACL returns a Hash from the include_params hook
   def history(filter = {})
     { 'filter' => filter, 'class' => filter.class.name, 'keys' => filter.keys.map { |k| k.class.name }.uniq }
+  end
+
+  def snapshots(filter = {})
+    { 'filter' => filter.respond_to?(:to_unsafe_h) ? filter.to_unsafe_h : filter, 'class' => filter.class.name }
   end
 end
 
