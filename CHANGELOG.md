@@ -64,12 +64,16 @@
   An override of `required_orders` isn't used.
 - Remove ACL `attributes`. What a create or update may set is what the
   model's Policy declares `writable`, ie. `attributes :name, writable: true`,
-  decided for the record being created or updated. A json column takes any
-  JSON value (an object, an array, a scalar or `null`, nested to any depth),
-  and an array column an array, without saying so. Strong parameters can't
-  permit an array of objects, so what's sent for a writable json column is
-  copied rather than permitted, unless it's declared with a strong
-  parameters permit, which takes its place.
+  decided for the record being created or updated. What each takes follows
+  its column without saying so: a scalar column a single value, what strong
+  parameters permit as a scalar (a String, Numeric, true, false, `null`, a
+  Date or Time, or an uploaded file); an array column an array of those, or
+  `null`; and a json column any JSON value (an object, an array, a scalar or
+  `null`, nested to any depth). A value of any other shape, ie. an object
+  sent to a string column, is dropped and reported as strong parameters
+  report an unpermitted parameter (`action_on_unpermitted_parameters`). A
+  strong parameters permit takes the place of what the column takes, and is
+  applied with strong parameters.
   `Controller#model_attributes` is removed, and a `<model>_attributes`
   controller method isn't used.
 - Remove ACL `nested`. What a create or update may write through nested
@@ -342,7 +346,7 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 - `record_policy(record_or_model, policy)` gives a `StandardAPI::Policy::Record`,
   what a record renders: `attributes`, `attribute?`, `includes`, `include?`,
   `association_policy`, `orderable`, `required_orders`, `filterable`,
-  `writable`, `writable_associations`, `writable_policy`,
+  `writable_attributes`, `writable_associations`, `writable_policy`,
   `assigned_attributes`, `assigned_attribute_names`, `filter_params`,
   `value`, `hidden?` and `errors`.
   `application/_record` and custom partials are built on it.
@@ -435,6 +439,11 @@ name `:read_schema`, `:write_schema` or `:query_schema` instead.
 
 ### Fixed
 
+- A writable array column can be set to `null`, as `schema/write.json`
+  describes it; strong parameters dropped it. A writable association's params
+  (its nested records, `_ids` or foreign key) aren't reported as unpermitted
+  parameters any more, so `action_on_unpermitted_parameters = :raise` doesn't
+  reject a nested write.
 - A controller with required orders sorts an index without an `order` by its
   `default_orders`, then the required orders; before, it ignored
   `default_orders`. They're no longer written into `params[:order]` either.

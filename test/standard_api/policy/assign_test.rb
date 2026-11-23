@@ -20,7 +20,7 @@ class PolicyAssignTest < ActionDispatch::IntegrationTest
     assert_equal({ 'build_type' => 'metal', 'name' => 'Hancock', 'description' => 'Hancock' }, policy_for(policy).assigned_attributes(nil))
     assert_equal 'brick', policy_for(policy).assigned_attributes(Property.new)['build_type']
     # They aren't made writable
-    assert_equal [], policy_for(policy).permitted_attributes(nil)
+    assert_equal({}, policy_for(policy).writable_attributes(nil))
   end
 
   test 'an assign on: :create or :update is assigned only on one, a model or new record being a create' do

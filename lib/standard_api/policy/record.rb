@@ -72,17 +72,10 @@ module StandardAPI
       end
 
       # What a create or update of the record may set, the model being a
-      # create, as strong parameters permit them
-      # (Policy#permitted_attributes). Without a Policy, nothing.
-      def writable
-        policy ? policy.permitted_attributes(record) : []
-      end
-
-      # The names of the json columns a create or update of the record sets
-      # to any JSON value, the model being a create
-      # (Policy#permitted_json_attributes). Without a Policy, none.
-      def writable_json
-        policy ? policy.permitted_json_attributes(record) : []
+      # create, as name => what it takes, ie. <tt>{ kind: :scalar }</tt>
+      # (Policy#writable_attributes). Without a Policy, nothing.
+      def writable_attributes
+        policy ? policy.writable_attributes(record) : {}
       end
 
       # What a create or update of the record sets, the model being a create,

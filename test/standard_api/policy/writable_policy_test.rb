@@ -52,7 +52,7 @@ class PolicyWritablePolicyTest < ActionDispatch::IntegrationTest
     assert_raises(ArgumentError) { empty_policy_class { attribute :name, writable: { policy: PhotoPolicy } } }
 
     policy = empty_policy_class { writable :name, policy: PhotoPolicy }
-    error = assert_raises(ArgumentError) { policy_for(policy).permitted_attributes(nil) }
+    error = assert_raises(ArgumentError) { policy_for(policy).writable_attributes(nil) }
     assert_match(/name of Property isn't an association/, error.message)
   end
 

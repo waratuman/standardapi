@@ -20,11 +20,12 @@ class PolicyWritableJSONTest < ActionDispatch::IntegrationTest
     'null' => nil
   }.freeze
 
+  # The names Policy#writable_attributes says take any JSON value
   def writable_json(policy, record = nil)
-    policy.new(CamerasController.new, Camera).permitted_json_attributes(record)
+    policy.new(CamerasController.new, Camera).writable_attributes(record).filter_map { |name, takes| name if takes[:kind] == :json }
   end
 
-  test 'writable json attributes are the json columns writable on that action, without a permit' do
+  test 'a json column writable on that action, without a permit, takes any JSON value' do
     policy = empty_policy_class do
       attributes :make, :metadata, writable: true
     end
@@ -37,12 +38,6 @@ class PolicyWritableJSONTest < ActionDispatch::IntegrationTest
     policy = empty_policy_class { attribute :metadata, writable: { on: :update } }
     assert_equal [], writable_json(policy)
     assert_equal %w[metadata], writable_json(policy, create(:camera))
-  end
-
-  test 'Policy::Record#writable_json is empty without a Policy' do
-    with_model_policy(Camera, nil) do
-      assert_equal [], ApplicationController.new.record_policy(Camera).writable_json
-    end
   end
 
   VALUES.each do |description, value|

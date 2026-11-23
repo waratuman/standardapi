@@ -221,7 +221,7 @@ module StandardAPI::TestCase
 
   # The names of the attributes the params of a create of +record+, when it's
   # a new record, or else of an update of it, are written to: what its Policy
-  # makes writable on that action (Policy::Record#writable), and the foreign
+  # makes writable on that action (Policy::Record#writable_attributes), and the foreign
   # keys of the associations it makes writable, as
   # Controller#filter_model_params permits them. Less what the Policy assigns
   # on that action, which replaces what the params send, and what the model
@@ -232,7 +232,7 @@ module StandardAPI::TestCase
   def written_attribute_names(record)
     policy = @controller.record_policy(record)
 
-    names = policy.writable.flat_map { |name| name.is_a?(Hash) ? name.keys : [name] }
+    names = policy.writable_attributes.keys
     policy.writable_associations.each do |name|
       reflection = record.class.reflect_on_association(name)
       names.concat(Array(reflection.foreign_key))

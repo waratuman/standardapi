@@ -17,7 +17,7 @@ class PolicyWritableAssociationsTest < ActionDispatch::IntegrationTest
 
     assert_equal %w[photos accounts], policy_for(policy).permitted_associations(nil)
     # Strong parameters doesn't permit them; they're written as nested records
-    assert_equal %w[name], policy_for(policy).permitted_attributes(nil)
+    assert_equal %w[name], policy_for(policy).writable_attributes(nil).keys
   end
 
   test 'a writable association on: :create or :update is written only on one, a model being a create' do

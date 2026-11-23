@@ -3,8 +3,13 @@ require 'standard_api/test_helper'
 class PolicyWritableTest < ActionDispatch::IntegrationTest
   include PolicyTestHelper
 
+  # The names Policy#writable_attributes makes writable
   def writable(policy, record = nil, model: Camera)
-    policy.new(CamerasController.new, model).permitted_attributes(record)
+    writable_attributes(policy, record, model: model).keys
+  end
+
+  def writable_attributes(policy, record = nil, model: Camera)
+    policy.new(CamerasController.new, model).writable_attributes(record)
   end
 
   test 'writable is what attributes and writable declare writable' do
@@ -17,28 +22,37 @@ class PolicyWritableTest < ActionDispatch::IntegrationTest
     assert_equal %w[make hidden password], writable(policy)
   end
 
-  test 'writable takes what the column does' do
+  test 'writable takes a scalar for a column, or a name without one' do
+    policy = empty_policy_class { attribute :make, writable: true; writable :password }
+    assert_equal({ 'make' => { kind: :scalar }, 'password' => { kind: :scalar } }, writable_attributes(policy))
+  end
+
+  test 'writable takes any JSON value for a json column' do
     Camera.stubs(:type_for_attribute).returns(ActiveRecord::Type::Json.new)
-    # As near as strong parameters gets to a json column's any JSON value;
-    # the controller copies what's sent for it (writable_json_test.rb)
-    assert_equal ['make', { 'make' => {} }], writable(empty_policy_class { attribute :make, writable: true })
+    assert_equal({ 'make' => { kind: :json } }, writable_attributes(empty_policy_class { attribute :make, writable: true }))
   end
 
   test 'writable takes an array for an array column' do
     skip 'array columns are a Postgres-only feature' if !postgres?
 
     policy = empty_policy_class { attribute :aliases, writable: true }
-    assert_equal [{ 'aliases' => [] }], writable(policy, model: Property)
+    assert_equal({ 'aliases' => { kind: :array } }, writable_attributes(policy, model: Property))
   end
 
   test 'writable takes what a strong parameters Array or permit gives instead' do
     policy = empty_policy_class do
       attribute :make, writable: [:name, { filter: {} }]
       writable :specs, permit: {}
+      attribute :metadata, writable: [:a]
     end
 
-    assert_equal [{ 'make' => [:name, { filter: {} }] }, { 'specs' => {} }], writable(policy)
+    assert_equal({
+      'make' => { kind: :permit, permit: [:name, { filter: {} }] },
+      'specs' => { kind: :permit, permit: {} },
+      'metadata' => { kind: :permit, permit: [:a] }
+    }, writable_attributes(policy))
   end
+
 
   test 'writable on: :create or :update permits it only on one, a model being a create' do
     policy = empty_policy_class do
@@ -114,9 +128,9 @@ class PolicyWritableTest < ActionDispatch::IntegrationTest
     assert_equal false, definition(policy, 'hidden')[:required]
   end
 
-  test 'Policy::Record#writable is empty without a Policy' do
+  test 'Policy::Record#writable_attributes is empty without a Policy' do
     with_model_policy(Camera, nil) do
-      assert_equal [], ApplicationController.new.record_policy(Camera).writable
+      assert_equal({}, ApplicationController.new.record_policy(Camera).writable_attributes)
     end
   end
 
