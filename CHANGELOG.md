@@ -64,8 +64,12 @@
   An override of `required_orders` isn't used.
 - Remove ACL `attributes`. What a create or update may set is what the
   model's Policy declares `writable`, ie. `attributes :name, writable: true`,
-  decided for the record being created or updated. A json column takes an
-  object or `null`, and an array column an array, without saying so.
+  decided for the record being created or updated. A json column takes any
+  JSON value (an object, an array, a scalar or `null`, nested to any depth),
+  and an array column an array, without saying so. Strong parameters can't
+  permit an array of objects, so what's sent for a writable json column is
+  copied rather than permitted, unless it's declared with a strong
+  parameters permit, which takes its place.
   `Controller#model_attributes` is removed, and a `<model>_attributes`
   controller method isn't used.
 - Remove ACL `nested`. What a create or update may write through nested

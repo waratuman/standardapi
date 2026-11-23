@@ -278,7 +278,8 @@ module StandardAPI
       # Let a create or update set +names+ without declaring them, so they
       # aren't rendered, ie. a password or an attr_accessor. What each takes
       # is what its column's type does: a scalar, an array for an array
-      # column, or a hash or null for a json one. +permit+ gives it as strong
+      # column, or any JSON value for a json one: an object, an array, a
+      # scalar or null, nested to any depth. +permit+ gives it as strong
       # parameters do instead, ie. <tt>[:name, { filter: {} }]</tt> for an
       # array of objects. +on+ is +:create+ or +:update+ to permit it only on
       # one; a model, ie. for the schema, is a create. An association is
@@ -663,11 +664,25 @@ module StandardAPI
           [{ name => options[:permit] }]
         elsif model.columns_hash[name]&.array
           [{ name => [] }]
-        elsif [:json, :jsonb].include?(model.type_for_attribute(name).type)
+        elsif json_attribute?(name)
+          # As near as strong parameters gets; the controller takes any JSON
+          # value for it (#permitted_json_attributes)
           [name, { name => {} }]
         else
           [name]
         end
+      end
+    end
+
+    # The names of the json and jsonb columns a create or update of +record+
+    # may set, a model (nil) being a create, to any JSON value: an object, an
+    # array, a scalar or null, nested to any depth. Strong parameters can't
+    # permit an array of objects or of arrays, so the controller copies what's
+    # sent for these. They're the ones #permitted_attributes permits without
+    # a +permit+, which takes their place.
+    def permitted_json_attributes(record)
+      writable_for(record).filter_map do |name, options|
+        name if !options.key?(:permit) && !model.reflect_on_association(name) && json_attribute?(name)
       end
     end
 
@@ -830,6 +845,10 @@ module StandardAPI
 
         options[:on] && options[:on] != on
       end
+    end
+
+    def json_attribute?(name)
+      [:json, :jsonb].include?(model.type_for_attribute(name).type)
     end
 
     def action_for(record)
