@@ -19,7 +19,8 @@ class PolicyWritableTest < ActionDispatch::IntegrationTest
 
   test 'writable takes what the column does' do
     Camera.stubs(:type_for_attribute).returns(ActiveRecord::Type::Json.new)
-    # A json column takes an object, or null
+    # As near as strong parameters gets to a json column's any JSON value;
+    # the controller copies what's sent for it (writable_json_test.rb)
     assert_equal ['make', { 'make' => {} }], writable(empty_policy_class { attribute :make, writable: true })
   end
 

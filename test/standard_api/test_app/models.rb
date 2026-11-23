@@ -294,6 +294,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       # Enables the `photo` association fragment cache, so the exclude tests
       # exercise the cached render path and not just the uncached one.
       t.datetime 'photo_cached_at'
+      # Holds any JSON value (policy/writable_json_test.rb)
+      t.json     'metadata'
     end
 
     create_table "accessories", force: :cascade do |t|

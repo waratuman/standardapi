@@ -78,6 +78,13 @@ module StandardAPI
         policy ? policy.permitted_attributes(record) : []
       end
 
+      # The names of the json columns a create or update of the record sets
+      # to any JSON value, the model being a create
+      # (Policy#permitted_json_attributes). Without a Policy, none.
+      def writable_json
+        policy ? policy.permitted_json_attributes(record) : []
+      end
+
       # What a create or update of the record sets, the model being a create,
       # as name => value (Policy#assigned_attributes). Without a Policy,
       # nothing.

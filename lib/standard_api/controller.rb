@@ -274,7 +274,8 @@ module StandardAPI
     # The params of +resource+ its Policy, or +policy+ in its place, makes
     # writable (Policy::Record#writable), and of the associations it makes
     # writable (Policy::Record#writable_associations): the nested records'
-    # own, their ids, or the foreign key. What it assigns
+    # own, their ids, or the foreign key. A writable json column takes any
+    # JSON value (Policy::Record#writable_json). What it assigns
     # (Policy::Record#assigned_attributes) overrides the params, and then its
     # filters run on them (Policy::Record#filter_params).
     def filter_model_params(resource, model_params, allow_id: nil, policy: nil)
@@ -285,7 +286,12 @@ module StandardAPI
         return params.empty? ? params : params.permit!
       end
 
-      permitted_params = allow_id ? model_params.permit(write_policy.writable, :id) : model_params.permit(write_policy.writable)
+      # Strong parameters drops an array of objects or of arrays, which a json
+      # column holds, so what's sent for one is copied rather than permitted
+      json = write_policy.writable_json.select { |name| model_params.has_key?(name) && json_value?(model_params[name]) }
+      scalar_params = model_params.except(*json)
+      permitted_params = allow_id ? scalar_params.permit(write_policy.writable, :id) : scalar_params.permit(write_policy.writable)
+      json.each { |name| permitted_params[name] = model_params[name] }
 
       write_policy.writable_associations.each do |relation|
         association = resource.association(relation.to_sym)
@@ -324,6 +330,17 @@ module StandardAPI
 
       write_policy.assigned_attributes.each { |name, value| permitted_params[name] = value }
       write_policy.filter_params(permitted_params)
+    end
+
+    # Whether +value+, a param, is a JSON value: nil, a String, Numeric or
+    # Boolean, or a Hash or an Array of them, ie. not an uploaded file
+    def json_value?(value)
+      case value
+      when ActionController::Parameters then value.to_unsafe_h.each_value.all? { |v| json_value?(v) }
+      when Hash then value.each_value.all? { |v| json_value?(v) }
+      when Array then value.all? { |v| json_value?(v) }
+      else value.nil? || value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+      end
     end
 
     # True when what +klass+ renders could differ by requester: its Policy

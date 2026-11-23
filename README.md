@@ -298,15 +298,16 @@ What a create or update may set is what the Policy declares `writable`.
 Anything else in the params is dropped, as strong parameters drop it:
 
     class PhotoPolicy < StandardAPI::Policy
-      attributes :caption, :metadata, writable: true    # metadata, a jsonb column, takes an object or null
+      attributes :caption, :metadata, writable: true    # metadata, a jsonb column, takes any JSON value
       attribute :account_id, writable: { on: :create }  # can't be changed after
       attribute :tags, writable: [:name, { filter: {} }] # an array of objects
       writable :file                                    # without rendering it
     end
 
 `writable: true` permits what the column's type takes: an array for an array
-column, an object or `null` for a `json` or `jsonb` one, or else a single
-value. A strong parameters permit, as an Array, takes its place. `on: :create`
+column, any JSON value for a `json` or `jsonb` one (an object, an array, a
+scalar or `null`, nested to any depth, as `schema/write.json` describes it),
+or else a single value. A strong parameters permit, as an Array, takes its place. `on: :create`
 or `on: :update` permits it only on one; a model, ie. for the schema, is a
 create.
 
