@@ -93,7 +93,9 @@ inherited controllers an exposed API.
         [:author]
       end
 
-      # An include can also be a method of the model that takes an argument.
+      # An include can also be a method of the model, which is called with the
+      # params when there are any, so define it to accept them, ie. with
+      # `*args`.
       # Permitting it with an Array lists the params nested in its include that
       # are passed to it, ie. `include[data][status]=inactive` calls
       # `data(status: 'inactive')` on a model defining `def data(filter = {})`.

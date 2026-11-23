@@ -72,7 +72,7 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
     assert_equal({ 'status' => 'inactive' }, json.first['history']['filter'])
   end
 
-  test "params nested in a method that takes none are checked as the includes of what it returns" do
+  test "params nested in a method permitted by name are rejected" do
     get_camera_include(specs: { status: 'inactive' })
     assert_response :bad_request
   end

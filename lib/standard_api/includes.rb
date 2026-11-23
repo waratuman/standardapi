@@ -112,11 +112,11 @@ module StandardAPI
     # association or a method rendered as an include, in which case includes
     # are checked against +permit+ alone.
     #
-    # A method of +model+ that takes an argument, permitted with an Array or a
-    # Hash, ie. +{ data: [:status] }+ or +{ data: {} }+, takes the params nested
-    # in its include as its argument instead of permitting includes nested in
-    # it, see #method_include_params. +raw+ is the unnormalized +includes+,
-    # which normalizing would mangle the params of.
+    # A method of +model+ permitted with an Array or a Hash, ie.
+    # +{ data: [:status] }+ or +{ data: {} }+, takes the params nested in its
+    # include as its argument instead of permitting includes nested in it, see
+    # #method_include_params. +raw+ is the unnormalized +includes+, which
+    # normalizing would mangle the params of.
     def sanitize_includes(includes, permit, model, normalized: false, raw: nil)
       raw = includes if !normalized
       includes = normalize_includes(includes) if !normalized
@@ -135,7 +135,7 @@ module StandardAPI
 
           subpermit = permit[k] || {}
           association = model&.reflect_on_association(k)
-          if params_permit.has_key?(k) && !association && method_takes_params?(model, k)
+          if params_permit.has_key?(k) && model && !association && model.method_defined?(k)
             method_include_params(k, v, raw, model, params_permit[k])
           elsif association && !association.polymorphic?
             subpermit = includes_for(association.klass) if subpermit.empty?
@@ -177,15 +177,8 @@ module StandardAPI
       end
     end
 
-    # True when +model+ has a method +name+ that takes an argument, ie.
-    # <tt>def data(filter = {})</tt>. Includes nested in a method without
-    # one, ie. +{ specs: [:serial] }+, are the includes of what it returns.
-    def method_takes_params?(model, name)
-      !!model && model.method_defined?(name) && model.instance_method(name).arity != 0
-    end
-
-    # The sanitized include of a method that takes an argument, permitted in
-    # ACL +includes+ with +permit+, an Array or a Hash:
+    # The sanitized include of a method, permitted in ACL +includes+ with
+    # +permit+, an Array or a Hash:
     #
     #   { data: [:status] }   # only status is passed
     #   { data: {} }          # any params are passed

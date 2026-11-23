@@ -70,7 +70,7 @@
 
 ### Added
 
-- Params nested in the include of a method that takes an argument, ie.
+- Params nested in the include of a method, ie.
   `include[data][status]=inactive` for `def data(filter = {})`, are passed to it
   when the ACL permits the method with an Array or a Hash:
   - `{ data: [:status] }` permits the params listed, written like the
@@ -85,9 +85,11 @@
     return what is passed to the method instead, or to raise
     `StandardAPI::UnpermittedParameters`.
 
-  Includes nested in a method that takes no argument, ie. `{ specs: [:serial] }`,
-  are still the includes of what it returns, and a method permitted by name,
-  ie. `:data`, is called without params.
+  The method is called with them whatever it accepts, so one that takes no
+  argument raises an `ArgumentError` (use `*args`). An Array or Hash in the ACL
+  for a method of the model is therefore the params permitted, no longer the
+  includes nested in what it returns, ie. `{ specs: [:serial] }`. A method
+  permitted by name, ie. `:data`, is called without params.
 - ACL excludes can remove attributes and nested associations from serialized
   responses.
 - Exclude-aware serialization helpers for custom model partials.
