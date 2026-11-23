@@ -65,7 +65,12 @@
 - Remove ACL `attributes`. What a create or update may set is what the
   model's Policy declares `writable`, ie. `attributes :name, writable: true`,
   decided for the record being created or updated. A json column takes an
-  object or `null`, and an array column an array, without saying so.
+  object or `null`, and an array column an array, without saying so. An
+  array or a single value sent for a json column is dropped, as strong
+  parameters drop what they don't permit, where an ACL listing it as both
+  `:metadata` and `{ metadata: {} }` let a single value through; a strong
+  parameters permit, ie. `writable: []`, takes an array. `schema/write.json`
+  describes a json column as `{ "type": ["object", "null"] }`.
   `Controller#model_attributes` is removed, and a `<model>_attributes`
   controller method isn't used.
 - Remove ACL `nested`. What a create or update may write through nested

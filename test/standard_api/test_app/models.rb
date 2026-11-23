@@ -294,6 +294,8 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       # Enables the `photo` association fragment cache, so the exclude tests
       # exercise the cached render path and not just the uncached one.
       t.datetime 'photo_cached_at'
+      # SQLite has no jsonb; its json is text Rails casts as JSON
+      t.column   'metadata', connection.adapter_name == "PostgreSQL" ? :jsonb : :json
     end
 
     create_table "accessories", force: :cascade do |t|
