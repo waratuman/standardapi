@@ -111,7 +111,13 @@ module StandardAPI
     # +model+ is nil when there is no single model, ie. through a polymorphic
     # association or a method rendered as an include, in which case includes
     # are checked against +permit+ alone.
-    def sanitize_includes(includes, permit, model, normalized: false)
+    #
+    # A method permitted with an empty Hash, ie. +{ data: {} }+, takes the
+    # params nested in its include as its argument, see #method_include_params.
+    # +raw+ is the unnormalized +includes+, which normalizing would mangle
+    # the params of.
+    def sanitize_includes(includes, permit, model, normalized: false, raw: nil)
+      raw = includes if !normalized
       includes = normalize_includes(includes) if !normalized
       permitted = ActiveSupport::HashWithIndifferentAccess.new
 
@@ -119,18 +125,22 @@ module StandardAPI
         permit = permit.inject({}) { |acc, v| acc[v] = true; acc }
       end
 
-      permit = normalize_includes(permit.with_indifferent_access)
+      permit = permit.with_indifferent_access
+      takes_params = permit.select { |_, v| v.is_a?(Hash) && v.empty? }.keys
+      permit = normalize_includes(permit)
       includes.each do |k, v|
         permitted[k] = if permit.has_key?(k)
           check_include_when(k, v['when'], model) if v.is_a?(Hash) && v.has_key?('when')
 
           subpermit = permit[k] || {}
           association = model&.reflect_on_association(k)
-          if association && !association.polymorphic?
+          if takes_params.include?(k) && model && !association
+            method_include_params(k, v, raw)
+          elsif association && !association.polymorphic?
             subpermit = includes_for(association.klass) if subpermit.empty?
-            sanitize_includes(v, subpermit, association.klass, normalized: true)
+            sanitize_includes(v, subpermit, association.klass, normalized: true, raw: raw_include(raw, k))
           else
-            sanitize_includes(v, subpermit, nil, normalized: true)
+            sanitize_includes(v, subpermit, nil, normalized: true, raw: raw_include(raw, k))
           end
         elsif k.to_s == 'where'
           # Filters the included records, so is checked against the wheres
@@ -154,6 +164,31 @@ module StandardAPI
       end
 
       permitted
+    end
+
+    # The unnormalized value of the include +key+ in +raw+, or nil.
+    def raw_include(raw, key)
+      case raw
+      when Array
+        raw.flatten.filter_map { |r| raw_include(r, key) }.last
+      when Hash, ActionController::Parameters
+        raw[key] || raw[key.to_s]
+      end
+    end
+
+    # The sanitized include of a method permitted with an empty Hash, ie.
+    # +{ data: {} }+ in ACL +includes+: the params nested in it, ie.
+    # include[data][status]=inactive, kept as they were sent under +params+
+    # for the views to pass to the method. Without any it is left empty, so the
+    # method is called without arguments.
+    def method_include_params(key, normalized, raw)
+      return {} if normalized.blank?
+
+      params = raw_include(raw, key)
+      params = params.to_unsafe_h if params.is_a?(ActionController::Parameters)
+      return {} if !params.is_a?(Hash)
+
+      { 'params' => params }
     end
 
     # The index views render an include only for the records whose attributes

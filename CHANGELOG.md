@@ -70,6 +70,11 @@
 
 ### Added
 
+- Params nested in the include of a method, ie. `include[data][status]=inactive`,
+  are passed to it as a Hash, ie. `data(status: 'inactive')`, when the ACL
+  permits the method with an empty Hash, ie. `{ data: {} }`, and the method
+  takes an argument. Any other include of a method with nested params is
+  rejected with a 400, as before.
 - ACL excludes can remove attributes and nested associations from serialized
   responses.
 - Exclude-aware serialization helpers for custom model partials.

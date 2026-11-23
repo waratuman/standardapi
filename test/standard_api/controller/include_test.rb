@@ -2,6 +2,48 @@ require 'standard_api/test_helper'
 
 class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
+  # = Params nested in the include of a method
+
+  test "params nested in a method include are passed to the method" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: { readings: { status: 'inactive', range: { gt: '1' } } } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive', 'range' => { 'gt' => '1' } }, json['readings']['filter'])
+    assert_equal ['Symbol'], json['readings']['keys']
+  end
+
+  test "a method include without nested params is called without any" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: [:readings] }, as: :json
+    assert_response :ok
+    assert_equal({}, JSON.parse(response.body)['readings']['filter'])
+
+    get "/cameras/#{camera.id}", params: { include: { readings: true } }, as: :json
+    assert_response :ok
+    assert_equal({}, JSON.parse(response.body)['readings']['filter'])
+  end
+
+  test "params nested in a method include are passed on index" do
+    create(:camera)
+
+    get "/cameras", params: { limit: 100, include: { readings: { status: 'inactive' } } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive' }, json.first['readings']['filter'])
+  end
+
+  test "params nested in a method include are rejected unless the ACL permits them with an empty Hash" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: { specs: { status: 'inactive' } } }, as: :json
+    assert_response :bad_request
+  end
+
   # = Including an invalid include
 
   test "Controller#create with a valid include" do

@@ -89,6 +89,21 @@ module StandardAPI
       value.is_a?(Hash) ? value : nil
     end
 
+    # The value of the method +name+ rendered as an include on +record+. The
+    # params nested in the include, ie. include[data][status]=inactive, are
+    # passed as its argument, ie. +data(status: 'inactive')+, when the ACL
+    # permits them (see Includes#sanitize_includes) and the method takes one.
+    def include_method_value(record, name, subincludes)
+      params = subincludes.is_a?(Hash) ? subincludes['params'] : nil
+      return record.send(name) if params.blank?
+
+      if record.method(name).arity == 0
+        record.send(name)
+      else
+        record.send(name, params.to_h.deep_symbolize_keys)
+      end
+    end
+
     # Apply an exclude sub-tree to a plain JSON value.
     #
     # An include can resolve to something that isn't a record — a method
@@ -198,7 +213,7 @@ module StandardAPI
     end
 
     def cached_at_columns_for_includes(includes)
-      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on'].include?(k) }.map do |k, v|
+      includes.select { |k,v| !['when', 'where', 'limit', 'order', 'distinct', 'distinct_on', 'params'].include?(k) }.map do |k, v|
         ["#{k}_cached_at"] + cached_at_columns_for_includes(v).map { |v2| "#{k}_#{v2}" }
       end.flatten
     end

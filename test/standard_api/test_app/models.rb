@@ -115,6 +115,11 @@ class Camera < ActiveRecord::Base
   def specs
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
+
+  # An include that takes the params nested in it as its argument.
+  def readings(filter = {})
+    { 'filter' => filter, 'class' => filter.class.name, 'keys' => filter.keys.map(&:class).uniq.map(&:name) }
+  end
 end
 
 class UuidModel < ActiveRecord::Base

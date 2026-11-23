@@ -6,7 +6,7 @@ module StandardAPI
 
     # Keys that may appear alongside association names in an `include` and that
     # scope the query rather than name a relation.
-    RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on'].freeze
+    RESERVED_INCLUDE_KEYS = ['limit', 'offset', 'order', 'when', 'where', 'distinct', 'distinct_on', 'params'].freeze
 
     delegate :preloadables, :model_partial, to: :helpers
 

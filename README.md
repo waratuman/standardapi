@@ -92,6 +92,15 @@ inherited controllers an exposed API.
       def photo_includes
         [:author]
       end
+
+      # An include can also be a method of the model. Permitting it with an
+      # empty Hash passes the params nested in its include to the method,
+      # ie. `include[data][status]=inactive` calls `data(status: 'inactive')`
+      # on a model defining `def data(filter = {})`. Permitting it by name,
+      # ie. `:data`, passes nothing.
+      def chart_includes
+        { data: {} }
+      end
     end
 
 ##### Access Control List

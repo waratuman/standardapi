@@ -11,7 +11,7 @@ module CameraACL
 
   # Sub resources allowed to be included in the response
   def includes
-    [ :photo, :specs ]
+    { photo: true, specs: true, readings: {} }
   end
 
   # Attributes to exclude from the response, evaluated per-record. Dedicated
