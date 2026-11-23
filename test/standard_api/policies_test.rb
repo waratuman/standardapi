@@ -83,7 +83,7 @@ class PoliciesTest < ActionDispatch::IntegrationTest
     controller = DocumentsController.new
 
     # DocumentPolicy makes file and type writable
-    assert_equal controller.record_policy(Document).writable, controller.record_policy(Pdf).writable
+    assert_equal controller.record_policy(Document).writable_attributes, controller.record_policy(Pdf).writable_attributes
     assert_equal false, attribute(Pdf, 'type', controller: controller)[:read_only]
     assert_equal true, attribute(Pdf, 'rating', controller: controller)[:read_only]
 

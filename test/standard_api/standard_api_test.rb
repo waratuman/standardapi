@@ -154,15 +154,15 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @controller.send(:model_params).to_h, {}
   end
 
-  test 'Policy::Record#writable is decided for the record, a model being a create' do
+  test 'Policy::Record#writable_attributes is decided for the record, a model being a create' do
     controller = DocumentsController.new
 
-    assert_equal ['type', 'file'], controller.record_policy(Document).writable
-    assert_equal ['type', 'file', 'rating'], controller.record_policy(create(:document, type: 'movie')).writable
+    assert_equal ['type', 'file'], controller.record_policy(Document).writable_attributes.keys
+    assert_equal ['type', 'file', 'rating'], controller.record_policy(create(:document, type: 'movie')).writable_attributes.keys
   end
 
-  test 'Policy::Record#writable is empty when the Policy makes nothing writable' do
-    assert_equal [], ReferencesController.new.record_policy(Reference).writable
+  test 'Policy::Record#writable_attributes is empty when the Policy makes nothing writable' do
+    assert_equal({}, ReferencesController.new.record_policy(Reference).writable_attributes)
   end
 
   test 'Controller#mask' do

@@ -650,46 +650,44 @@ module StandardAPI
     end
 
     # What a create or update of +record+ may set, a model (nil) being a
-    # create, as strong parameters permit them: what's declared +writable+,
-    # on that action. It's asked before the params are assigned, so +if+ and
-    # +unless+, which decide what renders, don't apply.
-    def permitted_attributes(record)
-      writable_for(record).flat_map do |name, options|
-        next [] if model.reflect_on_association(name)
+    # create: what's declared +writable+, on that action, as name => what it
+    # takes, one of
+    #
+    #   { kind: :scalar }  a single value: a String, Numeric, true, false,
+    #                      nil, or another of strong parameters' permitted
+    #                      scalars, ie. an uploaded file
+    #   { kind: :array }   an array of those, or nil, for an array column
+    #   { kind: :json }    any JSON value, nested to any depth, for a json or
+    #                      jsonb column
+    #   { kind: :permit, permit: }  what its strong parameters permit, ie.
+    #                      <tt>[:name, { filter: {} }]</tt>, gives
+    #
+    # It's asked before the params are assigned, so +if+ and +unless+, which
+    # decide what renders, don't apply. Associations are apart
+    # (#permitted_associations).
+    def writable_attributes(record)
+      writable_for(record).each_with_object({}) do |(name, options), writable|
+        next if model.reflect_on_association(name)
         if options.key?(:policy)
           raise ArgumentError, "#{name} of #{model.name} isn't an association, so can't be writable with policy:"
         end
 
-        if options.key?(:permit)
-          [{ name => options[:permit] }]
+        writable[name] = if options.key?(:permit)
+          { kind: :permit, permit: options[:permit] }
         elsif model.columns_hash[name]&.array
-          [{ name => [] }]
+          { kind: :array }
         elsif json_attribute?(name)
-          # As near as strong parameters gets; the controller takes any JSON
-          # value for it (#permitted_json_attributes)
-          [name, { name => {} }]
+          { kind: :json }
         else
-          [name]
+          { kind: :scalar }
         end
-      end
-    end
-
-    # The names of the json and jsonb columns a create or update of +record+
-    # may set, a model (nil) being a create, to any JSON value: an object, an
-    # array, a scalar or null, nested to any depth. Strong parameters can't
-    # permit an array of objects or of arrays, so the controller copies what's
-    # sent for these. They're the ones #permitted_attributes permits without
-    # a +permit+, which takes their place.
-    def permitted_json_attributes(record)
-      writable_for(record).filter_map do |name, options|
-        name if !options.key?(:permit) && !model.reflect_on_association(name) && json_attribute?(name)
       end
     end
 
     # The names of the associations a create or update of +record+ may write
     # through nested attributes, a model (nil) being a create: those declared
     # +writable+, on that action, or on +on+ when it's given. As with
-    # #permitted_attributes, +if+ and +unless+ don't apply. What's written of
+    # #writable_attributes, +if+ and +unless+ don't apply. What's written of
     # the associated records is up to their own model's Policy.
     def permitted_associations(record, on: nil)
       builder = builder_for(record)

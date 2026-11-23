@@ -272,12 +272,14 @@ module StandardAPI
     end
 
     # The params of +resource+ its Policy, or +policy+ in its place, makes
-    # writable (Policy::Record#writable), and of the associations it makes
-    # writable (Policy::Record#writable_associations): the nested records'
-    # own, their ids, or the foreign key. A writable json column takes any
-    # JSON value (Policy::Record#writable_json). What it assigns
-    # (Policy::Record#assigned_attributes) overrides the params, and then its
-    # filters run on them (Policy::Record#filter_params).
+    # writable, each kept when it's what the Policy says it takes
+    # (Policy::Record#writable_attributes, #writable_param?), and of the
+    # associations it makes writable (Policy::Record#writable_associations):
+    # the nested records' own, their ids, or the foreign key. Anything else
+    # sent is dropped, and reported as strong parameters report an
+    # unpermitted parameter (+action_on_unpermitted_parameters+). What it
+    # assigns (Policy::Record#assigned_attributes) overrides the params, and
+    # then its filters run on them (Policy::Record#filter_params).
     def filter_model_params(resource, model_params, allow_id: nil, policy: nil)
       write_policy = record_policy(resource, policy)
       if !model_params
@@ -286,17 +288,32 @@ module StandardAPI
         return params.empty? ? params : params.permit!
       end
 
-      # Strong parameters drops an array of objects or of arrays, which a json
-      # column holds, so what's sent for one is copied rather than permitted
-      json = write_policy.writable_json.select { |name| model_params.has_key?(name) && json_value?(model_params[name]) }
-      scalar_params = model_params.except(*json)
-      permitted_params = allow_id ? scalar_params.permit(write_policy.writable, :id) : scalar_params.permit(write_policy.writable)
-      json.each { |name| permitted_params[name] = model_params[name] }
+      writable = write_policy.writable_attributes
+      # A nested record's id says which record to update
+      writable = { 'id' => { kind: :scalar } }.merge(writable) if allow_id
+      permitted_params = ActionController::Parameters.new
+      writable.each do |name, takes|
+        if takes[:kind] == :permit
+          # Strong parameters apply the shape it's declared with
+          permitted_params.merge!(model_params.slice(name).permit(name => takes[:permit]))
+        else
+          keys = [name]
+          # A multiparameter attribute, ie. a date sent as name(1i), name(2i)
+          keys.concat(model_params.keys.grep(/\A#{Regexp.escape(name)}\(\d+[if]?\)\z/)) if takes[:kind] == :scalar
+          keys.each do |key|
+            permitted_params[key] = model_params[key] if model_params.has_key?(key) && writable_param?(takes[:kind], model_params[key])
+          end
+        end
+      end
 
+      nested_keys = []
       write_policy.writable_associations.each do |relation|
         association = resource.association(relation.to_sym)
         attributes_key = association.reflection.name.to_s
         nested_policy = write_policy.writable_policy(relation)
+        nested_keys << attributes_key << "#{association.reflection.name.to_s.singularize}_ids"
+        nested_keys.concat(Array(association.reflection.foreign_key).map(&:to_s))
+        nested_keys << association.reflection.foreign_type.to_s if association.reflection.polymorphic?
         if model_params.has_key?(attributes_key)
           if model_params[attributes_key].nil?
             permitted_params[attributes_key] = nil
@@ -325,22 +342,46 @@ module StandardAPI
           permitted_params[association.reflection.foreign_type] = model_params[association.reflection.foreign_type] if association.reflection.polymorphic?
         end
       end
-      # The nested records were filtered by their own Policy
+      # Report what's dropped as strong parameters do: an empty permit of it
+      # logs or raises, per action_on_unpermitted_parameters
+      dropped = model_params.keys - permitted_params.keys - nested_keys
+      model_params.slice(*dropped).permit if dropped.any?
+
+      # What's kept was checked above, and the nested records were filtered by
+      # their own Policy
       permitted_params.permit!
 
       write_policy.assigned_attributes.each { |name, value| permitted_params[name] = value }
       write_policy.filter_params(permitted_params)
     end
 
-    # Whether +value+, a param, is a JSON value: nil, a String, Numeric or
-    # Boolean, or a Hash or an Array of them, ie. not an uploaded file
-    def json_value?(value)
-      case value
-      when ActionController::Parameters then value.to_unsafe_h.each_value.all? { |v| json_value?(v) }
-      when Hash then value.each_value.all? { |v| json_value?(v) }
-      when Array then value.all? { |v| json_value?(v) }
-      else value.nil? || value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+    # Whether +value+, a param, is what an attribute of +kind+ takes
+    # (Policy#writable_attributes). A scalar is what strong parameters permit
+    # as one (ActionController::Parameters::PERMITTED_SCALAR_TYPES): a
+    # String, Symbol, Numeric, true, false, nil, Date, Time, or an uploaded
+    # file or IO; so a Hash or an Array sent to a scalar column is dropped, as
+    # strong parameters drop it. An array column takes an Array of scalars,
+    # or nil. A json column takes any JSON value: a scalar, or a Hash or an
+    # Array of them nested to any depth.
+    def writable_param?(kind, value)
+      case kind
+      when :scalar then permitted_scalar_param?(value)
+      when :array then value.nil? || (value.is_a?(Array) && value.all? { |v| permitted_scalar_param?(v) })
+      when :json then json_param?(value)
+      else false
       end
+    end
+
+    def json_param?(value)
+      case value
+      when ActionController::Parameters, Hash then value.each_value.all? { |v| json_param?(v) }
+      when Array then value.all? { |v| json_param?(v) }
+      else permitted_scalar_param?(value)
+      end
+    end
+
+    def permitted_scalar_param?(value)
+      ActionController::Parameters::PERMITTED_SCALAR_TYPES.any? { |type| value.is_a?(type) }
     end
 
     # True when what +klass+ renders could differ by requester: its Policy

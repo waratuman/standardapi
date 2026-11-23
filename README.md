@@ -105,8 +105,8 @@ the `policy` local.
   decided for the model whatever the record.
 - `required_orders` names what every request is ordered by after its own
   orders, decided for the model too.
-- `writable` is what a create or update of the record may set, as strong
-  parameters permit it (see [Writes](#writes)); a model is a create.
+- `writable_attributes` is what a create or update of the record may set, as
+  name => what it takes (see [Writes](#writes)); a model is a create.
 - `value(name)` is the value to render for an attribute (see `value:`).
 - `hidden?(name)` tells if it hides an attribute or association of the model,
   or an attribute the Policy adds.
@@ -304,12 +304,29 @@ Anything else in the params is dropped, as strong parameters drop it:
       writable :file                                    # without rendering it
     end
 
-`writable: true` permits what the column's type takes: an array for an array
-column, any JSON value for a `json` or `jsonb` one (an object, an array, a
-scalar or `null`, nested to any depth, as `schema/write.json` describes it),
-or else a single value. A strong parameters permit, as an Array, takes its place. `on: :create`
-or `on: :update` permits it only on one; a model, ie. for the schema, is a
-create.
+`writable: true` permits what the column's type takes: a single value, what
+strong parameters permit as a scalar (a String, Numeric, `true`, `false`,
+`null`, a Date or Time, or an uploaded file); an array of those, or `null`, for
+an array column; or any JSON value for a `json` or `jsonb` one (an object, an
+array, a scalar or `null`, nested to any depth, as `schema/write.json`
+describes it). A value of another shape, ie. an object sent to a string
+column, is dropped. A strong parameters permit, as an Array, takes its place,
+and is applied with strong parameters. `on: :create` or `on: :update` permits
+it only on one; a model, ie. for the schema, is a create.
+
+What's dropped is reported as strong parameters report an unpermitted
+parameter, per `config.action_controller.action_on_unpermitted_parameters`:
+logged, raised, or neither. The params of a writable association aren't.
+
+`record_policy(record).writable_attributes` gives what the Policy permits, as
+name => what it takes:
+
+    { 'caption' => { kind: :scalar }, 'metadata' => { kind: :json },
+      'account_id' => { kind: :scalar },
+      'tags' => { kind: :permit, permit: [:name, { filter: {} }] },
+      'file' => { kind: :scalar } }
+
+with `{ kind: :array }` for an array column.
 
 What's writable is decided for the record being created or updated, before
 the params are assigned. An `if` or `unless` decides what renders, not what's
