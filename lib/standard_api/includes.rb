@@ -135,7 +135,7 @@ module StandardAPI
           subpermit = permit[k] || {}
           association = model&.reflect_on_association(k)
           if takes_params.include?(k) && model && !association
-            method_include_params(k, v, raw)
+            method_include_params(k, v, raw, model)
           elsif association && !association.polymorphic?
             subpermit = includes_for(association.klass) if subpermit.empty?
             sanitize_includes(v, subpermit, association.klass, normalized: true, raw: raw_include(raw, k))
@@ -178,17 +178,27 @@ module StandardAPI
 
     # The sanitized include of a method permitted with an empty Hash, ie.
     # +{ data: {} }+ in ACL +includes+: the params nested in it, ie.
-    # include[data][status]=inactive, kept as they were sent under +params+
-    # for the views to pass to the method. Without any it is left empty, so the
-    # method is called without arguments.
-    def method_include_params(key, normalized, raw)
+    # include[data][status]=inactive, kept under +params+ for the views to pass
+    # to the method. Without any it is left empty, so the method is called
+    # without arguments.
+    #
+    # The params are the ActionController::Parameters as they were sent, unless
+    # the controller defines +#{model}_include_params(name, params)+ (+include_params+
+    # in an ACL), which is called with them and returns what is passed to the
+    # method instead, ie. <tt>params.permit(:status)</tt>. It can raise
+    # StandardAPI::UnpermittedParameters to reject them.
+    def method_include_params(key, normalized, raw, model)
       return {} if normalized.blank?
 
       params = raw_include(raw, key)
-      params = params.to_unsafe_h if params.is_a?(ActionController::Parameters)
-      return {} if !params.is_a?(Hash)
+      return {} if !params.is_a?(Hash) && !params.is_a?(ActionController::Parameters)
 
-      { 'params' => params }
+      hook = [model, model.base_class].uniq.map { |k| "#{k.model_name.singular}_include_params" }.find do |method|
+        respond_to?(method, true)
+      end
+      params = send(hook, key, params) if hook
+
+      params.blank? ? {} : { 'params' => params }
     end
 
     # The index views render an include only for the records whose attributes

@@ -95,11 +95,21 @@ inherited controllers an exposed API.
 
       # An include can also be a method of the model. Permitting it with an
       # empty Hash passes the params nested in its include to the method,
-      # ie. `include[data][status]=inactive` calls `data(status: 'inactive')`
-      # on a model defining `def data(filter = {})`. Permitting it by name,
-      # ie. `:data`, passes nothing.
+      # ie. `include[data][status]=inactive` calls `data(params)` on a model
+      # defining `def data(filter = {})`, with the `ActionController::Parameters`
+      # sent. Permitting it by name, ie. `:data`, passes nothing.
       def chart_includes
         { data: {} }
+      end
+
+      # The params are untrusted, so permit them here, in the controller.
+      # What this returns is passed to the method, ie. `data(status: 'inactive')`
+      # for a Hash. Raise StandardAPI::UnpermittedParameters to respond 400.
+      # In an ACL this is `include_params`.
+      def chart_include_params(name, params)
+        case name.to_s
+        when 'data' then params.permit(:status).to_h
+        end
       end
     end
 

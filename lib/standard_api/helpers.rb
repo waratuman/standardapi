@@ -92,7 +92,7 @@ module StandardAPI
     # The value of the method +name+ rendered as an include on +record+. The
     # params nested in the include, ie. include[data][status]=inactive, are
     # passed as its argument, ie. +data(status: 'inactive')+, when the ACL
-    # permits them (see Includes#sanitize_includes) and the method takes one.
+    # permits them (see Includes#method_include_params) and the method takes one.
     def include_method_value(record, name, subincludes)
       params = subincludes.is_a?(Hash) ? subincludes['params'] : nil
       return record.send(name) if params.blank?
@@ -100,7 +100,10 @@ module StandardAPI
       if record.method(name).arity == 0
         record.send(name)
       else
-        record.send(name, params.to_h.deep_symbolize_keys)
+        # ActionController::Parameters are passed as they are; a Hash, whose
+        # keys the sanitized includes stringified, gets Symbol keys back
+        params = params.to_h.deep_symbolize_keys if params.is_a?(Hash)
+        record.send(name, params)
       end
     end
 

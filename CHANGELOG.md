@@ -74,7 +74,11 @@
   are passed to it as a Hash, ie. `data(status: 'inactive')`, when the ACL
   permits the method with an empty Hash, ie. `{ data: {} }`, and the method
   takes an argument. Any other include of a method with nested params is
-  rejected with a 400, as before.
+  rejected with a 400, as before. They are passed as the
+  `ActionController::Parameters` sent, unless the controller defines
+  `#{model}_include_params(name, params)` (`include_params` in an ACL), which
+  receives them and returns what is passed to the method instead, ie.
+  `params.permit(:status)`, or raises `StandardAPI::UnpermittedParameters`.
 - ACL excludes can remove attributes and nested associations from serialized
   responses.
 - Exclude-aware serialization helpers for custom model partials.

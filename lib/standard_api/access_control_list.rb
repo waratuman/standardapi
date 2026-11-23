@@ -49,6 +49,11 @@ module StandardAPI
         mod.send :remove_method, m
       end
 
+      if mod.instance_methods.include?(:include_params)
+        mod.send :alias_method, "#{prefix}_include_params".to_sym, :include_params
+        mod.send :remove_method, :include_params
+      end
+
       if mod.instance_methods.include?(:nested)
         mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
         mod.send :remove_method, :nested

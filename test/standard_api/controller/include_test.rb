@@ -12,7 +12,35 @@ class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
     assert_equal({ 'status' => 'inactive', 'range' => { 'gt' => '1' } }, json['readings']['filter'])
-    assert_equal ['Symbol'], json['readings']['keys']
+    assert_equal 'ActionController::Parameters', json['readings']['class']
+  end
+
+  test "the include_params hook filters the params passed to the method" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: { readings: { status: 'inactive', other: 'x' } } }, as: :json
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive' }, JSON.parse(response.body)['readings']['filter'])
+  end
+
+  test "the include_params hook can reject the params" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: { readings: { forbidden: 'x' } } }, as: :json
+
+    assert_response :bad_request
+  end
+
+  test "a Hash returned by the include_params hook is passed with Symbol keys" do
+    camera = create(:camera)
+
+    get "/cameras/#{camera.id}", params: { include: { history: { status: 'inactive', other: 'x' } } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive' }, json['history']['filter'])
+    assert_equal ['Symbol'], json['history']['keys']
   end
 
   test "a method include without nested params is called without any" do

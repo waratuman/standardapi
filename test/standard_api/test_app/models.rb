@@ -118,7 +118,12 @@ class Camera < ActiveRecord::Base
 
   # An include that takes the params nested in it as its argument.
   def readings(filter = {})
-    { 'filter' => filter, 'class' => filter.class.name, 'keys' => filter.keys.map(&:class).uniq.map(&:name) }
+    { 'filter' => filter.to_h, 'class' => filter.class.name }
+  end
+
+  # The same, but its ACL returns a Hash from the include_params hook
+  def history(filter = {})
+    { 'filter' => filter, 'class' => filter.class.name, 'keys' => filter.keys.map { |k| k.class.name }.uniq }
   end
 end
 
