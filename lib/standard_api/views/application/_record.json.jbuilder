@@ -6,7 +6,7 @@ record.attribute_names.each do |name|
 end
 
 includes.each do |inc, subinc|
-  next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on"].include?(inc)
+  next if ["limit", "offset", "order", "when", "where", "distinct", "distinct_on", "params"].include?(inc)
   next if excluded[inc] == true
 
   sub_excluded = sub_excludes(excluded, inc)
@@ -68,7 +68,7 @@ includes.each do |inc, subinc|
     end
   else
     if record.respond_to?(inc)
-      value = record.send(inc)
+      value = include_method_value(record, inc, subinc)
       if value.nil?
         json.set! inc, nil
       elsif value.is_a?(ActiveModel::Model)

@@ -2,6 +2,81 @@ require 'standard_api/test_helper'
 
 class ControllerIncludesTest < ActionDispatch::IntegrationTest
 
+  # = Params nested in the include of a method
+
+  def get_camera_include(include)
+    camera = create(:camera)
+    get "/cameras/#{camera.id}", params: { include: include }, as: :json
+    response.ok? ? JSON.parse(response.body) : nil
+  end
+
+  test "an ACL Array passes the params it permits to the method as a Hash with Symbol keys" do
+    json = get_camera_include(history: { status: 'inactive', range: { gt: '1' }, ids: ['1', '2'] })
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive', 'range' => { 'gt' => '1' }, 'ids' => ['1', '2'] }, json['history']['filter'])
+    assert_equal 'Hash', json['history']['class']
+    assert_equal ['Symbol'], json['history']['keys']
+  end
+
+  test "an ACL Array rejects params it doesn't permit" do
+    get_camera_include(history: { status: 'inactive', other: 'x' })
+    assert_response :bad_request
+    assert_match 'history[other]', response.body
+
+    get_camera_include(history: { range: { gt: '1', eq: '2' } })
+    assert_response :bad_request
+  end
+
+  test "an empty ACL Hash passes any params to the method as the Parameters sent" do
+    json = get_camera_include(snapshots: { status: 'inactive', other: { x: '1' } })
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive', 'other' => { 'x' => '1' } }, json['snapshots']['filter'])
+    assert_equal 'ActionController::Parameters', json['snapshots']['class']
+  end
+
+  test "the include_params hook receives the permitted params and returns what is passed to the method" do
+    json = get_camera_include(readings: { status: 'inactive', other: 'x' })
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive' }, json['readings']['filter'])
+    assert_equal 'Hash', json['readings']['class']
+  end
+
+  test "the include_params hook can reject the params" do
+    get_camera_include(readings: { forbidden: 'x' })
+    assert_response :bad_request
+  end
+
+  test "the include_params hook runs after the ACL permits the params" do
+    get_camera_include(history: { other: 'x' })
+    assert_response :bad_request
+  end
+
+  test "a method include without nested params is called without any" do
+    [[:history], { history: true }, [:readings], { snapshots: true }].each do |include|
+      json = get_camera_include(include)
+      assert_response :ok
+      assert_equal({}, json[(include.is_a?(Hash) ? include.keys : include).first.to_s]['filter'])
+    end
+  end
+
+  test "params nested in a method include are passed on index" do
+    create(:camera)
+
+    get "/cameras", params: { limit: 100, include: { history: { status: 'inactive' } } }, as: :json
+    json = JSON.parse(response.body)
+
+    assert_response :ok
+    assert_equal({ 'status' => 'inactive' }, json.first['history']['filter'])
+  end
+
+  test "params nested in a method permitted by name are rejected" do
+    get_camera_include(specs: { status: 'inactive' })
+    assert_response :bad_request
+  end
+
   # = Including an invalid include
 
   test "Controller#create with a valid include" do

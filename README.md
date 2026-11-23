@@ -92,6 +92,30 @@ inherited controllers an exposed API.
       def photo_includes
         [:author]
       end
+
+      # An include can also be a method of the model, which is called with the
+      # params when there are any, so define it to accept them, ie. with
+      # `*args`.
+      # Permitting it with an Array lists the params nested in its include that
+      # are passed to it, ie. `include[data][status]=inactive` calls
+      # `data(status: 'inactive')` on a model defining `def data(filter = {})`.
+      # Params not listed are rejected with a 400. They are listed like the
+      # arguments of `ActionController::Parameters#permit`.
+      #
+      # Permitting it with an empty Hash, ie. `{ data: {} }`, passes any params
+      # as the `ActionController::Parameters` sent, for the method to permit.
+      # Permitting it by name, ie. `:data`, passes nothing.
+      def chart_includes
+        { data: [:status, { range: [:gt, :lt] }] }
+      end
+
+      # Optionally, the controller receives the params once permitted and
+      # returns what is passed to the method, ie. to cast them, or raises
+      # StandardAPI::UnpermittedParameters to respond 400. In an ACL this is
+      # `include_params`.
+      def chart_include_params(name, params)
+        params
+      end
     end
 
 ##### Access Control List

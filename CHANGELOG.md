@@ -70,6 +70,26 @@
 
 ### Added
 
+- Params nested in the include of a method, ie.
+  `include[data][status]=inactive` for `def data(filter = {})`, are passed to it
+  when the ACL permits the method with an Array or a Hash:
+  - `{ data: [:status] }` permits the params listed, written like the
+    arguments of `ActionController::Parameters#permit`, ie.
+    `[:status, { range: [:gt, :lt] }, { ids: [] }]`. Others are rejected with a
+    400. They are passed as a Hash with Symbol keys, ie.
+    `data(status: 'inactive')`.
+  - `{ data: {} }` permits any, passed as the `ActionController::Parameters`
+    sent, for the method to permit.
+  - The controller can define `#{model}_include_params(name, params)`
+    (`include_params` in an ACL), called with the params once permitted, to
+    return what is passed to the method instead, or to raise
+    `StandardAPI::UnpermittedParameters`.
+
+  The method is called with them whatever it accepts, so one that takes no
+  argument raises an `ArgumentError` (use `*args`). An Array or Hash in the ACL
+  for a method of the model is therefore the params permitted, no longer the
+  includes nested in what it returns, ie. `{ specs: [:serial] }`. A method
+  permitted by name, ie. `:data`, is called without params.
 - ACL excludes can remove attributes and nested associations from serialized
   responses.
 - Exclude-aware serialization helpers for custom model partials.

@@ -115,6 +115,19 @@ class Camera < ActiveRecord::Base
   def specs
     { 'sensor' => 'CMOS', 'serial' => 'SN-123' }
   end
+
+  # Includes that take the params nested in them as their argument
+  def readings(filter = {})
+    { 'filter' => filter.to_h, 'class' => filter.class.name }
+  end
+
+  def history(filter = {})
+    { 'filter' => filter, 'class' => filter.class.name, 'keys' => filter.keys.map { |k| k.class.name }.uniq }
+  end
+
+  def snapshots(filter = {})
+    { 'filter' => filter.respond_to?(:to_unsafe_h) ? filter.to_unsafe_h : filter, 'class' => filter.class.name }
+  end
 end
 
 class UuidModel < ActiveRecord::Base

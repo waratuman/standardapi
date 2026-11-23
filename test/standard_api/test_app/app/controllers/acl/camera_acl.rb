@@ -11,7 +11,25 @@ module CameraACL
 
   # Sub resources allowed to be included in the response
   def includes
-    [ :photo, :specs ]
+    {
+      photo: true,
+      specs: true,
+      history: [ :status, { range: [:gt, :lt] }, { ids: [] } ], # only these params
+      readings: {},                                            # any params, see include_params
+      snapshots: {}                                            # any params, passed as they are
+    }
+  end
+
+  # The params nested in the include of a method are passed through here after
+  # the ACL has permitted them.
+  def include_params(name, params)
+    case name.to_s
+    when 'readings'
+      raise StandardAPI::UnpermittedParameters.new(['forbidden']) if params.key?(:forbidden)
+      params.permit(:status, range: [:gt])
+    else
+      params
+    end
   end
 
   # Attributes to exclude from the response, evaluated per-record. Dedicated
